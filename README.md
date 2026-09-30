@@ -209,3 +209,38 @@ and [Terms of Service](Terms-of-Service.md) as data-handling features are implem
 Implementation references: [discord.py commands API](https://discordpy.readthedocs.io/en/stable/ext/commands/api.html),
 [interactions and UI API](https://discordpy.readthedocs.io/en/stable/interactions/api.html), and
 [gateway intents](https://discordpy.readthedocs.io/en/stable/intents.html).
+
+## Railway deployment
+
+The included Dockerfile installs the bot and its runtime artwork and starts it with
+`python -m ky_bot`. Push it to GitHub to use it on Railway. The Docker build excludes
+local secrets, databases, logs, development environments, and source artwork.
+
+Use the Dockerfile builder. Clear any custom build or start command overrides
+so Railway uses the Dockerfile startup command.
+
+Attach a persistent volume at `/data`, then set these service variables:
+
+| Variable | Value |
+| --- | --- |
+| `DISCORD_TOKEN` | Enter your bot token privately in Railway |
+| `DATABASE_PATH` | `/data/ky-bot.sqlite3` |
+| `LOG_DIR` | `/data/logs` |
+| `COMMAND_SYNC` | `none` when commands are already registered |
+
+Keep one replica, Serverless disabled, and restart policy On Failure. Leave the
+HTTP healthcheck and public domain unset; this bot is a background worker.
+Stop any local bot instance before deploying, and look for `KY BOT online` in
+Railway logs. Verify `/ping`, `/help`, `/settings`, and `/footer` in Discord.
+If commands need registering, use `guild` with `DEV_GUILD_ID` for testing, or
+`global` for release; switch back to `none` after a successful sync.
+
+The volume preserves settings across deployments. Existing local settings are not
+uploaded automatically. To migrate them, stop the bot and transfer its SQLite
+file before the hosted bot starts. Back up any existing destination database first.
+Custom slogans require your licensed font on the volume and `FOOTER_FONT_PATH`
+set to its Linux path, such as `/data/fonts/Vonca.otf`.
+
+Railway references: [Dockerfiles](https://docs.railway.com/builds/dockerfiles),
+[variables](https://docs.railway.com/variables), and
+[volumes](https://docs.railway.com/volumes).
