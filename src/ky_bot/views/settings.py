@@ -13,7 +13,7 @@ def settings_embed(settings: GuildSettings, guild: discord.Guild) -> discord.Emb
     channel = guild.get_channel(channel_id) if channel_id else None
     value = "Not configured"
     if channel_id:
-        value = f"<#{channel_id}>" if channel else "Saved channel is unavailable — choose another."
+        value = f"<#{channel_id}>" if channel else f"<#{channel_id}> (reselect to verify access)"
     embed = discord.Embed(
         title="Server settings",
         description="Choose a log channel to prepare for future moderation features. "

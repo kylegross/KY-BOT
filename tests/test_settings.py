@@ -105,6 +105,7 @@ async def test_channel_validation_and_valid_save():
     service = SettingsService(repo)
     guild = Mock(id=2)
     guild.get_channel.return_value = None
+    guild.fetch_channel = AsyncMock(return_value=Mock(spec=discord.VoiceChannel))
     with pytest.raises(ValueError, match="existing text channel"):
         await service.set_log_channel(guild, 10)
     channel = Mock(spec=discord.TextChannel, id=10, guild=SimpleNamespace(id=99))
@@ -158,8 +159,62 @@ async def test_settings_command_admin_check_and_private_response():
         await connection.execute("SELECT 1")
 
 
-async def test_unavailable_channel_display():
+async def test_uncached_channel_display():
     async with open_settings(Path(":memory:")) as repo:
         await repo.set_log_channel(2, 10)
         embed = settings_embed(await repo.get(2), request().guild)
-        assert "unavailable" in embed.fields[0].value
+        assert "reselect to verify access" in embed.fields[0].value
+        assert "<#10>" in embed.fields[0].value
+
+
+async def test_uncached_text_channel_is_fetched_and_saved():
+    repo = Mock(set_log_channel=AsyncMock())
+    guild = Mock(id=2)
+    channel = Mock(spec=discord.TextChannel, id=10, guild=guild)
+    channel.permissions_for.return_value = discord.Permissions.all()
+    guild.get_channel.return_value = None
+    guild.fetch_channel = AsyncMock(return_value=channel)
+    await SettingsService(repo).set_log_channel(guild, 10)
+    guild.fetch_channel.assert_awaited_once_with(10)
+    repo.set_log_channel.assert_awaited_once_with(2, 10)
+
+
+@pytest.mark.parametrize(
+    "error_type,status,message",
+    [
+        (discord.NotFound, 404, "no longer exists"),
+        (discord.Forbidden, 403, "View Channel"),
+    ],
+)
+async def test_fetch_failure_is_actionable_and_does_not_save(error_type, status, message):
+    repo = Mock(set_log_channel=AsyncMock())
+    guild = Mock(id=2)
+    guild.get_channel.return_value = None
+    response = SimpleNamespace(status=status, reason="test")
+    guild.fetch_channel = AsyncMock(side_effect=error_type(response, "test"))
+    with pytest.raises(ValueError, match=message):
+        await SettingsService(repo).set_log_channel(guild, 10)
+    repo.set_log_channel.assert_not_awaited()
+
+
+async def test_fetched_channel_still_requires_bot_permissions():
+    repo = Mock(set_log_channel=AsyncMock())
+    guild = Mock(id=2)
+    channel = Mock(spec=discord.TextChannel, id=10, guild=guild)
+    channel.permissions_for.return_value = discord.Permissions.none()
+    guild.get_channel.return_value = None
+    guild.fetch_channel = AsyncMock(return_value=channel)
+    with pytest.raises(ValueError, match="need"):
+        await SettingsService(repo).set_log_channel(guild, 10)
+    repo.set_log_channel.assert_not_awaited()
+
+
+async def test_fetched_channel_from_another_server_is_rejected():
+    repo = Mock(set_log_channel=AsyncMock())
+    guild = Mock(id=2)
+    guild.get_channel.return_value = None
+    channel = Mock(spec=discord.TextChannel, id=10, guild=SimpleNamespace(id=99))
+    guild.fetch_channel = AsyncMock(return_value=channel)
+    with pytest.raises(ValueError, match="this server"):
+        await SettingsService(repo).set_log_channel(guild, 10)
+    repo.set_log_channel.assert_not_awaited()
