@@ -63,7 +63,7 @@ def metal(mask: Image.Image, style: str) -> Image.Image:
     """Tint alpha artwork consistently, with a restrained optional dual-color halo."""
     palettes = {
         "gold": ("#704009", "#e9b64e", "#fff4cf"),
-        "dark_silver": ("#090d14", "#424b58", "#d5e0eb"),
+        "dark_silver": ("#030303", "#22201e", "#dededc"),
         "silver_neon": ("#677b99", "#d5e1f0", "#ffffff"),
     }
     low, mid, high = palettes[style]
@@ -79,6 +79,27 @@ def metal(mask: Image.Image, style: str) -> Image.Image:
                 break
     ramp.putdata(values)
     colored = ImageOps.colorize(ramp.resize(mask.size), low, high, mid=mid).convert("RGBA")
+    if style == "silver_neon":
+        stops = [
+            (255, 184, 221),
+            (206, 184, 255),
+            (165, 217, 255),
+            (172, 255, 226),
+            (255, 236, 172),
+            (255, 184, 221),
+        ]
+        tint = Image.new("RGBA", (mask.width, 1))
+        values = []
+        for x in range(mask.width):
+            position = x / max(1, mask.width - 1) * (len(stops) - 1)
+            index = min(int(position), len(stops) - 2)
+            fraction = position - index
+            values.append(
+                tuple(round(a + (b - a) * fraction) for a, b in zip(stops[index], stops[index + 1]))
+                + (255,)
+            )
+        tint.putdata(values)
+        colored = Image.blend(colored, tint.resize(mask.size), 0.2)
     colored.putalpha(mask)
     result = Image.new("RGBA", mask.size)
     if style == "dark_silver":
@@ -86,11 +107,6 @@ def metal(mask: Image.Image, style: str) -> Image.Image:
         edge = Image.new("RGBA", mask.size, "#c7d2df")
         edge.putalpha(bevel.point(lambda x: x * 0.65))
         result.alpha_composite(edge)
-    if style == "silver_neon":
-        for color, offset in (("#ff8acf", (-3, -1)), ("#80cfff", (3, 1))):
-            glow = Image.new("RGBA", mask.size, color)
-            glow.putalpha(mask.filter(ImageFilter.GaussianBlur(4)).point(lambda x: x * 0.50))
-            result.alpha_composite(glow, offset)
     result.alpha_composite(colored)
     return result
 
@@ -137,6 +153,15 @@ def overlay(
         raise FooterError("Icon size must be between 60 and 120 percent.")
     result = asset(f"{style}_frame.png").convert("RGBA")
     for data, cx in ((left_icon, 206), (right_icon, 1970)):
+        if data is None:
+            icon = asset(f"{style}_icon.png").convert("RGBA")
+            icon = ImageOps.contain(
+                icon,
+                (round(220 * icon_scale / 100), round(150 * icon_scale / 100)),
+                Image.Resampling.LANCZOS,
+            )
+            result.alpha_composite(icon, (cx - icon.width // 2, 160 - icon.height // 2))
+            continue
         mask = (
             read_upload(data, icon=True).getchannel("A") if data else asset("icon.png").convert("L")
         )
@@ -145,6 +170,9 @@ def overlay(
         layer = Image.new("L", SIZE)
         layer.paste(mask, (cx - mask.width // 2, 160 - mask.height // 2))
         result.alpha_composite(metal(layer, style))
+    if slogan == SLOGAN:
+        result.alpha_composite(asset(f"{style}_slogan.png").convert("RGBA"))
+        return result
     mask = slogan_mask(slogan, font_path)
     layer = Image.new("L", SIZE)
     layer.paste(mask, ((SIZE[0] - mask.width) // 2, (SIZE[1] - mask.height) // 2))

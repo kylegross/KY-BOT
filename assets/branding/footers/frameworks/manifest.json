@@ -32,5 +32,10 @@
   ],
   "custom_font": "Set FOOTER_FONT_PATH to a licensed Vonca OTF/TTF",
   "icon_uploads": "Transparent PNG/WebP; alpha silhouette tinted to match frame",
-  "default_slogan": "POWERFUL BY NATURE. SIMPLE BY DESIGN."
+  "default_slogan": "POWERFUL BY NATURE. SIMPLE BY DESIGN.",
+  "style_labels": {
+    "silver_neon": "Iridescent silver",
+    "gold": "Original gold",
+    "dark_silver": "Black metallic"
+  }
 }

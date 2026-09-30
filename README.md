@@ -134,8 +134,8 @@ and a second server. Refresh reloads current saved values; unavailable saved cha
 
 ## Custom footer frameworks
 
-`/footer` creates a private PNG download with a user-uploaded background. Choose light silver
-with a pink/blue glow, metallic gold, or dark metallic silver. All styles use a 2176 × 320 canvas.
+`/footer` creates a private PNG download with a user-uploaded background. Choose iridescent silver
+with a rainbow tint, original gold, or dark silver/black metallic. All styles use a 2176 × 320 canvas.
 The background fills the capsule; the outside remains transparent. Dark silver works best on
 lighter backgrounds. This exports an image; it does not automatically change server settings or
 other bot messages.
@@ -163,10 +163,15 @@ There is no saved per-user customization profile; rerun the command to make anot
 
 Editable PNG layers and examples are in `assets/branding/footers/frameworks/`; runtime layers
 ship with the Python package. Original approved masters remain in `assets/branding/footers/masters/`.
-The revised volcanic background uses the supplied small stone reference as a repeated texture.
-`tools/build_footer_frameworks.py` rebuilds the frameworks and revised library from those sources
-(requires NumPy for the asset build only). The older `standardize_footers.py` rebuilds the original
-five masters; run the framework build afterward to restore the revised volcanic background.
+The revised volcanic background uses the supplied stone reference with gold ribbons and flecks
+from the approved banner. The five standard designs now use the approved three-leaf icon:
+gold for Volcanic and Botanical, iridescent silver for Abstract Nature, and black metallic
+for Floral Wreath and Stone Minimal. Previous exports are archived under
+`masters/before-approved-framework/`. The `silver_neon` internal style ID remains compatible;
+its displayed name and artwork are now iridescent silver.
+`tools/build_footer_frameworks.py` and `tools/standardize_footers.py` are historical builders for
+the earlier artwork, not the currently approved exports. Do not run them over the current library.
+Review compositions are retained under `previews/standard-framework-review/` and `previews/icon-review/`.
 
 ## Checks
 

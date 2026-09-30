@@ -26,7 +26,7 @@ class Footers(commands.Cog):
     @app_commands.checks.cooldown(1, 15, key=lambda interaction: interaction.user.id)
     @app_commands.choices(
         style=[
-            app_commands.Choice(name="Light silver · pink & blue glow", value="silver_neon"),
+            app_commands.Choice(name="Iridescent silver · rainbow tint", value="silver_neon"),
             app_commands.Choice(name="Metallic gold", value="gold"),
             app_commands.Choice(name="Dark metallic silver", value="dark_silver"),
         ]
