@@ -1,43 +1,4 @@
 {
-  "stone_minimal": {
-    "canvas": [
-      2176,
-      320
-    ],
-    "alpha_bbox": [
-      13,
-      21,
-      2163,
-      299
-    ],
-    "source": "ky_footer_stone_minimal_master.png"
-  },
-  "floral_wreath": {
-    "canvas": [
-      2176,
-      320
-    ],
-    "alpha_bbox": [
-      13,
-      21,
-      2163,
-      299
-    ],
-    "source": "ky_footer_floral_wreath_master.png"
-  },
-  "abstract_nature": {
-    "canvas": [
-      2176,
-      320
-    ],
-    "alpha_bbox": [
-      13,
-      21,
-      2163,
-      299
-    ],
-    "source": "ky_footer_abstract_nature_master.png"
-  },
   "volcanic": {
     "canvas": [
       2176,
@@ -49,7 +10,8 @@
       2163,
       299
     ],
-    "source": "ky_footer_volcanic_master.png"
+    "source": "approved-materials/volcanic_background.png",
+    "finish": "gold"
   },
   "botanical": {
     "canvas": [
@@ -62,6 +24,49 @@
       2163,
       299
     ],
-    "source": "ky_footer_botanical_master.png"
+    "source": "approved-materials/botanical_background.png",
+    "finish": "gold"
+  },
+  "abstract_nature": {
+    "canvas": [
+      2176,
+      320
+    ],
+    "alpha_bbox": [
+      13,
+      21,
+      2163,
+      299
+    ],
+    "source": "approved-materials/abstract_nature_background.png",
+    "finish": "rainbow_silver"
+  },
+  "floral_wreath": {
+    "canvas": [
+      2176,
+      320
+    ],
+    "alpha_bbox": [
+      13,
+      21,
+      2163,
+      299
+    ],
+    "source": "approved-materials/floral_wreath_background.png",
+    "finish": "dark_silver"
+  },
+  "stone_minimal": {
+    "canvas": [
+      2176,
+      320
+    ],
+    "alpha_bbox": [
+      13,
+      21,
+      2163,
+      299
+    ],
+    "source": "approved-materials/stone_minimal_background.png",
+    "finish": "dark_silver"
   }
 }

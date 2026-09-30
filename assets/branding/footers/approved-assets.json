@@ -1,0 +1,26 @@
+{
+  "status": "Approved",
+  "border_thickness_reduction": "15 percent",
+  "frame_native_pixels": [
+    2056,
+    765
+  ],
+  "export_pixels": [
+    2176,
+    320
+  ],
+  "texture": "Same generated frame; RGB recolor only; alpha identical",
+  "lettering": "Raster reference pending Vonca",
+  "variants": {
+    "volcanic": "gold",
+    "botanical": "gold",
+    "abstract_nature": "rainbow_silver",
+    "floral_wreath": "dark_silver",
+    "stone_minimal": "dark_silver"
+  },
+  "volcanic_adjustment": "Feathered contrast reduction behind slogan",
+  "background_native_pixels": [
+    2172,
+    724
+  ]
+}

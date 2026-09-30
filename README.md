@@ -163,8 +163,11 @@ There is no saved per-user customization profile; rerun the command to make anot
 
 Editable PNG layers and examples are in `assets/branding/footers/frameworks/`; runtime layers
 ship with the Python package. Original approved masters remain in `assets/branding/footers/masters/`.
-The revised volcanic background uses the supplied stone reference with gold ribbons and flecks
-from the approved banner. The five standard designs now use the approved three-leaf icon:
+The approved collection uses rebuilt backgrounds and a shared glossy molten-metal border,
+made 15% thinner across all finishes. Volcanic includes gold ribbons and a softened, darker
+area behind the slogan. Native background sources and generation prompts are retained in
+`masters/approved-materials/`; final exports are 2176 × 320, not native 4K. The existing raster
+lettering remains in use until the licensed Vonca font is installed. The five standard designs now use the approved three-leaf icon:
 gold for Volcanic and Botanical, iridescent silver for Abstract Nature, and black metallic
 for Floral Wreath and Stone Minimal. Previous exports are archived under
 `masters/before-approved-framework/`. The `silver_neon` internal style ID remains compatible;
