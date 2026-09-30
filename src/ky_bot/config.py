@@ -19,6 +19,7 @@ class Settings:
     log_level: str = "INFO"
     log_dir: Path = Path("logs")
     database_path: Path = Path("data/ky-bot.sqlite3")
+    footer_font_path: Path | None = None
 
     @classmethod
     def from_env(cls, env_file: Path = Path(".env")) -> "Settings":
@@ -46,6 +47,13 @@ class Settings:
         database_path = os.getenv("DATABASE_PATH", "data/ky-bot.sqlite3").strip()
         if not database_path:
             raise ConfigurationError("DATABASE_PATH must be a database file path.")
+        font_path = os.getenv("FOOTER_FONT_PATH", "").strip()
         return cls(
-            token, mode, guild_id, level, Path(os.getenv("LOG_DIR", "logs")), Path(database_path)
+            token,
+            mode,
+            guild_id,
+            level,
+            Path(os.getenv("LOG_DIR", "logs")),
+            Path(database_path),
+            Path(font_path) if font_path else None,
         )

@@ -1,0 +1,36 @@
+{
+  "canvas": [
+    2176,
+    320
+  ],
+  "styles": [
+    "silver_neon",
+    "gold",
+    "dark_silver"
+  ],
+  "layers": [
+    "background",
+    "frame",
+    "left_icon",
+    "right_icon",
+    "slogan"
+  ],
+  "background_crop": "cover; focal position 0\u2013100 on each axis",
+  "icon_centers": [
+    [
+      206,
+      160
+    ],
+    [
+      1970,
+      160
+    ]
+  ],
+  "slogan_center": [
+    1088,
+    160
+  ],
+  "custom_font": "Set FOOTER_FONT_PATH to a licensed Vonca OTF/TTF",
+  "icon_uploads": "Transparent PNG/WebP; alpha silhouette tinted to match frame",
+  "default_slogan": "POWERFUL BY NATURE. SIMPLE BY DESIGN."
+}

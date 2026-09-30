@@ -12,7 +12,7 @@ from ky_bot.errors import CommandTree
 from ky_bot.services.settings import SettingsService
 
 log = logging.getLogger(__name__)
-EXTENSIONS = ("ky_bot.cogs.core", "ky_bot.cogs.settings")
+EXTENSIONS = ("ky_bot.cogs.core", "ky_bot.cogs.settings", "ky_bot.cogs.footers")
 
 
 def build_intents() -> discord.Intents:

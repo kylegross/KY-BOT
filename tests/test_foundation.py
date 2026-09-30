@@ -59,7 +59,12 @@ async def test_extensions_intents_and_sync_scope(mode, expected_calls):
     ) as bot:
         bot.tree.sync = AsyncMock(return_value=[])
         await bot.setup_hook()
-        assert {command.name for command in bot.tree.get_commands()} == {"help", "ping", "settings"}
+        assert {command.name for command in bot.tree.get_commands()} == {
+            "help",
+            "ping",
+            "settings",
+            "footer",
+        }
         assert bot.intents.members and bot.intents.message_content
         assert not bot.intents.presences
         assert bot.tree.sync.await_count == expected_calls
@@ -69,6 +74,7 @@ async def test_extensions_intents_and_sync_scope(mode, expected_calls):
             bot.tree.sync.assert_awaited_once_with()
         await bot.unload_extension("ky_bot.cogs.core")
         await bot.unload_extension("ky_bot.cogs.settings")
+        await bot.unload_extension("ky_bot.cogs.footers")
         assert not bot.tree.get_commands()
 
 

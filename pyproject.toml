@@ -7,7 +7,7 @@ name = "ky-bot"
 version = "0.1.0"
 description = "A modular, slash-command-first Discord bot"
 requires-python = ">=3.11"
-dependencies = ["discord.py>=2.6,<3", "python-dotenv>=1.1,<2", "aiosqlite>=0.21,<1"]
+dependencies = ["discord.py>=2.6,<3", "python-dotenv>=1.1,<2", "aiosqlite>=0.21,<1", "Pillow>=11,<13"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2", "ruff>=0.11,<1"]
@@ -17,6 +17,9 @@ ky-bot = "ky_bot.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+ky_bot = ["assets/footer/*.png"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

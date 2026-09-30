@@ -6,7 +6,7 @@ KY BOT is a sophisticated, all-in-one Discord bot created around simplicity, ver
 A slash-command-first discord.py application with modular cogs, private Discord UI menus,
 validated environment configuration, rotating logs, safe error responses, and async resource cleanup.
 
-Available now: `/help`, `/ping`, and an administrator-only `/settings` menu with persistent
+Available now: `/help`, `/ping`, `/footer`, and an administrator-only `/settings` menu with persistent
 server configuration. Moderation, autodelete, autothreading, and games remain planned modules.
 The help menu labels them accordingly.
 
@@ -131,6 +131,42 @@ to a file outside OneDrive; do not share a live SQLite database between computer
 To check persistence, set a channel, restart, and reopen `/settings`. Also test a non-admin
 account, removal of admin permission while a menu is open, a channel the bot cannot access,
 and a second server. Refresh reloads current saved values; unavailable saved channels are labeled.
+
+## Custom footer frameworks
+
+`/footer` creates a private PNG download with a user-uploaded background. Choose light silver
+with a pink/blue glow, metallic gold, or dark metallic silver. All styles use a 2176 × 320 canvas.
+The background fills the capsule; the outside remains transparent. Dark silver works best on
+lighter backgrounds. This exports an image; it does not automatically change server settings or
+other bot messages.
+
+Optional inputs: `slogan`, `left_icon`, `right_icon`, `crop_x`, `crop_y`, `dim`, and `icon_scale`.
+One left icon is repeated on both sides unless a separate right icon is uploaded. Custom logos
+must have transparent backgrounds; their silhouettes receive the selected metallic finish.
+Crop coordinates run from 0–100, dimming from 0–80%, and icon scale from 60–120%.
+Backgrounds accept still PNG/JPEG/WebP files; icons accept transparent PNG/WebP.
+Each upload is limited to 8 MB, 16 megapixels, and 8192 pixels on either side.
+
+The original slogan lettering is included as artwork. For custom slogans, the owner must set
+`FOOTER_FONT_PATH` in `.env` to a licensed Vonca `.otf` or `.ttf` file, then restart the bot.
+The font is not bundled. Custom slogans show a clear explanation until it is installed;
+the default slogan, backgrounds, and icon customization work without it.
+
+Install updated dependencies with `python -m pip install -e ".[dev]"` in the project environment.
+Restart with `COMMAND_SYNC=guild` to register `/footer` in the test server, then return to `none`.
+The bot needs permission to attach files. No command registration or bot restart is performed
+by the asset build scripts.
+
+Uploaded backgrounds, logos, and slogans are processed in memory and are not written to the
+bot's database or filesystem. Discord handles the uploads and the private output attachment.
+There is no saved per-user customization profile; rerun the command to make another version.
+
+Editable PNG layers and examples are in `assets/branding/footers/frameworks/`; runtime layers
+ship with the Python package. Original approved masters remain in `assets/branding/footers/masters/`.
+The revised volcanic background uses the supplied small stone reference as a repeated texture.
+`tools/build_footer_frameworks.py` rebuilds the frameworks and revised library from those sources
+(requires NumPy for the asset build only). The older `standardize_footers.py` rebuilds the original
+five masters; run the framework build afterward to restore the revised volcanic background.
 
 ## Checks
 

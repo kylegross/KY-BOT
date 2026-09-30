@@ -7,7 +7,8 @@ PAGES = {
         "Welcome to KY BOT",
         "Your server toolkit, one interaction away.\n\n"
         "**Available now**\n`/help` — explore this menu\n`/ping` — check bot responsiveness\n"
-        "`/settings` — server configuration (admins)\n\n"
+        "`/settings` — server configuration (admins)\n"
+        "`/footer` — custom background and branding footer\n\n"
         "Choose a category below to see what’s planned.",
     ),
     "moderation": (
@@ -22,7 +23,7 @@ PAGES = {
     ),
     "utilities": (
         "Utilities & games",
-        "Available: `/ping` to check responsiveness.\n\n"
+        "Available: `/ping` to check responsiveness and `/footer` to create a branded footer.\n\n"
         "Planned: server utilities, interactive games, and reusable menus.",
     ),
     "admin": (
