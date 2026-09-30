@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -15,7 +16,14 @@ from ky_bot.views.help import HelpView
 
 @pytest.fixture
 def clean_env(monkeypatch, tmp_path):
-    for key in ("DISCORD_TOKEN", "COMMAND_SYNC", "DEV_GUILD_ID", "LOG_LEVEL", "LOG_DIR"):
+    for key in (
+        "DISCORD_TOKEN",
+        "COMMAND_SYNC",
+        "DEV_GUILD_ID",
+        "LOG_LEVEL",
+        "LOG_DIR",
+        "DATABASE_PATH",
+    ):
         monkeypatch.delenv(key, raising=False)
     return tmp_path / ".env"
 
@@ -46,10 +54,12 @@ def test_invalid_sync_config(clean_env, monkeypatch, mode, guild):
 
 @pytest.mark.parametrize("mode,expected_calls", [("none", 0), ("guild", 1), ("global", 1)])
 async def test_extensions_intents_and_sync_scope(mode, expected_calls):
-    async with KYBot(Settings("test-only-value", mode, 123456789)) as bot:
+    async with KYBot(
+        Settings("test-only-value", mode, 123456789, database_path=Path(":memory:"))
+    ) as bot:
         bot.tree.sync = AsyncMock(return_value=[])
         await bot.setup_hook()
-        assert {command.name for command in bot.tree.get_commands()} == {"help", "ping"}
+        assert {command.name for command in bot.tree.get_commands()} == {"help", "ping", "settings"}
         assert bot.intents.members and bot.intents.message_content
         assert not bot.intents.presences
         assert bot.tree.sync.await_count == expected_calls
@@ -58,6 +68,7 @@ async def test_extensions_intents_and_sync_scope(mode, expected_calls):
         elif mode == "global":
             bot.tree.sync.assert_awaited_once_with()
         await bot.unload_extension("ky_bot.cogs.core")
+        await bot.unload_extension("ky_bot.cogs.settings")
         assert not bot.tree.get_commands()
 
 
@@ -108,7 +119,7 @@ async def test_menu_owner_timeout_and_navigation():
 
 async def test_resources_close_with_bot():
     callback = AsyncMock()
-    async with KYBot(Settings("test-only-value")) as bot:
+    async with KYBot(Settings("test-only-value", database_path=Path(":memory:"))) as bot:
         bot.resources.push_async_callback(callback)
     callback.assert_awaited_once()
 
@@ -131,7 +142,7 @@ def test_token_redacted_from_message_and_traceback():
 
 
 async def test_help_command_sends_private_view():
-    async with KYBot(Settings("test-only-value")) as bot:
+    async with KYBot(Settings("test-only-value", database_path=Path(":memory:"))) as bot:
         await bot.setup_hook()
         request = interaction()
         request.original_response = AsyncMock()

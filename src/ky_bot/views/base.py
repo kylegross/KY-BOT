@@ -23,7 +23,7 @@ class OwnerView(discord.ui.View):
 
     async def on_timeout(self) -> None:
         for item in self.children:
-            if isinstance(item, (discord.ui.Button, discord.ui.Select)):
+            if isinstance(item, (discord.ui.Button, discord.ui.Select, discord.ui.ChannelSelect)):
                 item.disabled = True
         if self.message is not None:
             try:

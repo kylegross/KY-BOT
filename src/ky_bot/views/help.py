@@ -6,7 +6,8 @@ PAGES = {
     "home": (
         "Welcome to KY BOT",
         "Your server toolkit, one interaction away.\n\n"
-        "**Available now**\n`/help` — explore this menu\n`/ping` — check bot responsiveness\n\n"
+        "**Available now**\n`/help` — explore this menu\n`/ping` — check bot responsiveness\n"
+        "`/settings` — server configuration (admins)\n\n"
         "Choose a category below to see what’s planned.",
     ),
     "moderation": (
@@ -26,8 +27,8 @@ PAGES = {
     ),
     "admin": (
         "Admin tools",
-        "Planned: server settings and database-backed configuration.\n\n"
-        "Admin actions will require server permissions and bot permission checks.",
+        "Available: `/settings` — persistent server settings (administrators only).\n\n"
+        "Choose or clear a log channel for future moderation. Logging is not active yet.",
     ),
 }
 

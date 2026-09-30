@@ -18,6 +18,7 @@ class Settings:
     dev_guild_id: int | None = None
     log_level: str = "INFO"
     log_dir: Path = Path("logs")
+    database_path: Path = Path("data/ky-bot.sqlite3")
 
     @classmethod
     def from_env(cls, env_file: Path = Path(".env")) -> "Settings":
@@ -42,4 +43,9 @@ class Settings:
         level = os.getenv("LOG_LEVEL", "INFO").strip().upper()
         if level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
             raise ConfigurationError("LOG_LEVEL must be DEBUG, INFO, WARNING, ERROR, or CRITICAL.")
-        return cls(token, mode, guild_id, level, Path(os.getenv("LOG_DIR", "logs")))
+        database_path = os.getenv("DATABASE_PATH", "data/ky-bot.sqlite3").strip()
+        if not database_path:
+            raise ConfigurationError("DATABASE_PATH must be a database file path.")
+        return cls(
+            token, mode, guild_id, level, Path(os.getenv("LOG_DIR", "logs")), Path(database_path)
+        )

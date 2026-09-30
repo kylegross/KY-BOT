@@ -7,10 +7,12 @@ import discord
 from discord.ext import commands
 
 from ky_bot.config import Settings
+from ky_bot.database.settings import open_settings
 from ky_bot.errors import CommandTree
+from ky_bot.services.settings import SettingsService
 
 log = logging.getLogger(__name__)
-EXTENSIONS = ("ky_bot.cogs.core",)
+EXTENSIONS = ("ky_bot.cogs.core", "ky_bot.cogs.settings")
 
 
 def build_intents() -> discord.Intents:
@@ -36,10 +38,15 @@ class KYBot(commands.Bot):
             activity=discord.Game(name="/help · KY BOT"),
         )
         self.settings = settings
-        # Future database pools/services enter async contexts here; close() releases them.
+        # Async services share the bot lifecycle and are released by close().
         self.resources = AsyncExitStack()
+        self.server_settings: SettingsService
 
     async def setup_hook(self) -> None:
+        repository = await self.resources.enter_async_context(
+            open_settings(self.settings.database_path)
+        )
+        self.server_settings = SettingsService(repository)
         for extension in EXTENSIONS:
             await self.load_extension(extension)
             log.info("Loaded extension %s", extension)

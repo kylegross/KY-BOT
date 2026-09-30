@@ -6,9 +6,9 @@ KY BOT is a sophisticated, all-in-one Discord bot created around simplicity, ver
 A slash-command-first discord.py application with modular cogs, private Discord UI menus,
 validated environment configuration, rotating logs, safe error responses, and async resource cleanup.
 
-Available now: `/help` (category selector and close button) and `/ping`.
-Moderation, autodelete, autothreading, games, admin tools, and persistence are **planned modules**,
-not active features. The help menu labels them accordingly.
+Available now: `/help`, `/ping`, and an administrator-only `/settings` menu with persistent
+server configuration. Moderation, autodelete, autothreading, and games remain planned modules.
+The help menu labels them accordingly.
 
 ## First launch on Windows
 
@@ -65,6 +65,7 @@ Real environment variables override `.env`, so production hosts can inject secre
 | `DEV_GUILD_ID` | Positive server ID; required for guild sync | Empty |
 | `LOG_LEVEL` | DEBUG, INFO, WARNING, ERROR, CRITICAL | INFO |
 | `LOG_DIR` | Rotating UTF-8 log location | `logs` |
+| `DATABASE_PATH` | SQLite settings file; parent folder created automatically | `data/ky-bot.sqlite3` |
 
 Loading cogs registers commands locally; **sync publishes the command definitions to Discord**.
 It happens once during setup, never on reconnect. Re-sync after changing command definitions.
@@ -89,7 +90,7 @@ src/ky_bot/
   cogs/core.py      /help and /ping
   views/           Reusable owner-checked menus and component error handling
   services/        Future domain logic (moderation, automation, games)
-  database/        Future repositories, connection pools, and migrations
+  database/        Async SQLite settings repository and schema migration
 tests/             Offline foundation tests
 ```
 
@@ -106,13 +107,30 @@ constraints in the service. Recheck authorization in components that perform pri
 Scheduled autodelete/autothreading jobs should be cancellable, rate-limit-aware, and restarted
 from persisted server settings; stop owned background tasks in cog unload hooks.
 
-For persistence, open an async database pool in `setup_hook` before loading cogs using
-`await self.resources.enter_async_context(...)`. Inject repositories into services and services
-into cogs. `close()` releases registered resources even if startup fails. Start with an async
-SQLite adapter for a single process or an async PostgreSQL pool when deployment requires it;
-add migrations with the first schema and scope settings by guild ID. No database or data collection
-is implemented yet. Enabled member events do not imply a complete cached member list: fetch specific
-members as needed, or deliberately revise cache settings when adding a feature that requires them.
+The async SQLite repository opens before extensions load and closes with the bot, including
+on startup failure. Schema v1 is created automatically; a database from a newer schema version
+is rejected. Single-statement updates commit atomically and settings are scoped by guild ID.
+Future multi-statement operations must use serialized transactions; migrate schemas explicitly.
+Enabled member events do not imply a complete cached member list: fetch members as needed.
+
+## Server settings
+
+Restart once with `COMMAND_SYNC=guild` (and your test server ID) to register `/settings`, then
+return to `none`. Administrators can open the private menu to choose, clear, or refresh a log
+channel. Selections save immediately and survive restarts. Both the slash command and every
+component interaction enforce Administrator permission; only the menu opener may use its controls.
+The bot must be able to view the chosen text channel, send messages, and embed links.
+**Logging is not implemented yet**; choosing a channel prepares configuration for that module.
+
+Only server IDs and selected channel IDs are saved. Opening a menu does not create a database
+row. Clear log channel removes that server's row in schema v1. The database is Git-ignored.
+Run one bot process per database. Stop the bot before copying the database for a backup or
+moving it. For this OneDrive checkout, pause syncing while the bot runs or set `DATABASE_PATH`
+to a file outside OneDrive; do not share a live SQLite database between computers.
+
+To check persistence, set a channel, restart, and reopen `/settings`. Also test a non-admin
+account, removal of admin permission while a menu is open, a channel the bot cannot access,
+and a second server. Refresh reloads current saved values; unavailable saved channels are labeled.
 
 ## Checks
 
