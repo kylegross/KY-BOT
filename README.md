@@ -162,19 +162,20 @@ bot's database or filesystem. Discord handles the uploads and the private output
 There is no saved per-user customization profile; rerun the command to make another version.
 
 Editable PNG layers and examples are in `assets/branding/footers/frameworks/`; runtime layers
-ship with the Python package. Original approved masters remain in `assets/branding/footers/masters/`.
+ship with the Python package. Approved source artwork is retained in
+`assets/branding/footers/masters/approved-materials/`.
 The approved collection uses rebuilt backgrounds and a shared glossy molten-metal border,
 made 15% thinner across all finishes. Volcanic includes gold ribbons and a softened, darker
 area behind the slogan. Native background sources and generation prompts are retained in
 `masters/approved-materials/`; final exports are 2176 × 320, not native 4K. The existing raster
 lettering remains in use until the licensed Vonca font is installed. The five standard designs now use the approved three-leaf icon:
 gold for Volcanic and Botanical, iridescent silver for Abstract Nature, and black metallic
-for Floral Wreath and Stone Minimal. Previous exports are archived under
-`masters/before-approved-framework/`. The `silver_neon` internal style ID remains compatible;
+for Floral Wreath and Stone Minimal. The `silver_neon` internal style ID remains compatible;
 its displayed name and artwork are now iridescent silver.
 `tools/build_footer_frameworks.py` and `tools/standardize_footers.py` are historical builders for
 the earlier artwork, not the currently approved exports. Do not run them over the current library.
-Review compositions are retained under `previews/standard-framework-review/` and `previews/icon-review/`.
+Draft reviews and superseded exports have been removed. Approved comparison sheets and
+framework examples remain alongside the final assets; earlier tracked versions remain in Git history.
 
 ## Checks
 
