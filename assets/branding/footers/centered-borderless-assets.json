@@ -1,0 +1,23 @@
+{
+  "status": "Approved",
+  "canvas": [
+    2176,
+    320
+  ],
+  "icon_max_dimensions": [
+    275,
+    188
+  ],
+  "icon_center": [
+    1088,
+    160
+  ],
+  "variants": {
+    "volcanic": "gold",
+    "botanical": "gold",
+    "abstract_nature": "silver_neon",
+    "floral_wreath": "dark_silver",
+    "stone_minimal": "dark_silver"
+  },
+  "method": "Mechanical compositing of approved layers; no generation"
+}
