@@ -161,7 +161,7 @@ Uploaded backgrounds, logos, and slogans are processed in memory and are not wri
 bot's database or filesystem. Discord handles the uploads and the private output attachment.
 There is no saved per-user customization profile; rerun the command to make another version.
 
-Editable PNG layers and examples are in `assets/branding/footers/frameworks/`; runtime layers
+Editable PNG layers are in `assets/branding/footers/frameworks/`; runtime layers
 ship with the Python package. Approved source artwork is retained in
 `assets/branding/footers/masters/approved-materials/`.
 The approved collection uses rebuilt backgrounds and a shared glossy molten-metal border,
@@ -174,8 +174,8 @@ for Floral Wreath and Stone Minimal. The `silver_neon` internal style ID remains
 its displayed name and artwork are now iridescent silver.
 `tools/build_footer_frameworks.py` and `tools/standardize_footers.py` are historical builders for
 the earlier artwork, not the currently approved exports. Do not run them over the current library.
-Draft reviews and superseded exports have been removed. Approved comparison sheets and
-framework examples remain alongside the final assets; earlier tracked versions remain in Git history.
+Draft reviews, preview images, and duplicate ZIP bundles have been removed. Approved source
+artwork, editable layers, and final exports remain; earlier tracked versions remain in Git history.
 
 ## Checks
 
