@@ -1,0 +1,405 @@
+{
+  "brand": "KY BOT",
+  "family": "Vonca",
+  "tagline": "POWERFUL BY NATURE. SIMPLE BY DESIGN.",
+  "units": {
+    "size": "px at final display size",
+    "tracking": "em",
+    "line_height": "multiplier"
+  },
+  "roles": {
+    "display": {
+      "otf": "Vonca-Bold.otf",
+      "ttf": "TTF/Vonca-Bold.ttf",
+      "weight": 700,
+      "size": 64,
+      "line_height": 1.08,
+      "tracking": 0.01,
+      "capitalization": "uppercase for short text"
+    },
+    "heading": {
+      "otf": "Vonca-Medium.otf",
+      "ttf": "TTF/Vonca-Medium.ttf",
+      "weight": 500,
+      "size": 36,
+      "line_height": 1.15,
+      "tracking": 0.02,
+      "capitalization": "uppercase for short text"
+    },
+    "subheading": {
+      "otf": "Vonca-Regular.otf",
+      "ttf": "TTF/Vonca-Regular.ttf",
+      "weight": 400,
+      "size": 24,
+      "line_height": 1.25,
+      "tracking": 0.01,
+      "capitalization": "sentence case"
+    },
+    "body": {
+      "otf": "Vonca-Regular.otf",
+      "ttf": "TTF/Vonca-Regular.ttf",
+      "weight": 400,
+      "size": 18,
+      "line_height": 1.5,
+      "tracking": 0,
+      "capitalization": "sentence case"
+    },
+    "label": {
+      "otf": "Vonca-Regular.otf",
+      "ttf": "TTF/Vonca-Regular.ttf",
+      "weight": 400,
+      "size": 14,
+      "line_height": 1.35,
+      "tracking": 0.06,
+      "capitalization": "uppercase for short text"
+    },
+    "tagline": {
+      "otf": "Vonca-Light.otf",
+      "ttf": "TTF/Vonca-Light.ttf",
+      "weight": 300,
+      "size": 18,
+      "line_height": 1.35,
+      "tracking": 0.08,
+      "capitalization": "uppercase for short text"
+    }
+  },
+  "inventory": [
+    {
+      "file": "TTF/Vonca-Bold.ttf",
+      "names": {
+        "1": "Vonca",
+        "2": "Bold",
+        "6": "VoncaBold",
+        "16": "Vonca",
+        "17": "Bold"
+      },
+      "weight": 700,
+      "variable": false,
+      "characters": 414,
+      "missing_brand_chars": [],
+      "features": {
+        "GSUB": [
+          "aalt",
+          "dlig",
+          "liga"
+        ],
+        "GPOS": [
+          "kern"
+        ]
+      }
+    },
+    {
+      "file": "TTF/Vonca-ExtraBold.ttf",
+      "names": {
+        "1": "Vonca Extra Bold",
+        "2": "Regular",
+        "6": "VoncaExtraBold",
+        "16": "Vonca",
+        "17": "Extra Bold"
+      },
+      "weight": 800,
+      "variable": false,
+      "characters": 414,
+      "missing_brand_chars": [],
+      "features": {
+        "GSUB": [
+          "aalt",
+          "dlig",
+          "liga"
+        ],
+        "GPOS": [
+          "kern"
+        ]
+      }
+    },
+    {
+      "file": "TTF/Vonca-ExtraLight.ttf",
+      "names": {
+        "1": "Vonca Extra Light",
+        "2": "Regular",
+        "6": "VoncaExtraLight",
+        "16": "Vonca",
+        "17": "Extra Light"
+      },
+      "weight": 200,
+      "variable": false,
+      "characters": 414,
+      "missing_brand_chars": [],
+      "features": {
+        "GSUB": [
+          "aalt",
+          "dlig",
+          "liga"
+        ],
+        "GPOS": [
+          "kern"
+        ]
+      }
+    },
+    {
+      "file": "TTF/Vonca-Light.ttf",
+      "names": {
+        "1": "Vonca Light",
+        "2": "Regular",
+        "6": "VoncaLight",
+        "16": "Vonca",
+        "17": "Light"
+      },
+      "weight": 300,
+      "variable": false,
+      "characters": 414,
+      "missing_brand_chars": [],
+      "features": {
+        "GSUB": [
+          "aalt",
+          "dlig",
+          "liga"
+        ],
+        "GPOS": [
+          "kern"
+        ]
+      }
+    },
+    {
+      "file": "TTF/Vonca-Medium.ttf",
+      "names": {
+        "1": "Vonca Medium",
+        "2": "Regular",
+        "6": "VoncaMedium",
+        "16": "Vonca",
+        "17": "Medium"
+      },
+      "weight": 500,
+      "variable": false,
+      "characters": 414,
+      "missing_brand_chars": [],
+      "features": {
+        "GSUB": [
+          "aalt",
+          "dlig",
+          "liga"
+        ],
+        "GPOS": [
+          "kern"
+        ]
+      }
+    },
+    {
+      "file": "TTF/Vonca-Regular.ttf",
+      "names": {
+        "1": "Vonca",
+        "2": "Regular",
+        "6": "VoncaRegular",
+        "16": "Vonca",
+        "17": "Regular"
+      },
+      "weight": 400,
+      "variable": false,
+      "characters": 414,
+      "missing_brand_chars": [],
+      "features": {
+        "GSUB": [
+          "aalt",
+          "dlig",
+          "liga"
+        ],
+        "GPOS": [
+          "kern"
+        ]
+      }
+    },
+    {
+      "file": "TTF/Vonca-Semibold.ttf",
+      "names": {
+        "1": "Vonca Semibold",
+        "2": "Regular",
+        "6": "VoncaSemibold",
+        "16": "Vonca",
+        "17": "Semibold"
+      },
+      "weight": 600,
+      "variable": false,
+      "characters": 414,
+      "missing_brand_chars": [],
+      "features": {
+        "GSUB": [
+          "aalt",
+          "dlig",
+          "liga"
+        ],
+        "GPOS": [
+          "kern"
+        ]
+      }
+    },
+    {
+      "file": "Vonca-Bold.otf",
+      "names": {
+        "1": "Vonca",
+        "2": "Bold",
+        "6": "VoncaBold",
+        "16": "Vonca",
+        "17": "Bold"
+      },
+      "weight": 700,
+      "variable": false,
+      "characters": 414,
+      "missing_brand_chars": [],
+      "features": {
+        "GSUB": [
+          "aalt",
+          "dlig",
+          "liga"
+        ],
+        "GPOS": [
+          "kern"
+        ]
+      }
+    },
+    {
+      "file": "Vonca-ExtraBold.otf",
+      "names": {
+        "1": "Vonca Extra Bold",
+        "2": "Regular",
+        "6": "VoncaExtraBold",
+        "16": "Vonca",
+        "17": "Extra Bold"
+      },
+      "weight": 800,
+      "variable": false,
+      "characters": 414,
+      "missing_brand_chars": [],
+      "features": {
+        "GSUB": [
+          "aalt",
+          "dlig",
+          "liga"
+        ],
+        "GPOS": [
+          "kern"
+        ]
+      }
+    },
+    {
+      "file": "Vonca-ExtraLight.otf",
+      "names": {
+        "1": "Vonca Extra Light",
+        "2": "Regular",
+        "6": "VoncaExtraLight",
+        "16": "Vonca",
+        "17": "Extra Light"
+      },
+      "weight": 200,
+      "variable": false,
+      "characters": 414,
+      "missing_brand_chars": [],
+      "features": {
+        "GSUB": [
+          "aalt",
+          "dlig",
+          "liga"
+        ],
+        "GPOS": [
+          "kern"
+        ]
+      }
+    },
+    {
+      "file": "Vonca-Light.otf",
+      "names": {
+        "1": "Vonca Light",
+        "2": "Regular",
+        "6": "VoncaLight",
+        "16": "Vonca",
+        "17": "Light"
+      },
+      "weight": 300,
+      "variable": false,
+      "characters": 414,
+      "missing_brand_chars": [],
+      "features": {
+        "GSUB": [
+          "aalt",
+          "dlig",
+          "liga"
+        ],
+        "GPOS": [
+          "kern"
+        ]
+      }
+    },
+    {
+      "file": "Vonca-Medium.otf",
+      "names": {
+        "1": "Vonca Medium",
+        "2": "Regular",
+        "6": "VoncaMedium",
+        "16": "Vonca",
+        "17": "Medium"
+      },
+      "weight": 500,
+      "variable": false,
+      "characters": 414,
+      "missing_brand_chars": [],
+      "features": {
+        "GSUB": [
+          "aalt",
+          "dlig",
+          "liga"
+        ],
+        "GPOS": [
+          "kern"
+        ]
+      }
+    },
+    {
+      "file": "Vonca-Regular.otf",
+      "names": {
+        "1": "Vonca",
+        "2": "Regular",
+        "6": "VoncaRegular",
+        "16": "Vonca",
+        "17": "Regular"
+      },
+      "weight": 400,
+      "variable": false,
+      "characters": 414,
+      "missing_brand_chars": [],
+      "features": {
+        "GSUB": [
+          "aalt",
+          "dlig",
+          "liga"
+        ],
+        "GPOS": [
+          "kern"
+        ]
+      }
+    },
+    {
+      "file": "Vonca-Semibold.otf",
+      "names": {
+        "1": "Vonca Semibold",
+        "2": "Regular",
+        "6": "VoncaSemibold",
+        "16": "Vonca",
+        "17": "Semibold"
+      },
+      "weight": 600,
+      "variable": false,
+      "characters": 414,
+      "missing_brand_chars": [],
+      "features": {
+        "GSUB": [
+          "aalt",
+          "dlig",
+          "liga"
+        ],
+        "GPOS": [
+          "kern"
+        ]
+      }
+    }
+  ],
+  "font_binaries_included": false
+}

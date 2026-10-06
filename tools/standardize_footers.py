@@ -2,10 +2,17 @@
 
 import json
 import shutil
+import sys
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+from PIL import ImageFont  # noqa: E402
+
+from ky_bot.services.typography import font_file  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1] / "assets/branding/footers"
 SOURCES = {
@@ -120,7 +127,7 @@ for name, (uid, text, icon, right) in SOURCES.items():
 order = ["volcanic", "botanical", "abstract_nature", "floral_wreath", "stone_minimal"]
 sheet = Image.new("RGB", (1200, 1080), "#25282c")
 d = ImageDraw.Draw(sheet)
-font = ImageFont.truetype("C:/Windows/Fonts/segoeui.ttf", 22)
+font = ImageFont.truetype(str(font_file("label")), 22)
 d.text((28, 16), "KY BOT / FOOTER COMPARISON", font=font, fill="#e6d8b9")
 for i, name in enumerate(order):
     y = 64 + i * 200

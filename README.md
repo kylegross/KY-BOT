@@ -135,7 +135,7 @@ and a second server. Refresh reloads current saved values; unavailable saved cha
 ## Custom footer frameworks
 
 `/footer` creates a private PNG download with a user-uploaded background. Choose iridescent silver
-with a rainbow tint, original gold, or dark silver/black metallic. All styles use a 2176 × 320 canvas.
+with a rainbow tint, original gold, or dark silver/black metallic. All styles use a 2176 Ã— 320 canvas.
 The background fills the capsule; the outside remains transparent. Dark silver works best on
 lighter backgrounds. This exports an image; it does not automatically change server settings or
 other bot messages.
@@ -143,14 +143,16 @@ other bot messages.
 Optional inputs: `slogan`, `left_icon`, `right_icon`, `crop_x`, `crop_y`, `dim`, and `icon_scale`.
 One left icon is repeated on both sides unless a separate right icon is uploaded. Custom logos
 must have transparent backgrounds; their silhouettes receive the selected metallic finish.
-Crop coordinates run from 0–100, dimming from 0–80%, and icon scale from 60–120%.
+Crop coordinates run from 0â€“100, dimming from 0â€“80%, and icon scale from 60â€“120%.
 Backgrounds accept still PNG/JPEG/WebP files; icons accept transparent PNG/WebP.
 Each upload is limited to 8 MB, 16 megapixels, and 8192 pixels on either side.
 
-The original slogan lettering is included as artwork. For custom slogans, the owner must set
-`FOOTER_FONT_PATH` in `.env` to a licensed Vonca `.otf` or `.ttf` file, then restart the bot.
-The font is not bundled. Custom slogans show a clear explanation until it is installed;
-the default slogan, backgrounds, and icon customization work without it.
+The default runtime tagline is rendered from licensed VONCA Light with restrained tracking.
+Its PNG layers ship with the bot; licensed font binaries do not. Local custom slogans use
+`assets/branding/fonts/private/Vonca-Light.otf` automatically. Set `KY_BOT_FONT_DIR` to an
+external font directory on other hosts, or retain `FOOTER_FONT_PATH` for an explicit OTF/TTF
+override. Use VONCA Light for that override. Restart the bot after changing configuration.
+The default tagline and icon/background customization still work without font binaries.
 
 Install updated dependencies with `python -m pip install -e ".[dev]"` in the project environment.
 Restart with `COMMAND_SYNC=guild` to register `/footer` in the test server, then return to `none`.
@@ -167,8 +169,8 @@ ship with the Python package. Approved source artwork is retained in
 The approved collection uses rebuilt backgrounds and a shared glossy molten-metal border,
 made 15% thinner across all finishes. Volcanic includes gold ribbons and a softened, darker
 area behind the slogan. Native background sources and generation prompts are retained in
-`masters/approved-materials/`; final exports are 2176 � 320, not native 4K. The existing raster
-lettering remains in use until the licensed Vonca font is installed. The five standard designs now use the approved three-leaf icon:
+`masters/approved-materials/`; final exports are 2176 × 320, not native 4K. The archived approved compositions retain their original lettering; the runtime footer
+tagline layers now use exact VONCA Light. The five standard designs now use the approved three-leaf icon:
 gold for Volcanic and Botanical, iridescent silver for Abstract Nature, and black metallic
 for Floral Wreath and Stone Minimal. The `silver_neon` internal style ID remains compatible;
 its displayed name and artwork are now iridescent silver.
@@ -244,3 +246,16 @@ set to its Linux path, such as `/data/fonts/Vonca.otf`.
 Railway references: [Dockerfiles](https://docs.railway.com/builds/dockerfiles),
 [variables](https://docs.railway.com/variables), and
 [volumes](https://docs.railway.com/volumes).
+## KY BOT typography
+
+VONCA is the standard for all designed visual text. Use Bold for display titles, Medium for
+headings, Regular for body and labels, and Light for POWERFUL BY NATURE. SIMPLE BY DESIGN.
+The shared graphic renderer is `ky_bot.services.typography`; font roles and tracking live there.
+See [the typography reference](assets/branding/typography/KY-BOT-Typography-Reference.md)
+and [style tokens](assets/branding/typography/KY-BOT-Typography-Tokens.json) for the complete hierarchy.
+
+Licensed local fonts are ignored by Git and excluded from the Docker build. For hosted custom
+slogans, install your private font on the persistent volume and point `KY_BOT_FONT_DIR` at
+that directory, or set `FOOTER_FONT_PATH` to `/data/fonts/Vonca-Light.otf`.
+Discord controls fonts in native embed text and buttons; exact VONCA applies to rendered graphics.
+Historical builders now use VONCA for their text, but must not overwrite the approved library.

@@ -84,8 +84,9 @@ def test_custom_icons_are_cropped_and_recolored_independently():
         read_upload(png(Image.new("RGB", (50, 50))), icon=True)
 
 
-def test_custom_slogan_requires_font_and_rejects_multiline():
-    with pytest.raises(FooterError, match="Vonca"):
+def test_custom_slogan_requires_font_and_rejects_multiline(tmp_path, monkeypatch):
+    monkeypatch.setenv("KY_BOT_FONT_DIR", str(tmp_path))
+    with pytest.raises(FooterError, match="VONCA"):
         slogan_mask("MY SERVER", None)
     with pytest.raises(FooterError, match="single-line"):
         slogan_mask("MY\nSERVER", None)

@@ -5,10 +5,12 @@ import warnings
 from importlib.resources import files
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
+
+from ky_bot.services.typography import TAGLINE, TypographyError, text_mask
 
 SIZE = (2176, 320)
-SLOGAN = "POWERFUL BY NATURE. SIMPLE BY DESIGN."
+SLOGAN = TAGLINE
 STYLES = ("silver_neon", "gold", "dark_silver")
 MAX_UPLOAD = 8 * 1024 * 1024
 MAX_PIXELS = 16_000_000
@@ -114,28 +116,10 @@ def metal(mask: Image.Image, style: str) -> Image.Image:
 def slogan_mask(text: str, font_path: Path | None) -> Image.Image:
     if text == SLOGAN:
         return asset("slogan.png").convert("L")
-    if not text or len(text) > 80 or any(ord(c) < 32 for c in text):
-        raise FooterError("Use a single-line slogan with 1–80 characters.")
-    if font_path is None or not font_path.is_file():
-        raise FooterError(
-            "Custom slogans need the Vonca font installed by the bot owner. "
-            "For now, leave the slogan empty to use the original KY BOT lettering."
-        )
     try:
-        font = ImageFont.truetype(str(font_path), 44)
-        box = font.getbbox(text)
-        while box[2] - box[0] > 1000 and font.size > 20:
-            font = ImageFont.truetype(str(font_path), font.size - 1)
-            box = font.getbbox(text)
-    except OSError:
-        raise FooterError(
-            "The configured Vonca font could not be loaded. Contact the bot owner."
-        ) from None
-    if box[2] - box[0] > 1000:
-        raise FooterError("That slogan is too wide. Please shorten it.")
-    mask = Image.new("L", (max(1, box[2] - box[0]), max(1, box[3] - box[1])))
-    ImageDraw.Draw(mask).text((-box[0], -box[1]), text, font=font, fill=255)
-    return mask
+        return text_mask(text, font_path=font_path)
+    except TypographyError as exc:
+        raise FooterError(str(exc)) from None
 
 
 def overlay(

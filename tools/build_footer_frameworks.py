@@ -7,7 +7,13 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+from PIL import ImageFont  # noqa: E402
+
+from ky_bot.services.typography import font_file  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -160,7 +166,7 @@ bio = io.BytesIO()
 demo.save(bio, format="PNG")
 sheet = Image.new("RGB", (1200, 910), "#24272c")
 d = ImageDraw.Draw(sheet)
-font = ImageFont.truetype("C:/Windows/Fonts/segoeui.ttf", 23)
+font = ImageFont.truetype(str(font_file("label")), 23)
 d.text((28, 18), "KY BOT / CUSTOM BACKGROUND FRAMEWORKS", font=font, fill="#e8eaf1")
 d.text(
     (28, 54),
