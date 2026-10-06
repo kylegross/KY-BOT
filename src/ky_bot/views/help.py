@@ -9,6 +9,7 @@ PAGES = {
         "**Available now**\n`/help` — explore this menu\n`/ping` — check bot responsiveness\n"
         "`/settings` — server configuration (admins)\n"
         "`/footer` — custom background and branding footer\n\n"
+        "`/header` — branded header with your own background\n\n"
         "Choose a category below to see what’s planned.",
     ),
     "moderation": (
@@ -23,7 +24,8 @@ PAGES = {
     ),
     "utilities": (
         "Utilities & games",
-        "Available: `/ping` to check responsiveness and `/footer` to create a branded footer.\n\n"
+        "Available: `/ping` to check responsiveness, `/footer` for branded footers, "
+        "and `/header` for menu and embed header graphics.\n\n"
         "Planned: server utilities, interactive games, and reusable menus.",
     ),
     "admin": (

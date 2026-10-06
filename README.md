@@ -6,7 +6,7 @@ KY BOT is a sophisticated, all-in-one Discord bot created around simplicity, ver
 A slash-command-first discord.py application with modular cogs, private Discord UI menus,
 validated environment configuration, rotating logs, safe error responses, and async resource cleanup.
 
-Available now: `/help`, `/ping`, `/footer`, and an administrator-only `/settings` menu with persistent
+Available now: `/help`, `/ping`, `/footer`, `/header`, and an administrator-only `/settings` menu with persistent
 server configuration. Moderation, autodelete, autothreading, and games remain planned modules.
 The help menu labels them accordingly.
 
@@ -259,3 +259,40 @@ slogans, install your private font on the persistent volume and point `KY_BOT_FO
 that directory, or set `FOOTER_FONT_PATH` to `/data/fonts/Vonca-Light.otf`.
 Discord controls fonts in native embed text and buttons; exact VONCA applies to rendered graphics.
 Historical builders now use VONCA for their text, but must not overwrite the approved library.
+
+## Menu and embed headers
+
+The approved header collection has five backgrounds: Volcanic, Botanical, Abstract Nature,
+Floral Wreath, and Stone Minimal. Each is available framed and borderless at 1600 × 520.
+All headers are slogan-free. The small icon and KY BOT mark sit at the top left, slightly
+inset on framed headers and closer to the corner on borderless headers. Optional titles use
+large VONCA Bold lettering with a thin matching line above and below.
+
+Final designs are in `assets/branding/headers/designs/`. Reusable transparent PNG templates
+are in `assets/branding/headers/templates/`, with separate frame and brand source layers in
+`assets/branding/headers/layers/`. The manifest documents the layout. No preview sheets or
+draft images are included in the project. Original approved footer assets remain intact.
+
+Use `/header` to upload a still PNG, JPEG, or WebP background, choose gold, iridescent silver,
+or black metallic, and choose framed or borderless. Optional inputs are `title`, `crop_x`,
+`crop_y`, and `dim`. The result is a private PNG download, processed in memory, with no saved
+customization profile. The brand mark stays fixed; there is no slogan input. Upload limits
+match `/footer`: 8 MB, 16 megapixels, and 8192 pixels per side. Exported graphics can be used
+in menus and embeds; the command does not automatically change existing bot messages.
+
+Blank headers and brand marks work without fonts on the host. Custom titles require your
+licensed `Vonca-Bold.otf` or `Vonca-Bold.ttf` in the private local font directory or in
+`KY_BOT_FONT_DIR` on the host. Font binaries are never bundled or committed.
+
+`ky_bot.services.headers.design_file(name, framed=False)` provides a borderless preset;
+omit `framed=False` for the framed preset. Attach those bytes as a Discord PNG file and
+reference the attachment from the embed image. `render_header` supports custom backgrounds
+and titles. Runtime PNGs are included in the Python package and Docker image.
+
+Regenerate final headers with `python tools/build_headers.py` when licensed fonts are
+available locally. This builder uses approved footer source assets and exports final
+designs, templates, and layers only. It does not alter the footers or generate draft sheets.
+
+Restart the bot and sync commands once to register `/header`: use `COMMAND_SYNC=guild` with
+your test server ID, or `global` for release, then return to `none`. Live command registration
+is not performed by the asset builder or tests.

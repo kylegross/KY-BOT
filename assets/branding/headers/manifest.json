@@ -1,0 +1,54 @@
+{
+  "canvas": [
+    1600,
+    520
+  ],
+  "brand": "KY BOT",
+  "slogan": null,
+  "brand_position": "Top left; icon before KY BOT",
+  "brand_bounds": {
+    "framed": [
+      72,
+      68,
+      343,
+      149
+    ],
+    "borderless": [
+      24,
+      24,
+      295,
+      105
+    ]
+  },
+  "brand_font": "Vonca-Medium.otf",
+  "title_font": "Vonca-Bold.otf",
+  "title_size": {
+    "default": 108,
+    "minimum": 48,
+    "maximum_width": 1280
+  },
+  "designs": {
+    "volcanic": "gold",
+    "botanical": "gold",
+    "abstract_nature": "silver_neon",
+    "floral_wreath": "dark_silver",
+    "stone_minimal": "dark_silver"
+  },
+  "styles": [
+    "gold",
+    "silver_neon",
+    "dark_silver"
+  ],
+  "templates": [
+    "framed",
+    "borderless"
+  ],
+  "background": "User supplied; cover crop with configurable focal point",
+  "layers": [
+    "background",
+    "optional_frame",
+    "top_left_brand"
+  ],
+  "title_treatment": "Centered VONCA Bold heading with a thin rule above and below; no title means no rules",
+  "font_binaries_included": false
+}

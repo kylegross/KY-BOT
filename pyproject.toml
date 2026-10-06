@@ -19,7 +19,7 @@ ky-bot = "ky_bot.__main__:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-ky_bot = ["assets/footer/*.png"]
+ky_bot = ["assets/footer/*.png", "assets/header/*.png"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
