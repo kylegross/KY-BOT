@@ -9,6 +9,7 @@ import pytest
 from discord import app_commands
 
 from ky_bot.bot import KYBot
+from ky_bot.cogs.settings import ServerSettings
 from ky_bot.config import Settings
 from ky_bot.database.settings import open_settings
 from ky_bot.services.settings import SettingsService
@@ -28,7 +29,7 @@ async def test_persistence_isolation_clear_and_schema(tmp_path):
         assert (await repo.get(1)).log_channel_id is None
         assert (await repo.get(2)).log_channel_id == 20
         async with repo.connection.execute("PRAGMA user_version") as cursor:
-            assert (await cursor.fetchone())[0] == 1
+            assert (await cursor.fetchone())[0] == 2
 
 
 async def test_newer_schema_rejected(tmp_path):
@@ -128,11 +129,12 @@ async def test_menu_saves_clears_and_disables_selector():
         interaction.guild.me = Mock()
         interaction.guild.get_channel.return_value = channel
         view = SettingsView(1, 2, service)
-        select = view.children[0]
+        view.show_section("logging", picker=True)
+        select = view.log_channel
         select._values = [SimpleNamespace(id=10)]
         await select.callback(interaction)
         assert (await repo.get(2)).log_channel_id == 10
-        await view.children[1].callback(interaction)
+        await view.clear_channel.callback(interaction)
         assert (await repo.get(2)).log_channel_id is None
         view.message = SimpleNamespace(edit=AsyncMock())
         await view.on_timeout()
@@ -162,7 +164,7 @@ async def test_settings_command_admin_check_and_private_response():
 async def test_uncached_channel_display():
     async with open_settings(Path(":memory:")) as repo:
         await repo.set_log_channel(2, 10)
-        embed = settings_embed(await repo.get(2), request().guild)
+        embed = settings_embed(await repo.get(2), request().guild, "logging")
         assert "reselect to verify access" in embed.fields[0].value
         assert "<#10>" in embed.fields[0].value
 
@@ -218,3 +220,80 @@ async def test_fetched_channel_from_another_server_is_rejected():
     with pytest.raises(ValueError, match="this server"):
         await SettingsService(repo).set_log_channel(guild, 10)
     repo.set_log_channel.assert_not_awaited()
+
+
+async def test_welcome_persistence_isolation_and_disable(tmp_path):
+    path = tmp_path / "welcome.sqlite3"
+    async with open_settings(path) as repo:
+        await repo.set_welcome_channel(1, 10)
+        await repo.set_welcome_message(1, "Hello {member}, welcome to {server}!")
+        await repo.set_log_channel(1, 11)
+        await repo.clear_log_channel(1)
+    async with open_settings(path) as repo:
+        settings = await repo.get(1)
+        assert settings.welcome_channel_id == 10
+        assert settings.welcome_message == "Hello {member}, welcome to {server}!"
+        assert (await repo.get(2)).welcome_channel_id is None
+        await repo.set_welcome_channel(1, None)
+        assert (await repo.get(1)).welcome_message == settings.welcome_message
+
+
+async def test_v1_upgrade_preserves_logging(tmp_path):
+    path = tmp_path / "v1.sqlite3"
+    async with aiosqlite.connect(path) as connection:
+        await connection.executescript(
+            "CREATE TABLE guild_settings (guild_id TEXT PRIMARY KEY, log_channel_id TEXT NOT NULL);"
+            "INSERT INTO guild_settings VALUES ('1', '10'); PRAGMA user_version = 1;"
+        )
+    async with open_settings(path) as repo:
+        assert (await repo.get(1)).log_channel_id == 10
+        await repo.set_welcome_channel(1, 20)
+        assert (await repo.get(1)).welcome_channel_id == 20
+
+
+async def test_welcome_delivery_limits_mentions_and_honors_disabled():
+    async with open_settings(Path(":memory:")) as repo:
+        guild = Mock(id=2)
+        guild.name = "Test server"
+        channel = Mock(spec=discord.TextChannel, id=10, guild=guild, send=AsyncMock())
+        channel.permissions_for.return_value = discord.Permissions.all()
+        guild.get_channel.return_value = channel
+        member = Mock(spec=discord.Member, id=123, guild=guild, mention="<@123>")
+        cog = ServerSettings(SimpleNamespace(server_settings=SettingsService(repo)))
+        await cog.on_member_join(member)
+        channel.send.assert_not_awaited()
+        await repo.set_welcome_channel(2, 10)
+        await repo.set_welcome_message(2, "Hi {member} in {server}! @everyone {other}")
+        await cog.on_member_join(member)
+        assert channel.send.call_args.args[0] == "Hi <@123> in Test server! @everyone {other}"
+        mentions = channel.send.call_args.kwargs["allowed_mentions"]
+        assert mentions.users == [member] and not mentions.everyone and not mentions.roles
+        await repo.set_welcome_channel(2, None)
+        await cog.on_member_join(member)
+        assert channel.send.await_count == 1
+
+
+async def test_overview_uses_buttons_and_channel_picker_is_on_demand():
+    view = SettingsView(1, 2, Mock())
+    assert all(isinstance(child, discord.ui.Button) for child in view.children)
+    view.show_section("welcome")
+    assert all(isinstance(child, discord.ui.Button) for child in view.children)
+    view.show_section("welcome", picker=True)
+    assert view.welcome_channel in view.children
+    view.stop()
+
+
+async def test_welcome_modal_saves_and_rechecks_permissions():
+    from ky_bot.views.settings import WelcomeModal
+
+    async with open_settings(Path(":memory:")) as repo:
+        view = SettingsView(1, 2, SettingsService(repo))
+        view.show_section("welcome")
+        modal = WelcomeModal(view, "Welcome!")
+        assert not await modal.interaction_check(request(admin=False))
+        modal.message_input._value = "Hello {member}!"
+        interaction = request()
+        assert await modal.interaction_check(interaction)
+        await modal.on_submit(interaction)
+        assert (await repo.get(2)).welcome_message == "Hello {member}!"
+        view.stop()

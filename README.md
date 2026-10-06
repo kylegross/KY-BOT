@@ -3,6 +3,20 @@ KY BOT is a sophisticated, all-in-one Discord bot created around simplicity, ver
 
 ## Foundation
 
+### Welcome messages and server settings
+
+Administrators can use `/settings` to open a private branded overview, then press **Welcome**
+or **Logging** to open that section. **Choose channel** opens Discord's channel picker;
+no channel IDs are needed. Each server saves its own configuration across restarts.
+
+In **Welcome**, choose a channel to enable messages on member joins. Use **Edit welcome message**
+to customize the text with `{member}` (new member mention) and `{server}` (server name).
+Only the joining member can be pinged; role and everyone mentions are suppressed.
+**Disable welcomes** stops messages and keeps the custom text for later.
+The bot needs View Channel, Send Messages, and Embed Links in the selected channel,
+and Server Members Intent must be enabled in the Discord Developer Portal.
+Restart the bot to load these changes; the existing `/settings` command needs no new registration.
+
 A slash-command-first discord.py application with modular cogs, private Discord UI menus,
 validated environment configuration, rotating logs, safe error responses, and async resource cleanup.
 

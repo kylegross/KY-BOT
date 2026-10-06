@@ -6,11 +6,14 @@ from pathlib import Path
 
 import aiosqlite
 
+DEFAULT_WELCOME = "Welcome {member} to {server}!"
 
 @dataclass(frozen=True, slots=True)
 class GuildSettings:
     guild_id: int
     log_channel_id: int | None = None
+    welcome_channel_id: int | None = None
+    welcome_message: str = DEFAULT_WELCOME
 
 
 class SettingsRepository:
@@ -22,7 +25,29 @@ class SettingsRepository:
             "SELECT log_channel_id FROM guild_settings WHERE guild_id = ?", (str(guild_id),)
         ) as cursor:
             row = await cursor.fetchone()
-        return GuildSettings(guild_id, int(row[0]) if row and row[0] else None)
+        async with self.connection.execute(
+            "SELECT channel_id, message FROM welcome_settings WHERE guild_id = ?", (str(guild_id),)
+        ) as cursor:
+            welcome = await cursor.fetchone()
+        return GuildSettings(
+            guild_id, int(row[0]) if row and row[0] else None,
+            int(welcome[0]) if welcome and welcome[0] else None,
+            welcome[1] if welcome else DEFAULT_WELCOME,
+        )
+
+    async def set_welcome_channel(self, guild_id: int, channel_id: int | None) -> None:
+        await self.connection.execute(
+            "INSERT INTO welcome_settings (guild_id, channel_id, message) VALUES (?, ?, ?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET channel_id = excluded.channel_id",
+            (str(guild_id), str(channel_id) if channel_id is not None else None, DEFAULT_WELCOME),
+        )
+
+    async def set_welcome_message(self, guild_id: int, message: str) -> None:
+        await self.connection.execute(
+            "INSERT INTO welcome_settings (guild_id, message) VALUES (?, ?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET message = excluded.message",
+            (str(guild_id), message),
+        )
 
     async def set_log_channel(self, guild_id: int, channel_id: int) -> None:
         async with self.connection.execute(
@@ -47,7 +72,7 @@ async def open_settings(path: Path):
     async with aiosqlite.connect(str(path), isolation_level=None, timeout=10) as connection:
         async with connection.execute("PRAGMA user_version") as cursor:
             version = (await cursor.fetchone())[0]
-        if version > 1:
+        if version > 2:
             raise RuntimeError("Database schema is newer than this version of KY BOT.")
         if version == 0:
             await connection.executescript(
@@ -55,6 +80,14 @@ async def open_settings(path: Path):
                 "CREATE TABLE IF NOT EXISTS guild_settings ("
                 "guild_id TEXT PRIMARY KEY, log_channel_id TEXT NOT NULL);"
                 "PRAGMA user_version = 1;"
+                "COMMIT;"
+            )
+        if version < 2:
+            await connection.executescript(
+                "BEGIN IMMEDIATE;"
+                "CREATE TABLE welcome_settings (guild_id TEXT PRIMARY KEY, "
+                "channel_id TEXT, message TEXT NOT NULL);"
+                "PRAGMA user_version = 2;"
                 "COMMIT;"
             )
         yield SettingsRepository(connection)
