@@ -10,23 +10,29 @@
     "framed": [
       72,
       68,
-      343,
-      149
+      262,
+      125
     ],
     "borderless": [
       24,
       24,
-      295,
-      105
+      214,
+      81
     ]
   },
+  "brand_plate": "Keep the pale plate for dark silver; dark plate for gold and silver neon",
   "brand_font": "Vonca-Medium.otf",
   "title_font": "Vonca-Bold.otf",
   "title_size": {
     "default": 108,
-    "minimum": 48,
+    "minimum": 40,
     "maximum_width": 1280
   },
+  "height_range": [
+    240,
+    800
+  ],
+  "compact_height": 280,
   "designs": {
     "volcanic": "gold",
     "botanical": "gold",
@@ -49,6 +55,6 @@
     "optional_frame",
     "top_left_brand"
   ],
-  "title_treatment": "Centered VONCA Bold heading with a thin rule above and below; no title means no rules",
+  "title_treatment": "Horizontally and vertically centered VONCA Bold with matching metallic finish and a thin rule above and below; no title means no rules",
   "font_binaries_included": false
 }

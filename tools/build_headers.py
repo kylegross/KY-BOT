@@ -54,10 +54,12 @@ def main():
         text.putalpha(lettering)
         brand.alpha_composite(text, (184, 108 - lettering.height // 2))
         brand.save(PACKAGE / f"{style}_brand.png")
-        brand.save(OUTPUT / "layers" / f"ky_header_{style}_brand.png")
+        overlay(style, framed=False).save(OUTPUT / "layers" / f"ky_header_{style}_brand.png")
         for framed in (True, False):
             name = f"ky_header_{style}_{'framed' if framed else 'borderless'}_template.png"
             overlay(style, framed=framed).save(OUTPUT / "templates" / name)
+            compact_name = name.replace("_template.png", "_compact_template.png")
+            overlay(style, framed=framed, height=280).save(OUTPUT / "templates" / compact_name)
     for design, finish in FINISHES.items():
         bg = (BASE / "masters/approved-materials" / f"{design}_background.png").read_bytes()
         for framed in (True, False):
@@ -65,28 +67,36 @@ def main():
             name = f"ky_header_{design}{'' if framed else '_borderless'}.png"
             (OUTPUT / "designs" / name).write_bytes(content)
             (PACKAGE / name).write_bytes(content)
+            compact = render_header(bg, finish, framed=framed, height=280)
+            compact_name = name.replace(".png", "_compact.png")
+            (OUTPUT / "designs" / compact_name).write_bytes(compact)
+            (PACKAGE / compact_name).write_bytes(compact)
     manifest = {
         "canvas": list(SIZE),
         "brand": "KY BOT",
         "slogan": None,
         "brand_position": "Top left; icon before KY BOT",
-        "brand_bounds": {"framed": [72, 68, 343, 149], "borderless": [24, 24, 295, 105]},
+        "brand_bounds": {"framed": [72, 68, 262, 125], "borderless": [24, 24, 214, 81]},
+        "brand_plate": "Keep the pale plate for dark silver; dark plate for gold and silver neon",
         "brand_font": "Vonca-Medium.otf",
         "title_font": "Vonca-Bold.otf",
-        "title_size": {"default": 108, "minimum": 48, "maximum_width": 1280},
+        "title_size": {"default": 108, "minimum": 40, "maximum_width": 1280},
+        "height_range": [240, 800],
+        "compact_height": 280,
         "designs": FINISHES,
         "styles": list(STYLES),
         "templates": ["framed", "borderless"],
         "background": "User supplied; cover crop with configurable focal point",
         "layers": ["background", "optional_frame", "top_left_brand"],
         "title_treatment": (
-            "Centered VONCA Bold heading with a thin rule above and below; no title means no rules"
+            "Horizontally and vertically centered VONCA Bold with matching metallic finish "
+            "and a thin rule above and below; no title means no rules"
         ),
         "font_binaries_included": False,
     }
     (OUTPUT / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
-    print("Built five header designs, matching borderless versions and six slogan-free templates.")
+    print("Built standard and compact versions of five designs and six reusable templates.")
 
 
 if __name__ == "__main__":

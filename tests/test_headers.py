@@ -26,7 +26,7 @@ def test_uploaded_background_and_corner_brand_are_preserved(style, framed):
     assert image.getpixel((0, 0))[3] == 0
     assert image.getpixel((800, 260)) == (255, 0, 0, 255)
     assert image.getpixel((800, 440)) == (255, 0, 0, 255)
-    brand_area = (72, 68, 343, 149) if framed else (24, 24, 295, 105)
+    brand_area = (72, 68, 262, 125) if framed else (24, 24, 214, 81)
     assert overlay(style, framed=framed).crop(brand_area).getbbox() is not None
     if not framed:
         assert overlay(style, framed=False).getbbox() == brand_area
@@ -35,9 +35,10 @@ def test_uploaded_background_and_corner_brand_are_preserved(style, framed):
 
 @pytest.mark.parametrize("name", DESIGNS)
 @pytest.mark.parametrize("framed", (True, False))
-def test_all_presets_are_available_with_and_without_frame(name, framed):
-    image = Image.open(io.BytesIO(design_file(name, framed=framed)))
-    assert image.size == SIZE
+@pytest.mark.parametrize("compact", (True, False))
+def test_all_presets_are_available_with_and_without_frame(name, framed, compact):
+    image = Image.open(io.BytesIO(design_file(name, framed=framed, compact=compact)))
+    assert image.size == (1600, 280 if compact else 520)
 
 
 def test_custom_crop_and_invalid_backgrounds():
@@ -67,9 +68,10 @@ def test_large_bold_title_has_two_rules_and_no_clipping(style):
     untitled = Image.open(io.BytesIO(render_header(base, style)))
     mask = text_mask("COMMAND CENTER", role="display", size=108, min_size=48, max_width=1280)
     assert mask.height > 50
-    assert 252 + mask.height + 28 < SIZE[1] - 24
+    y = (SIZE[1] - mask.height) // 2
+    assert y + mask.height + 28 < SIZE[1] - 24
     left = (SIZE[0] - mask.width) // 2
-    top, bottom = 224, 252 + mask.height + 28
+    top, bottom = y - 28, y + mask.height + 28
     rule_x = left + 40
     assert titled.getpixel((rule_x, top)) == titled.getpixel((rule_x, bottom))
     assert titled.getpixel((rule_x, top)) != untitled.getpixel((rule_x, top))
@@ -122,7 +124,7 @@ def test_custom_height_preserves_brand_and_transparent_corners(height, framed):
     assert image.size == (1600, height)
     assert image.getpixel((0, 0))[3] == 0
     assert image.getpixel((1599, height - 1))[3] == 0
-    brand_area = (72, 68, 343, 149) if framed else (24, 24, 295, 105)
+    brand_area = (72, 68, 262, 125) if framed else (24, 24, 214, 81)
     original = overlay("gold", framed=framed).crop(brand_area)
     adjusted = overlay("gold", framed=framed, height=height).crop(brand_area)
     assert original.tobytes() == adjusted.tobytes()
@@ -153,5 +155,5 @@ def test_title_fits_custom_height(height, framed):
         "COMMAND CENTER", role="display", size=min(108, round(height * 108 / 520)),
         min_size=40, max_width=1280,
     )
-    y = max(155 if framed else 120, (height - mask.height) // 2)
+    y = (height - mask.height) // 2
     assert y + mask.height + min(28, round(height * 28 / 520)) < height - 24

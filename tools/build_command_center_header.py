@@ -8,6 +8,7 @@ from PIL import Image, ImageDraw, ImageOps
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from ky_bot.services.footers import metal  # noqa: E402
 from ky_bot.services.headers import background_mask, overlay  # noqa: E402
 from ky_bot.services.typography import text_mask  # noqa: E402
 
@@ -22,13 +23,10 @@ def build_header(*, framed: bool = False) -> Image.Image:
     image.alpha_composite(Image.new("RGBA", image.size, (255, 255, 255, 32)))
     if framed:
         image.putalpha(background_mask(framed=True, height=280))
-        image.alpha_composite(overlay("dark_silver", framed=True, height=280))
-    else:
-        image.alpha_composite(overlay("dark_silver", framed=False).crop((0, 0, 1600, 110)))
+    image.alpha_composite(overlay("dark_silver", framed=framed, height=280))
     mask = text_mask("COMMAND CENTER", role="display", size=80, max_width=1280)
-    x, y = (1600 - mask.width) // 2, 140
-    title = Image.new("RGBA", mask.size, "#292724")
-    title.putalpha(mask)
+    x, y = (image.width - mask.width) // 2, (image.height - mask.height) // 2
+    title = metal(mask, "dark_silver")
     image.alpha_composite(title, (x, y))
     draw = ImageDraw.Draw(image)
     for line_y in (y - 18, y + mask.height + 18):
@@ -37,7 +35,15 @@ def build_header(*, framed: bool = False) -> Image.Image:
 
 
 def main() -> None:
-    build_header(framed=True).save(ROOT / "src/ky_bot/assets/header/ky_header_command_center.png")
+    header = build_header(framed=True)
+    header = header.crop(header.getchannel("A").getbbox())
+    header = ImageOps.contain(header, (1600, 280), Image.Resampling.LANCZOS)
+    header.save(ROOT / "src/ky_bot/assets/header/ky_header_command_center.png")
+    footer = Image.open(
+        ROOT / "assets/branding/footers/standardized/ky_footer_floral_wreath_centered_framed.png"
+    ).convert("RGBA")
+    footer = footer.crop(footer.getchannel("A").getbbox())
+    footer.save(ROOT / "src/ky_bot/assets/footer/ky_footer_floral_wreath_centered_framed.png")
 
 
 if __name__ == "__main__":

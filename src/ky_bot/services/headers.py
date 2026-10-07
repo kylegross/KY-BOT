@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
-from ky_bot.services.footers import FooterError, read_upload
+from ky_bot.services.footers import FooterError, metal, read_upload
 from ky_bot.services.typography import TypographyError, text_mask
 
 SIZE = (1600, 520)
@@ -44,11 +44,13 @@ def overlay(style: str, *, framed: bool = True, height: int = SIZE[1]) -> Image.
             )
             resized.alpha_composite(frame.crop((0, 410, SIZE[0], 520)), (0, height - 110))
             frame = resized
-        frame.alpha_composite(result.crop((100, 68, 371, 149)), (72, 68))
+        brand = result.crop((100, 68, 371, 149)).resize((190, 57), Image.Resampling.LANCZOS)
+        frame.alpha_composite(brand, (72, 68))
         return frame
     # Borderless layouts can place the mark closer to the actual image corner.
     corner = Image.new("RGBA", (SIZE[0], height))
-    corner.alpha_composite(result.crop((100, 68, 371, 149)), (24, 24))
+    brand = result.crop((100, 68, 371, 149)).resize((190, 57), Image.Resampling.LANCZOS)
+    corner.alpha_composite(brand, (24, 24))
     return corner
 
 
@@ -94,7 +96,7 @@ def render_header(
             raise FooterError(str(exc)) from None
         # Center the title between two fine rules, following the KY BOT logo treatment.
         x = (SIZE[0] - mask.width) // 2
-        y = 252 if height == 520 else max(155 if framed else 120, (height - mask.height) // 2)
+        y = (height - mask.height) // 2
         rule_width = max(240, mask.width)
         rule_left = (SIZE[0] - rule_width) // 2
         gap = min(28, round(height * 28 / 520))
@@ -114,19 +116,20 @@ def render_header(
         pen = ImageDraw.Draw(image)
         for rule_y in (top, bottom):
             pen.line((rule_left, rule_y, rule_left + rule_width, rule_y), fill=colour, width=3)
-        text = Image.new("RGBA", mask.size, colour)
-        text.putalpha(mask)
+        text = metal(mask, style)
         image.alpha_composite(text, (x, y))
     output = io.BytesIO()
     image.save(output, format="PNG")
     return output.getvalue()
 
 
-def design_file(name: str, *, framed: bool = True) -> bytes:
+def design_file(name: str, *, framed: bool = True, compact: bool = False) -> bytes:
     """Reusable preset for embedding with attachment://ky_header.png."""
     if name not in DESIGNS:
         raise FooterError("Choose a design from the KY BOT header collection.")
     suffix = "" if framed else "_borderless"
+    if compact:
+        suffix += "_compact"
     return (
         files("ky_bot").joinpath("assets", "header", f"ky_header_{name}{suffix}.png").read_bytes()
     )

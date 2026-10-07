@@ -47,12 +47,16 @@ class SettingsView(discord.ui.LayoutView):
     ) -> None:
         self.section, self.picker = section, picker
         self.clear_items()
-        panel = discord.ui.Container(accent_colour=0xB89656)
+        panel = discord.ui.Container(accent_colour=0xC4AD78)
         panel.add_item(discord.ui.MediaGallery(discord.MediaGalleryItem(
             HEADER_URL, description="KY BOT • COMMAND CENTER",
         )))
-        title = {"overview": "Server settings", "welcome": "Welcome", "logging": "Logging"}[section]
-        panel.add_item(discord.ui.TextDisplay(f"### {title}"))
+        title = {
+            "overview": "SERVER CONFIGURATION",
+            "welcome": "SERVER CONFIGURATION / WELCOME",
+            "logging": "SERVER CONFIGURATION / LOGGING",
+        }[section]
+        panel.add_item(discord.ui.TextDisplay(f"-# {title}"))
         if notice:
             panel.add_item(discord.ui.TextDisplay(notice))
 
@@ -70,19 +74,17 @@ class SettingsView(discord.ui.LayoutView):
         if section == "overview":
             status = "Enabled" if self.settings.welcome_channel_id else "Disabled"
             row(
-                f"**WELCOME** · {status}\nGreet new members with your own message.",
-                self.navigation("Configure", "welcome"),
+                f"### Welcome experience\n-# Personal greetings for new members · {status}",
+                self.navigation("Manage", "welcome"),
             )
             separator()
             row(
-                "**LOGGING** · Coming soon\nChoose where future moderation logs will go.",
-                self.navigation("Configure", "logging"),
+                "### Server activity\n-# Moderation logs · Coming soon",
+                self.navigation("Manage", "logging"),
             )
         elif section == "welcome":
-            panel.add_item(discord.ui.TextDisplay("Customize how new members are welcomed."))
-            separator()
             row(
-                f"**WELCOME CHANNEL**\n{channel(self.settings.welcome_channel_id)}",
+                f"### Destination\n{channel(self.settings.welcome_channel_id)}",
                 self.navigation("Choose channel", section, picker=True),
             )
             if picker:
@@ -97,7 +99,7 @@ class SettingsView(discord.ui.LayoutView):
             # Escape user-authored Markdown in the configuration display only.
             text = discord.utils.escape_markdown(self.settings.welcome_message)
             self.edit_welcome = self.button("Edit message", self.open_welcome_editor)
-            row(f"**WELCOME MESSAGE**\n{text}", self.edit_welcome)
+            row(f"### Welcome message\n{text}", self.edit_welcome)
             panel.add_item(discord.ui.TextDisplay(
                 "-# Use {member} to mention the new member and {server} for the server name."
             ))
@@ -105,18 +107,18 @@ class SettingsView(discord.ui.LayoutView):
             self.disable_welcome = self.button("Disable", self.turn_off_welcomes)
             self.disable_welcome.disabled = self.settings.welcome_channel_id is None
             row(
-                "**WELCOME DELIVERY**\n"
+                "### Delivery\n-# "
                 + ("Enabled — sent when someone joins." if self.settings.welcome_channel_id
                    else "Disabled — choose a channel to enable."),
                 self.disable_welcome,
             )
         else:
             panel.add_item(discord.ui.TextDisplay(
-                "Prepare a channel for future moderation logs. Logging is not active yet."
+                "-# Coming soon · Save a destination for future moderation logs."
             ))
             separator()
             row(
-                f"**LOG CHANNEL**\n{channel(self.settings.log_channel_id)}",
+                f"### Destination\n{channel(self.settings.log_channel_id)}",
                 self.navigation("Choose channel", section, picker=True),
             )
             if picker:
@@ -129,7 +131,7 @@ class SettingsView(discord.ui.LayoutView):
             separator()
             self.clear_channel = self.button("Clear channel", self.clear_log_channel)
             self.clear_channel.disabled = self.settings.log_channel_id is None
-            row("**SAVED CHANNEL**\nRemove the saved logging destination.", self.clear_channel)
+            row("### Saved destination\n-# Remove the selected channel.", self.clear_channel)
 
         separator()
         controls = discord.ui.ActionRow()
@@ -137,13 +139,13 @@ class SettingsView(discord.ui.LayoutView):
             controls.add_item(self.navigation("Back", "overview"))
         controls.add_item(self.button("Refresh", self.reload_settings))
         controls.add_item(self.button("Close", self.close_menu))
-        panel.add_item(controls)
         panel.add_item(discord.ui.TextDisplay(
-            "-# Administrators only · Changes save automatically · Expires after 3 minutes"
+            "-# Private admin controls · Saved automatically · 3-minute session"
         ))
         panel.add_item(discord.ui.MediaGallery(discord.MediaGalleryItem(
             "attachment://ky_settings_footer.png", description="KY BOT floral wreath footer",
         )))
+        panel.add_item(controls)
         self.add_item(panel)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:

@@ -7,7 +7,7 @@ KY BOT is a sophisticated, all-in-one Discord bot created around simplicity, ver
 
 Administrators can use `/settings` to open a private Command Center panel. The branded
 **COMMAND CENTER** header appears at the top, with Welcome and Logging rows beneath it.
-Each row has an inline **Configure** button beside its description. **Choose channel** opens
+Each row has an inline **Manage** button beside its description. **Choose channel** opens
 Discord's channel picker;
 no channel IDs are needed. Each server saves its own configuration across restarts.
 
@@ -287,6 +287,11 @@ All headers are slogan-free. The small icon and KY BOT mark sit at the top left,
 inset on framed headers and closer to the corner on borderless headers. Optional titles use
 large VONCA Bold lettering with a thin matching line above and below.
 
+All designs and reusable templates share the smaller 190 × 57 corner logo and its readability
+plate. Optional titles are centered horizontally and vertically and use the same metallic
+finish as the border. Compact 1600 × 280 exports accompany the standard 1600 × 520 assets;
+compact filenames include `_compact`. The floral wreath Command Center keeps its pale logo plate.
+
 Final designs are in `assets/branding/headers/designs/`. Reusable transparent PNG templates
 are in `assets/branding/headers/templates/`, with separate frame and brand source layers in
 `assets/branding/headers/layers/`. The manifest documents the layout. No preview sheets or
@@ -311,6 +316,7 @@ licensed `Vonca-Bold.otf` or `Vonca-Bold.ttf` in the private local font director
 omit `framed=False` for the framed preset. Attach those bytes as a Discord PNG file and
 reference the attachment from the embed image. `render_header` supports custom backgrounds
 and titles. Runtime PNGs are included in the Python package and Docker image.
+Pass `compact=True` to `design_file` for the compact preset.
 
 Regenerate final headers with `python tools/build_headers.py` when licensed fonts are
 available locally. This builder uses approved footer source assets and exports final
