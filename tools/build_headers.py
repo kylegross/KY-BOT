@@ -28,7 +28,6 @@ def main():
     lettering = text_mask("KY BOT", role="heading", size=40, min_size=40, max_width=200)
     for style in STYLES:
         frame = rectangular_frame(style, SIZE)
-        save_artwork(frame, PACKAGE / f"{style}_frame.png")
         save_artwork(frame, OUTPUT / "layers" / f"ky_header_{style}_frame.png")
 
         icon = Image.open(ROOT / f"src/ky_bot/assets/footer/{style}_icon.png").convert("RGBA")
@@ -36,11 +35,14 @@ def main():
         icon = ImageOps.contain(icon.crop(bounds), (50, 50), Image.Resampling.LANCZOS)
         brand = Image.new("RGBA", SIZE)
         # A quiet plate makes the fixed brand readable on arbitrary uploaded images.
-        dark = style == "dark_silver"
-        plate = (245, 239, 226, 225) if dark else (8, 10, 12, 205)
+        plate = (8, 10, 12, 205)
+        if style == "dark_silver":
+            alpha = icon.getchannel("A")
+            icon = Image.new("RGBA", icon.size, "#BDC3CA")
+            icon.putalpha(alpha)
         ImageDraw.Draw(brand).rounded_rectangle((100, 68, 370, 148), radius=16, fill=plate)
         brand.alpha_composite(icon, (118 + (50 - icon.width) // 2, 83 + (50 - icon.height) // 2))
-        colour = {"gold": "#e8c47c", "silver_neon": "#dbe7ef", "dark_silver": "#242425"}[style]
+        colour = {"gold": "#e8c47c", "silver_neon": "#dbe7ef", "dark_silver": "#BDC3CA"}[style]
         text = Image.new("RGBA", lettering.size, colour)
         text.putalpha(lettering)
         brand.alpha_composite(text, (184, 108 - lettering.height // 2))
@@ -78,7 +80,7 @@ def main():
         "slogan": None,
         "brand_position": "Top left; icon before KY BOT",
         "brand_bounds": {"framed": [24, 24, 214, 81], "borderless": [24, 24, 214, 81]},
-        "brand_plate": "Keep the pale plate for dark silver; dark plate for gold and silver neon",
+        "brand_plate": "Soft charcoal plate for all finishes; pale silver on dark silver",
         "brand_font": "Vonca-Medium.otf",
         "title_font": "Vonca-Bold.otf",
         "title_size": {"default": 108, "minimum": 40, "maximum_width": 1280},

@@ -166,9 +166,7 @@ def overlay(
             )
             result.alpha_composite(icon, (cx - icon.width // 2, 160 - icon.height // 2))
             continue
-        mask = (
-            read_upload(data, icon=True).getchannel("A") if data else asset("icon.png").convert("L")
-        )
+        mask = read_upload(data, icon=True).getchannel("A")
         limit = (round(220 * icon_scale / 100), round(150 * icon_scale / 100))
         mask = ImageOps.contain(mask, limit, Image.Resampling.LANCZOS)
         layer = Image.new("L", SIZE)

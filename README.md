@@ -266,7 +266,7 @@ uses silver neon, a small corner badge and readable centered COMMAND CENTER lett
 icon fixed in the top-left corner. Choose the finish, add an optional VONCA title, adjust
 crop/darkening, and select `height` from 240–800 pixels (default 520; try 280 for compact).
 Width stays at 1600 pixels. A thin matching outline is optional; borderless is the default.
-Titles have subdued color with two fine rules. Dark silver retains its pale badge plate.
+Titles have subdued color with two fine rules. Dark silver uses a soft charcoal badge plate with a pale silver name and icon.
 
 Transparent header templates and separate brand/frame layers are in
 `assets/branding/headers/templates/` and `assets/branding/headers/layers/`. Put your own image
@@ -289,6 +289,6 @@ python tools/build_command_center_header.py
 ```
 
 The old presets and their historical builders were removed from the active collection.
-A local archive is ignored by Git and excluded from deployments. Restart or redeploy the bot
+Unused drafts, retired archives, and duplicate runtime exports have been removed. Restart or redeploy the bot
 for new artwork. Sync slash commands once if command options or descriptions changed, then
 return `COMMAND_SYNC` to `none`.

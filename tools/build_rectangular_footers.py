@@ -33,18 +33,13 @@ def centered(style, framed):
 def main():
     for style in STYLES:
         save_artwork(rectangular_frame(style, SIZE), FRAMEWORKS / f"ky_framework_{style}_frame.png")
-        save_artwork(centered(style, False), FRAMEWORKS / f"ky_framework_{style}.png")
         save_artwork(overlay(style), FRAMEWORKS / f"ky_framework_{style}_custom_slogan.png")
-        save_artwork(
-            rectangular_frame(style, SIZE), ROOT / f"src/ky_bot/assets/footer/{style}_frame.png"
-        )
         for framed in (True, False):
             suffix = "framed" if framed else "borderless"
             save_artwork(
                 centered(style, framed), FRAMEWORKS / f"ky_framework_{style}_centered_{suffix}.png"
             )
     save_artwork(capsule(), FRAMEWORKS / "ky_framework_background_mask.png")
-    save_artwork(capsule(), FRAMEWORKS / "ky_framework_image_only_mask.png")
     for name, style in FINISHES.items():
         bg = floral_background(style, SIZE)
         bg.putalpha(capsule())
@@ -54,10 +49,8 @@ def main():
             result.alpha_composite(centered(style, framed))
             suffix = "framed" if framed else "borderless"
             save_artwork(result, STANDARD / f"ky_footer_{name}_centered_{suffix}.png")
-            save_artwork(result, ROOT / f"src/ky_bot/assets/footer/ky_footer_{name}_{suffix}.png")
         compact = floral_background(style, (2176, 210))
         compact.alpha_composite(centered_overlay(style, compact.size))
-        save_artwork(compact, ROOT / f"src/ky_bot/assets/footer/ky_footer_{name}_compact.png")
         save_artwork(compact, STANDARD / f"ky_footer_{name}_compact.png")
     data = {
         "collection": "Illustrated KY BOT florals on matte charcoal",
