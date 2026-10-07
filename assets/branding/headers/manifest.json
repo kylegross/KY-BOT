@@ -4,6 +4,7 @@
     520
   ],
   "shape": "Wide rectangle with 8-pixel corner radius",
+  "collection": "Illustrated KY BOT florals on matte charcoal",
   "brand": "KY BOT",
   "slogan": null,
   "brand_position": "Top left; icon before KY BOT",
@@ -35,11 +36,9 @@
   ],
   "compact_height": 280,
   "designs": {
-    "volcanic": "gold",
-    "botanical": "gold",
-    "abstract_nature": "silver_neon",
-    "floral_wreath": "dark_silver",
-    "stone_minimal": "dark_silver"
+    "gold": "gold",
+    "silver_neon": "silver_neon",
+    "dark_silver": "dark_silver"
   },
   "styles": [
     "gold",

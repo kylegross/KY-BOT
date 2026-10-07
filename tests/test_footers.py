@@ -50,21 +50,21 @@ def test_crop_focal_point_changes_visible_background():
 
 
 def test_footer_fills_rectangular_corner_area():
-    image = Image.open(io.BytesIO(render_footer(
-        png(Image.new("RGB", SIZE, "red")), "dark_silver", dim=0
-    )))
+    image = Image.open(
+        io.BytesIO(render_footer(png(Image.new("RGB", SIZE, "red")), "dark_silver", dim=0))
+    )
     assert image.getpixel((20, 20)) == (255, 0, 0, 255)
     assert image.getpixel((SIZE[0] - 21, SIZE[1] - 21)) == (255, 0, 0, 255)
 
 
 @pytest.mark.parametrize("style", STYLES)
-def test_border_texture_scale_matches_every_edge_and_canvas_size(style):
+def test_thin_outline_matches_every_edge_and_canvas_size(style):
     from ky_bot.services.footers import rectangular_frame
 
     short = rectangular_frame(style, (1600, 240))
     tall = rectangular_frame(style, (2176, 800))
     top = short.crop((20, 0, 120, 12))
-    side = short.crop((0, 20, 12, 120)).transpose(Image.Transpose.ROTATE_90)
+    side = short.crop((0, 20, 12, 120)).transpose(Image.Transpose.ROTATE_270)
     assert top.tobytes() == side.tobytes()
     assert top.tobytes() == tall.crop((20, 0, 120, 12)).tobytes()
 

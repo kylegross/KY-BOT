@@ -29,7 +29,7 @@ async def test_persistence_isolation_clear_and_schema(tmp_path):
         assert (await repo.get(1)).log_channel_id is None
         assert (await repo.get(2)).log_channel_id == 20
         async with repo.connection.execute("PRAGMA user_version") as cursor:
-            assert (await cursor.fetchone())[0] == 2
+            assert (await cursor.fetchone())[0] == 3
 
 
 async def test_newer_schema_rejected(tmp_path):
@@ -139,7 +139,8 @@ async def test_menu_saves_clears_and_disables_selector():
         view.message = SimpleNamespace(edit=AsyncMock())
         await view.on_timeout()
         assert all(
-            child.disabled for child in view.walk_children()
+            child.disabled
+            for child in view.walk_children()
             if isinstance(child, (discord.ui.Button, discord.ui.ChannelSelect))
         )
         view.stop()
@@ -262,6 +263,10 @@ async def test_welcome_delivery_limits_mentions_and_honors_disabled():
         channel.permissions_for.return_value = discord.Permissions.all()
         guild.get_channel.return_value = channel
         member = Mock(spec=discord.Member, id=123, guild=guild, mention="<@123>")
+        member.display_name = "New member"
+        member.display_avatar.with_format.return_value.with_size.return_value.read = AsyncMock(
+            return_value=None
+        )
         cog = ServerSettings(SimpleNamespace(server_settings=SettingsService(repo)))
         await cog.on_member_join(member)
         channel.send.assert_not_awaited()
@@ -308,7 +313,8 @@ async def test_inline_navigation_refresh_and_close_use_v2_payloads():
         assert "content" not in kwargs and "embed" not in kwargs
         assert view.content_length() <= 4000
         choose = next(
-            item for item in view.walk_children()
+            item
+            for item in view.walk_children()
             if isinstance(item, discord.ui.Button) and item.label == "Choose channel"
         )
         await choose.callback(interaction)

@@ -64,61 +64,16 @@ def capsule() -> Image.Image:
 
 
 def rectangular_frame(style: str, size: tuple[int, int]) -> Image.Image:
-    """Carry the approved metal texture into a wide frame with subtle square corners."""
-    source = asset(f"{style}_frame.png").convert("RGBA")
-    strip = source.crop((400, 16, 1776, 48))
-    strip = strip.crop(strip.getchannel("A").getbbox())
-    width, height = size
-    edge = 12
-    # Scale proportionally once; repeat the same texture instead of stretching each edge.
-    tile = strip.resize((round(strip.width * edge / strip.height), edge), Image.Resampling.LANCZOS)
+    """A quiet, proportionate outline that matches the illustrated floral collection."""
+    from ky_bot.services.collection import COLOURS
 
-    def run(length: int) -> Image.Image:
-        result = Image.new("RGBA", (length, edge))
-        for index, offset in enumerate(range(0, length, tile.width)):
-            segment = tile if index % 2 == 0 else tile.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-            result.alpha_composite(
-                segment.crop((0, 0, min(tile.width, length - offset), edge)), (offset, 0)
-            )
-        return result
-
-    top = run(width)
-    side = run(height).transpose(Image.Transpose.ROTATE_270)
+    if style not in STYLES:
+        raise FooterError("Choose silver neon, gold, or dark silver.")
     frame = Image.new("RGBA", size)
-    # Diagonal joins give the four runs a consistent corner rather than overlapping strips.
-    for texture, position, polygon in (
-        (top, (0, 0), [(0, 0), (width - 1, 0), (width - edge - 1, edge - 1), (edge - 1, edge - 1)]),
-        (
-            top.transpose(Image.Transpose.FLIP_TOP_BOTTOM),
-            (0, height - edge),
-            [
-                (0, height - 1),
-                (width - 1, height - 1),
-                (width - edge - 1, height - edge),
-                (edge - 1, height - edge),
-            ],
-        ),
-        (side, (0, 0), [(0, 0), (edge - 1, edge - 1), (edge - 1, height - edge), (0, height - 1)]),
-        (
-            side.transpose(Image.Transpose.FLIP_LEFT_RIGHT),
-            (width - edge, 0),
-            [
-                (width - 1, 0),
-                (width - edge, edge - 1),
-                (width - edge, height - edge),
-                (width - 1, height - 1),
-            ],
-        ),
-    ):
-        layer = Image.new("RGBA", size)
-        layer.alpha_composite(texture, position)
-        join_mask = Image.new("L", size)
-        ImageDraw.Draw(join_mask).polygon(polygon, fill=255)
-        layer.putalpha(ImageChops.multiply(layer.getchannel("A"), join_mask))
-        frame.alpha_composite(layer)
-    mask = Image.new("L", size)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, width - 1, height - 1), radius=8, fill=255)
-    frame.putalpha(ImageChops.multiply(frame.getchannel("A"), mask))
+    width, height = size
+    ImageDraw.Draw(frame).rounded_rectangle(
+        (0, 0, width - 1, height - 1), radius=8, outline=COLOURS[style], width=3
+    )
     return frame
 
 
@@ -229,6 +184,25 @@ def overlay(
     return result
 
 
+def centered_overlay(
+    style: str, size: tuple[int, int], *, framed: bool = False, icon_scale: int = 100
+) -> Image.Image:
+    """Small fixed botanical icon for the new minimal footer template."""
+    from ky_bot.services.collection import COLOURS
+
+    if style not in STYLES or not 60 <= icon_scale <= 120:
+        raise FooterError("Choose a finish and an icon size from 60 to 120 percent.")
+    result = rectangular_frame(style, size) if framed else Image.new("RGBA", size)
+    icon = asset(f"{style}_icon.png").convert("RGBA")
+    icon = icon.crop(icon.getchannel("A").getbbox())
+    limit = round(size[1] * 0.58 * icon_scale / 100)
+    mask = ImageOps.contain(icon.getchannel("A"), (limit, limit), Image.Resampling.LANCZOS)
+    tinted = Image.new("RGBA", mask.size, COLOURS[style])
+    tinted.putalpha(mask)
+    result.alpha_composite(tinted, ((size[0] - mask.width) // 2, (size[1] - mask.height) // 2))
+    return result
+
+
 def render_footer(
     background: bytes,
     style: str,
@@ -236,6 +210,8 @@ def render_footer(
     crop_x: int = 50,
     crop_y: int = 50,
     dim: int = 20,
+    centered: bool = False,
+    framed: bool = False,
     **branding,
 ) -> bytes:
     if not all(0 <= value <= 100 for value in (crop_x, crop_y)) or not 0 <= dim <= 80:
@@ -249,7 +225,11 @@ def render_footer(
     result = Image.new("RGBA", SIZE)
     result.alpha_composite(image, (0, 0))
     result.putalpha(ImageChops.multiply(result.getchannel("A"), capsule()))
-    result.alpha_composite(overlay(style, **branding))
+    result.alpha_composite(
+        centered_overlay(style, SIZE, framed=framed, icon_scale=branding.get("icon_scale", 100))
+        if centered
+        else overlay(style, **branding)
+    )
     output = io.BytesIO()
     result.save(output, format="PNG")
     return output.getvalue()

@@ -33,7 +33,7 @@ class Headers(commands.Cog):
     @app_commands.describe(
         background="Your background: a still PNG, JPEG or WebP, up to 8 MB.",
         style="Choose the metallic finish for the KY BOT mark and frame.",
-        framed="Include the matching molten-metal border.",
+        framed="Include a thin outline matching the selected finish.",
         title="Optional menu heading in VONCA. Leave empty for an open header.",
         crop_x="Background focal point: 0 left, 50 center, 100 right.",
         crop_y="Background focal point: 0 top, 50 center, 100 bottom.",
@@ -45,7 +45,7 @@ class Headers(commands.Cog):
         interaction: discord.Interaction,
         background: discord.Attachment,
         style: app_commands.Choice[str],
-        framed: bool = True,
+        framed: bool = False,
         title: app_commands.Range[str, 1, 64] | None = None,
         crop_x: app_commands.Range[int, 0, 100] = 50,
         crop_y: app_commands.Range[int, 0, 100] = 50,

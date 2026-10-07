@@ -1,3 +1,4 @@
+import io
 import logging
 from importlib.resources import files
 from typing import TYPE_CHECKING
@@ -32,16 +33,36 @@ class ServerSettings(commands.Cog):
             content = re.sub(
                 r"\{(member|server)\}", lambda match: values[match[1]], settings.welcome_message
             )
+            image = None
+            if channel.permissions_for(member.guild.me).attach_files:
+                try:
+                    image = await self.bot.server_settings.render_welcome_card(member)
+                except (ValueError, discord.HTTPException):
+                    logging.getLogger(__name__).warning(
+                        "Welcome image unavailable in server %s; sending greeting text",
+                        member.guild.id,
+                    )
+            file_options = (
+                {
+                    "file": discord.File(
+                        io.BytesIO(image), filename="welcome.png", description=content[:1024]
+                    )
+                }
+                if image
+                else {}
+            )
             await channel.send(
                 content[:2000],
                 allowed_mentions=discord.AllowedMentions(
                     everyone=False, roles=False, users=[member], replied_user=False
                 ),
+                **file_options,
             )
         except (ValueError, discord.HTTPException):
             logging.getLogger(__name__).warning(
                 "Could not send welcome in server %s channel %s",
-                member.guild.id, settings.welcome_channel_id,
+                member.guild.id,
+                settings.welcome_channel_id,
             )
 
     @app_commands.command(name="settings", description="Configure KY BOT for this server.")
@@ -56,20 +77,28 @@ class ServerSettings(commands.Cog):
         view.guild = interaction.guild
         view.show_section("overview")
         await interaction.edit_original_response(
-            view=view, allowed_mentions=discord.AllowedMentions.none(),
-            attachments=[discord.File(
-                files("ky_bot").joinpath(
-                    "assets", "header", "ky_header_command_center.png"
-                ).open("rb"), filename="ky_settings_header.png",
-            ), discord.File(
-                files("ky_bot").joinpath(
-                    "assets", "footer", "ky_footer_floral_wreath_centered_framed.png"
-                ).open("rb"), filename="ky_settings_footer.png",
-            ), discord.File(
-                files("ky_bot").joinpath(
-                    "assets", "header", "ky_settings_title.png"
-                ).open("rb"), filename="ky_settings_title.png",
-            )],
+            view=view,
+            allowed_mentions=discord.AllowedMentions.none(),
+            attachments=[
+                discord.File(
+                    files("ky_bot")
+                    .joinpath("assets", "header", "ky_header_command_center.png")
+                    .open("rb"),
+                    filename="ky_settings_header.png",
+                ),
+                discord.File(
+                    files("ky_bot")
+                    .joinpath("assets", "footer", "ky_footer_silver_neon_compact.png")
+                    .open("rb"),
+                    filename="ky_settings_footer.png",
+                ),
+                discord.File(
+                    files("ky_bot")
+                    .joinpath("assets", "header", "ky_settings_title.png")
+                    .open("rb"),
+                    filename="ky_settings_title.png",
+                ),
+            ],
         )
         view.message = await interaction.original_response()
 

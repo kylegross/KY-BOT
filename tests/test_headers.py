@@ -138,9 +138,9 @@ def test_invalid_height_rejected(height):
 
 @pytest.mark.parametrize("framed", [True, False])
 def test_header_fills_rectangular_corner_area(framed):
-    image = Image.open(io.BytesIO(render_header(
-        png(Image.new("RGB", SIZE, "red")), framed=framed, height=280
-    )))
+    image = Image.open(
+        io.BytesIO(render_header(png(Image.new("RGB", SIZE, "red")), framed=framed, height=280))
+    )
     assert image.getpixel((20, 20)) == (255, 0, 0, 255)
     assert image.getpixel((1580, 260)) == (255, 0, 0, 255)
 
@@ -153,16 +153,19 @@ def test_title_fits_custom_height(height, framed):
     except TypographyError:
         pytest.skip("Licensed fonts remain private production assets.")
     data = png(Image.new("RGB", SIZE, "blue"))
-    result = Image.open(io.BytesIO(render_header(
-        data, title="COMMAND CENTER", height=height, framed=framed
-    )))
+    result = Image.open(
+        io.BytesIO(render_header(data, title="COMMAND CENTER", height=height, framed=framed))
+    )
     plain = Image.open(io.BytesIO(render_header(data, height=height, framed=framed)))
     area = ImageChops.difference(result.convert("RGB"), plain.convert("RGB")).getbbox()
     assert area is not None
     # Lettering and both rules must fit within the frame's bottom safe margin.
     mask = text_mask(
-        "COMMAND CENTER", role="display", size=min(108, round(height * 108 / 520)),
-        min_size=40, max_width=1280,
+        "COMMAND CENTER",
+        role="display",
+        size=min(108, round(height * 108 / 520)),
+        min_size=40,
+        max_width=1280,
     )
     y = (height - mask.height) // 2
     assert y + mask.height + min(28, round(height * 28 / 520)) < height - 24

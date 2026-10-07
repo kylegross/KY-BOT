@@ -1,7 +1,9 @@
 """Build slogan-free header designs and reusable layers from approved KY BOT assets."""
 
+import io
 import json
 import sys
+import zipfile
 from pathlib import Path
 
 from artwork_io import save_artwork, write_artwork
@@ -9,20 +11,14 @@ from PIL import Image, ImageDraw, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+from ky_bot.services.collection import floral_background  # noqa: E402
 from ky_bot.services.footers import rectangular_frame  # noqa: E402
 from ky_bot.services.headers import SIZE, STYLES, overlay, render_header  # noqa: E402
 from ky_bot.services.typography import text_mask  # noqa: E402
 
-BASE = ROOT / "assets/branding/footers"
 PACKAGE = ROOT / "src/ky_bot/assets/header"
 OUTPUT = ROOT / "assets/branding/headers"
-FINISHES = {
-    "volcanic": "gold",
-    "botanical": "gold",
-    "abstract_nature": "silver_neon",
-    "floral_wreath": "dark_silver",
-    "stone_minimal": "dark_silver",
-}
+FINISHES = {style: style for style in STYLES}
 
 
 def main():
@@ -60,19 +56,24 @@ def main():
                 overlay(style, framed=framed, height=280), OUTPUT / "templates" / compact_name
             )
     for design, finish in FINISHES.items():
-        bg = (BASE / "masters/approved-materials" / f"{design}_background.png").read_bytes()
+        stream = io.BytesIO()
+        floral_background(finish, SIZE).save(stream, format="PNG")
+        bg = stream.getvalue()
         for framed in (True, False):
             content = render_header(bg, finish, framed=framed)
             name = f"ky_header_{design}{'' if framed else '_borderless'}.png"
             write_artwork((OUTPUT / "designs" / name), content)
             write_artwork((PACKAGE / name), content)
-            compact = render_header(bg, finish, framed=framed, height=280)
+            stream = io.BytesIO()
+            floral_background(finish, (1600, 280)).save(stream, format="PNG")
+            compact = render_header(stream.getvalue(), finish, framed=framed, height=280)
             compact_name = name.replace(".png", "_compact.png")
             write_artwork((OUTPUT / "designs" / compact_name), compact)
             write_artwork((PACKAGE / compact_name), compact)
     manifest = {
         "canvas": list(SIZE),
         "shape": "Wide rectangle with 8-pixel corner radius",
+        "collection": "Illustrated KY BOT florals on matte charcoal",
         "brand": "KY BOT",
         "slogan": None,
         "brand_position": "Top left; icon before KY BOT",
@@ -95,8 +96,14 @@ def main():
         "font_binaries_included": False,
     }
     (OUTPUT / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    with zipfile.ZipFile(OUTPUT / "ky_header_templates.zip", "w", zipfile.ZIP_DEFLATED) as bundle:
+        bundle.write(OUTPUT / "manifest.json", "manifest.json")
+        for path in (OUTPUT / "templates").glob("*.png"):
+            bundle.write(path, path.name)
 
-    print("Built standard and compact versions of five designs and six reusable templates.")
+    print(
+        "Built standard and compact versions of three floral finishes and six reusable templates."
+    )
 
 
 if __name__ == "__main__":

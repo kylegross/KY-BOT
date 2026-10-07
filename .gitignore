@@ -20,3 +20,7 @@ assets/branding/fonts/private/
 *.ttf
 *.woff
 *.woff2
+
+# Review-only drafts and retired artwork; never ship these with the bot.
+previews/
+assets/branding/archive/

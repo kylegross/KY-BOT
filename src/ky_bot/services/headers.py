@@ -6,12 +6,13 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
-from ky_bot.services.footers import FooterError, metal, read_upload, rectangular_frame
+from ky_bot.services.collection import COLOURS
+from ky_bot.services.footers import FooterError, read_upload, rectangular_frame
 from ky_bot.services.typography import TypographyError, text_mask
 
 SIZE = (1600, 520)
 STYLES = ("gold", "silver_neon", "dark_silver")
-DESIGNS = ("volcanic", "botanical", "abstract_nature", "floral_wreath", "stone_minimal")
+DESIGNS = ("dark_silver", "gold", "silver_neon")
 
 
 def asset(name: str) -> Image.Image:
@@ -67,9 +68,9 @@ def render_header(
         centering=(crop_x / 100, crop_y / 100),
     )
     image.alpha_composite(Image.new("RGBA", size, (0, 0, 0, round(255 * dim / 100))))
-    image.putalpha(ImageChops.multiply(
-        image.getchannel("A"), background_mask(framed=framed, height=height)
-    ))
+    image.putalpha(
+        ImageChops.multiply(image.getchannel("A"), background_mask(framed=framed, height=height))
+    )
     image.alpha_composite(overlay(style, framed=framed, height=height))
     if title is not None:
         try:
@@ -90,8 +91,7 @@ def render_header(
         rule_left = (SIZE[0] - rule_width) // 2
         gap = min(28, round(height * 28 / 520))
         top, bottom = y - gap, y + mask.height + gap
-        dark = style == "dark_silver"
-        colour = "#292724" if dark else "#f5e9ce" if style == "gold" else "#edf1f5"
+        colour = COLOURS[style]
         # A feathered contrast area retains the background texture without a boxed title.
         shade = Image.new("L", size)
         ImageDraw.Draw(shade).rounded_rectangle(
@@ -99,13 +99,14 @@ def render_header(
             radius=35,
             fill=165,
         )
-        veil = Image.new("RGBA", size, "#f6f0e3" if dark else "#080a0c")
+        veil = Image.new("RGBA", size, "#080a0c")
         veil.putalpha(shade.filter(ImageFilter.GaussianBlur(28)))
         image.alpha_composite(veil)
         pen = ImageDraw.Draw(image)
         for rule_y in (top, bottom):
             pen.line((rule_left, rule_y, rule_left + rule_width, rule_y), fill=colour, width=3)
-        text = metal(mask, style, sheen=0.3)
+        text = Image.new("RGBA", mask.size, colour)
+        text.putalpha(mask)
         image.alpha_composite(text, (x, y))
     output = io.BytesIO()
     image.save(output, format="PNG")

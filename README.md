@@ -15,12 +15,19 @@ In **Welcome**, choose a channel to enable messages on member joins. Use **Edit 
 to customize the text with `{member}` (new member mention) and `{server}` (server name).
 Only the joining member can be pinged; role and everyone mentions are suppressed.
 **Disable welcomes** stops messages and keeps the custom text for later.
-The bot needs View Channel, Send Messages, and Embed Links in the selected channel,
+Welcome cards are a single image with the member's avatar and name, server name,
+custom greeting, and a small KY BOT badge. **Welcome → Design** lets administrators
+upload a server-specific background, edit the title, accent color and background darkening,
+restore the default artwork, and preview privately. Still images up to 8 MB are supported.
+Backgrounds and appearance settings persist in the server settings database.
+The bot needs View Channel, Send Messages, Embed Links, and Attach Files in the selected channel,
 and Server Members Intent must be enabled in the Discord Developer Portal.
 Restart the bot to load these changes; the existing `/settings` command needs no new registration.
-The panel uses Discord Components V2, supported by discord.py 2.6 and later. The title artwork
+The upload menu requires discord.py 2.7 or later; install the updated project dependencies.
+The panel uses Discord Components V2. The title artwork
 is packaged with the bot, so hosting it does not require fonts. Regenerate just this header with
 `python tools/build_command_center_header.py` when the licensed local VONCA fonts are available.
+Dynamic welcome text uses those local fonts when available, with a built-in fallback on other hosts.
 
 A slash-command-first discord.py application with modular cogs, private Discord UI menus,
 validated environment configuration, rotating logs, safe error responses, and async resource cleanup.
@@ -153,50 +160,19 @@ and a second server. Refresh reloads current saved values; unavailable saved cha
 
 ## Custom footer frameworks
 
-`/footer` creates a private PNG download with a user-uploaded background. Choose iridescent silver
-with a rainbow tint, original gold, or dark silver/black metallic. All styles use a 2176 Ã— 320 canvas.
-The background fills a wide rectangular frame with subtle corners. Dark silver works best on
-lighter backgrounds. This exports an image; it does not automatically change server settings or
-other bot messages.
+`/footer` creates a private PNG download using your uploaded background and a fixed centered
+KY BOT botanical icon. Choose dark silver, gold, or silver neon. The canvas is 2176 � 320.
+The background fills the rectangular image with subtle corners. You can adjust crop, darkening
+and icon size. Optional custom slogans and left/right logos use the alternate slogan layout.
 
-Optional inputs: `slogan`, `left_icon`, `right_icon`, `crop_x`, `crop_y`, `dim`, and `icon_scale`.
-One left icon is repeated on both sides unless a separate right icon is uploaded. Custom logos
-must have transparent backgrounds; their silhouettes receive the selected metallic finish.
-Crop coordinates run from 0â€“100, dimming from 0â€“80%, and icon scale from 60â€“120%.
-Backgrounds accept still PNG/JPEG/WebP files; icons accept transparent PNG/WebP.
-Each upload is limited to 8 MB, 16 megapixels, and 8192 pixels on either side.
+Upload still PNG, JPEG or WebP images up to 8 MB, 16 megapixels and 8192 pixels per side.
+Custom icons need transparency. Images are processed in memory; exports do not automatically
+change existing messages. Custom slogans need the owner's licensed VONCA font on the host.
 
-The default runtime tagline is rendered from licensed VONCA Light with restrained tracking.
-Its PNG layers ship with the bot; licensed font binaries do not. Local custom slogans use
-`assets/branding/fonts/private/Vonca-Light.otf` automatically. Set `KY_BOT_FONT_DIR` to an
-external font directory on other hosts, or retain `FOOTER_FONT_PATH` for an explicit OTF/TTF
-override. Use VONCA Light for that override. Restart the bot after changing configuration.
-The default tagline and icon/background customization still work without font binaries.
-
-Install updated dependencies with `python -m pip install -e ".[dev]"` in the project environment.
-Restart with `COMMAND_SYNC=guild` to register `/footer` in the test server, then return to `none`.
-The bot needs permission to attach files. No command registration or bot restart is performed
-by the asset build scripts.
-
-Uploaded backgrounds, logos, and slogans are processed in memory and are not written to the
-bot's database or filesystem. Discord handles the uploads and the private output attachment.
-There is no saved per-user customization profile; rerun the command to make another version.
-
-Editable PNG layers are in `assets/branding/footers/frameworks/`; runtime layers
-ship with the Python package. Approved source artwork is retained in
-`assets/branding/footers/masters/approved-materials/`.
-The approved collection uses rebuilt backgrounds and a shared glossy molten-metal border,
-made 15% thinner across all finishes. Volcanic includes gold ribbons and a softened, darker
-area behind the slogan. Native background sources and generation prompts are retained in
-`masters/approved-materials/`; final exports are 2176 × 320, not native 4K. The archived approved compositions retain their original lettering; the runtime footer
-tagline layers now use exact VONCA Light. The five standard designs now use the approved three-leaf icon:
-gold for Volcanic and Botanical, iridescent silver for Abstract Nature, and black metallic
-for Floral Wreath and Stone Minimal. The `silver_neon` internal style ID remains compatible;
-its displayed name and artwork are now iridescent silver.
-`tools/build_footer_frameworks.py` and `tools/standardize_footers.py` are historical builders for
-the earlier artwork, not the currently approved exports. Do not run them over the current library.
-Draft reviews, preview images, and duplicate ZIP bundles have been removed. Approved source
-artwork, editable layers, and final exports remain; earlier tracked versions remain in Git history.
+The floral library and transparent templates are in `assets/branding/footers/standardized/`
+and `assets/branding/footers/frameworks/`. Place your background beneath a transparent template
+to keep the fixed centered KY BOT icon. Matching frame layers are optional. The ZIP downloads
+include the updated artwork and manifests. The old photographic collection has been retired.
 
 ## Checks
 
@@ -277,57 +253,42 @@ Licensed local fonts are ignored by Git and excluded from the Docker build. For 
 slogans, install your private font on the persistent volume and point `KY_BOT_FONT_DIR` at
 that directory, or set `FOOTER_FONT_PATH` to `/data/fonts/Vonca-Light.otf`.
 Discord controls fonts in native embed text and buttons; exact VONCA applies to rendered graphics.
-Historical builders now use VONCA for their text, but must not overwrite the approved library.
+Approved artwork builders use the same shared VONCA typography renderer.
 
 ## Menu and embed headers
 
-The approved header collection has five backgrounds: Volcanic, Botanical, Abstract Nature,
-Floral Wreath, and Stone Minimal. Each is available framed and borderless at 1600 × 520.
-All headers are slogan-free. The small icon and KY BOT mark sit at the top left, slightly
-inset on framed headers and closer to the corner on borderless headers. Optional titles use
-large VONCA Bold lettering with a thin matching line above and below.
+The approved collection uses illustrated KY BOT flowers on matte charcoal in **dark silver**,
+**gold**, and **silver neon**. All three have matching headers and short centered-icon footers.
+Flower shapes retain their proportions across standard and compact sizes. The Command Center
+uses silver neon, a small corner badge and readable centered COMMAND CENTER lettering.
 
-All designs and reusable templates share the smaller 190 × 57 corner logo and its readability
-plate. Optional titles are centered horizontally and vertically and use the same metallic
-finish as the border. Compact 1600 × 280 exports accompany the standard 1600 × 520 assets;
-compact filenames include `_compact`. The floral wreath Command Center keeps its pale logo plate.
+`/header` accepts your own still PNG, JPEG or WebP background and keeps the KY BOT name and
+icon fixed in the top-left corner. Choose the finish, add an optional VONCA title, adjust
+crop/darkening, and select `height` from 240�800 pixels (default 520; try 280 for compact).
+Width stays at 1600 pixels. A thin matching outline is optional; borderless is the default.
+Titles have subdued color with two fine rules. Dark silver retains its pale badge plate.
 
-Headers and footers now use wide rectangles with an 8-pixel corner radius to align with panel
-text. Header titles use restrained metallic highlights for readability. Rebuild footer presets,
-frameworks, and download archives with `python tools/build_rectangular_footers.py`, then run
-`python tools/build_headers.py` and `python tools/build_command_center_header.py` to refresh
-the header library and settings artwork. The original raster masters remain the source artwork.
+Transparent header templates and separate brand/frame layers are in
+`assets/branding/headers/templates/` and `assets/branding/headers/layers/`. Put your own image
+underneath the transparent template; the badge remains in place. Use `ky_header_templates.zip`
+for all finishes and sizes. The final floral presets are in `assets/branding/headers/designs/`.
+Runtime artwork is bundled into the Python package and Docker image. No licensed font files
+are committed or bundled. Blank headers work without fonts; custom titles require the owner's
+licensed VONCA Bold in `KY_BOT_FONT_DIR`.
 
-Final designs are in `assets/branding/headers/designs/`. Reusable transparent PNG templates
-are in `assets/branding/headers/templates/`, with separate frame and brand source layers in
-`assets/branding/headers/layers/`. The manifest documents the layout. No preview sheets or
-draft images are included in the project. Original approved footer assets remain intact.
+`ky_bot.services.headers.design_file(style, framed=False, compact=True)` returns a compact
+preset for one of `dark_silver`, `gold`, or `silver_neon`. `render_header` handles uploads and
+custom sizes. Exports are private downloads and do not change existing bot messages.
 
-Use `/header` to upload a still PNG, JPEG, or WebP background, choose gold, iridescent silver,
-or black metallic, and choose framed or borderless. Optional inputs are `title`, `crop_x`,
-`crop_y`, and `dim`. The result is a private PNG download, processed in memory, with no saved
-customization profile. The brand mark stays fixed; there is no slogan input. Upload limits
-match `/footer`: 8 MB, 16 megapixels, and 8192 pixels per side. Exported graphics can be used
-in menus and embeds; the command does not automatically change existing bot messages.
+To rebuild the approved collection locally with the licensed fonts available, run:
 
-The optional `height` input accepts 240–800 pixels (default 520); try 280 for a compact banner.
-Width stays at 1600 pixels. The background crop, frame, and title adapt to the selected height.
-Sync commands once after updating the bot to expose this new `/header` option.
+```powershell
+python tools/build_rectangular_footers.py
+python tools/build_headers.py
+python tools/build_command_center_header.py
+```
 
-Blank headers and brand marks work without fonts on the host. Custom titles require your
-licensed `Vonca-Bold.otf` or `Vonca-Bold.ttf` in the private local font directory or in
-`KY_BOT_FONT_DIR` on the host. Font binaries are never bundled or committed.
-
-`ky_bot.services.headers.design_file(name, framed=False)` provides a borderless preset;
-omit `framed=False` for the framed preset. Attach those bytes as a Discord PNG file and
-reference the attachment from the embed image. `render_header` supports custom backgrounds
-and titles. Runtime PNGs are included in the Python package and Docker image.
-Pass `compact=True` to `design_file` for the compact preset.
-
-Regenerate final headers with `python tools/build_headers.py` when licensed fonts are
-available locally. This builder uses approved footer source assets and exports final
-designs, templates, and layers only. It does not alter the footers or generate draft sheets.
-
-Restart the bot and sync commands once to register `/header`: use `COMMAND_SYNC=guild` with
-your test server ID, or `global` for release, then return to `none`. Live command registration
-is not performed by the asset builder or tests.
+The old presets and their historical builders were removed from the active collection.
+A local archive is ignored by Git and excluded from deployments. Restart or redeploy the bot
+for new artwork. Sync slash commands once if command options or descriptions changed, then
+return `COMMAND_SYNC` to `none`.

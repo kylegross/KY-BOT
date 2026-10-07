@@ -76,6 +76,7 @@ class Footers(commands.Cog):
                     render_footer,
                     background_data,
                     style.value,
+                    centered=slogan is None and left_icon is None and right_icon is None,
                     slogan=slogan if slogan is not None else SLOGAN,
                     left_icon=left_data,
                     right_icon=right_data,
