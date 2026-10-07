@@ -7,6 +7,15 @@ from pathlib import Path
 
 
 class ChecklistStore:
+    def is_checklist_channel(self, guild, channel):
+        """Keep checklist channels, logs and task discussions out of server message logs."""
+        return self.db.execute(
+            "SELECT 1 FROM boards WHERE guild=? AND (channel=? OR log_channel=?) "
+            "UNION ALL SELECT 1 FROM tasks JOIN boards ON tasks.channel=boards.channel "
+            "WHERE boards.guild=? AND tasks.thread=? LIMIT 1",
+            (guild, channel, channel, guild, channel),
+        ).fetchone() is not None
+
     def __init__(self, path):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path)

@@ -35,6 +35,13 @@ class Activity(commands.Cog):
     ) -> None:
         if guild_id is None:
             return
+        checklists = getattr(self.bot, "checklists", None)
+        if (
+            checklists is not None
+            and title in {"MESSAGE DELETED", "MESSAGES BULK DELETED", "MESSAGE EDITED"}
+            and checklists.store.is_checklist_channel(guild_id, source_channel_id)
+        ):
+            return
         settings = await self.bot.server_settings.repository.get(guild_id)
         if settings.log_channel_id is None or settings.log_channel_id == source_channel_id:
             return

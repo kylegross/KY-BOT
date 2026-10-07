@@ -16,7 +16,9 @@ class TaskActions(discord.ui.LayoutView):
         super().__init__(timeout=600)
         board = service.store.board(task["channel"])
         panel = discord.ui.Container(accent_colour=int(COLOURS[board["style"]][1:], 16))
-        panel.add_item(discord.ui.TextDisplay(f"**{safe(task['title'][:500])}**"))
+        panel.add_item(
+            discord.ui.TextDisplay(f"## \\*ੈ𑁍  {safe(task['title'][:500])}  𑁍ੈ\\*")
+        )
 
         def row(title, description, label, callback):
             button = discord.ui.Button(label=label)

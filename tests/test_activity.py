@@ -5,6 +5,26 @@ import discord
 import pytest
 
 from ky_bot.admin_functions.activity import Activity
+from ky_bot.checklists.store import ChecklistStore
+
+
+@pytest.mark.parametrize("title", ["MESSAGE DELETED", "MESSAGES BULK DELETED", "MESSAGE EDITED"])
+@pytest.mark.parametrize("source", [10, 20, 30])
+async def test_checklist_message_events_stay_out_of_server_log(title, source):
+    cog, channel, _ = setup_activity(channel_id=40)
+    store = ChecklistStore(":memory:")
+    try:
+        store.create(10, 1, 20)
+        store.add(10, 123, 90, "Task", [])
+        store.db.execute("UPDATE tasks SET thread=30")
+        cog.bot.checklists = NS(store=store)
+        await cog.emit(1, title, {}, source_channel_id=source)
+        channel.send.assert_not_awaited()
+        await cog.emit(1, title, {}, source_channel_id=50)
+        channel.send.assert_awaited_once()
+        assert not store.is_checklist_channel(2, source)
+    finally:
+        store.db.close()
 
 
 def setup_activity(channel_id=20):
