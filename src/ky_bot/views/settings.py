@@ -79,13 +79,13 @@ class SettingsView(discord.ui.LayoutView):
         if section == "overview":
             status = "Enabled" if self.settings.welcome_channel_id else "Disabled"
             row(
-                f"### \u2003WELCOME EXPERIENCE\n"
-                f"-# \u2003Personal greetings for new members · {status}",
+                f"### WELCOME EXPERIENCE\n"
+                f"-# Personal greetings for new members · {status}",
                 self.navigation("Manage", "welcome"),
             )
             separator()
             row(
-                "### \u2003SERVER ACTIVITY\n-# \u2003Moderation logs · Coming soon",
+                "### SERVER ACTIVITY\n-# Moderation logs · Coming soon",
                 self.navigation("Manage", "logging"),
             )
         elif section == "welcome":

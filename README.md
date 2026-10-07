@@ -155,7 +155,7 @@ and a second server. Refresh reloads current saved values; unavailable saved cha
 
 `/footer` creates a private PNG download with a user-uploaded background. Choose iridescent silver
 with a rainbow tint, original gold, or dark silver/black metallic. All styles use a 2176 Ã— 320 canvas.
-The background fills the capsule; the outside remains transparent. Dark silver works best on
+The background fills a wide rectangular frame with subtle corners. Dark silver works best on
 lighter backgrounds. This exports an image; it does not automatically change server settings or
 other bot messages.
 
@@ -291,6 +291,12 @@ All designs and reusable templates share the smaller 190 × 57 corner logo and i
 plate. Optional titles are centered horizontally and vertically and use the same metallic
 finish as the border. Compact 1600 × 280 exports accompany the standard 1600 × 520 assets;
 compact filenames include `_compact`. The floral wreath Command Center keeps its pale logo plate.
+
+Headers and footers now use wide rectangles with an 8-pixel corner radius to align with panel
+text. Header titles use restrained metallic highlights for readability. Rebuild footer presets,
+frameworks, and download archives with `python tools/build_rectangular_footers.py`, then run
+`python tools/build_headers.py` and `python tools/build_command_center_header.py` to refresh
+the header library and settings artwork. The original raster masters remain the source artwork.
 
 Final designs are in `assets/branding/headers/designs/`. Reusable transparent PNG templates
 are in `assets/branding/headers/templates/`, with separate frame and brand source layers in

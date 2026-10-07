@@ -8,7 +8,7 @@ mask = text_mask('SERVER SETTINGS', role='display', size=44, min_size=44, max_wi
 lettering = Image.new('RGBA', mask.size, '#D8BB78')
 lettering.putalpha(mask)
 label = Image.new('RGBA', (1600, 80))
-label.alpha_composite(lettering, (48, (80-mask.height)//2))
+label.alpha_composite(lettering, (0, (80-mask.height)//2))
 label.save(out / 'server_settings_vonca_gold.png')
 preview = Image.new('RGBA', (1680, 650), '#2b2d38')
 header = Image.open(root / 'src/ky_bot/assets/header/ky_header_command_center.png').convert('RGBA')

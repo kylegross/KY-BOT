@@ -136,6 +136,15 @@ def test_invalid_height_rejected(height):
         render_header(b"", height=height)
 
 
+@pytest.mark.parametrize("framed", [True, False])
+def test_header_fills_rectangular_corner_area(framed):
+    image = Image.open(io.BytesIO(render_header(
+        png(Image.new("RGB", SIZE, "red")), framed=framed, height=280
+    )))
+    assert image.getpixel((20, 20)) == (255, 0, 0, 255)
+    assert image.getpixel((1580, 260)) == (255, 0, 0, 255)
+
+
 @pytest.mark.parametrize("height", [240, 280, 800])
 @pytest.mark.parametrize("framed", [True, False])
 def test_title_fits_custom_height(height, framed):

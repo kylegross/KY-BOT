@@ -5,7 +5,7 @@ import warnings
 from importlib.resources import files
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
+from PIL import Image, ImageChops, ImageColor, ImageDraw, ImageFilter, ImageOps
 
 from ky_bot.services.typography import TAGLINE, TypographyError, text_mask
 
@@ -57,11 +57,35 @@ def asset(name: str) -> Image.Image:
 
 def capsule() -> Image.Image:
     mask = Image.new("L", (SIZE[0] * 3, SIZE[1] * 3))
-    ImageDraw.Draw(mask).rounded_rectangle((48, 72, 6479, 887), radius=408, fill=255)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        (0, 0, SIZE[0] * 3 - 1, SIZE[1] * 3 - 1), radius=24, fill=255
+    )
     return mask.resize(SIZE, Image.Resampling.LANCZOS)
 
 
-def metal(mask: Image.Image, style: str) -> Image.Image:
+def rectangular_frame(style: str, size: tuple[int, int]) -> Image.Image:
+    """Carry the approved metal texture into a wide frame with subtle square corners."""
+    source = asset(f"{style}_frame.png").convert("RGBA")
+    strip = source.crop((400, 16, 1776, 48))
+    strip = strip.crop(strip.getchannel("A").getbbox())
+    width, height = size
+    edge = 12
+    top = strip.resize((width, edge), Image.Resampling.LANCZOS)
+    side = strip.resize((height, edge), Image.Resampling.LANCZOS).transpose(
+        Image.Transpose.ROTATE_90
+    )
+    frame = Image.new("RGBA", size)
+    frame.alpha_composite(top, (0, 0))
+    frame.alpha_composite(top.transpose(Image.Transpose.FLIP_TOP_BOTTOM), (0, height - edge))
+    frame.alpha_composite(side, (0, 0))
+    frame.alpha_composite(side.transpose(Image.Transpose.FLIP_LEFT_RIGHT), (width - edge, 0))
+    mask = Image.new("L", size)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, width - 1, height - 1), radius=8, fill=255)
+    frame.putalpha(ImageChops.multiply(frame.getchannel("A"), mask))
+    return frame
+
+
+def metal(mask: Image.Image, style: str, *, sheen: float = 1.0) -> Image.Image:
     """Tint alpha artwork consistently, with a restrained optional dual-color halo."""
     palettes = {
         "gold": ("#704009", "#e9b64e", "#fff4cf"),
@@ -69,6 +93,10 @@ def metal(mask: Image.Image, style: str) -> Image.Image:
         "silver_neon": ("#677b99", "#d5e1f0", "#ffffff"),
     }
     low, mid, high = palettes[style]
+    high = tuple(
+        round(base + (highlight - base) * sheen)
+        for base, highlight in zip(ImageColor.getrgb(mid), ImageColor.getrgb(high))
+    )
     h = mask.height
     ramp = Image.new("L", (1, h))
     anchors = [(0, 100), (0.25, 205), (0.43, 255), (0.51, 100), (0.68, 195), (1, 80)]
@@ -107,7 +135,7 @@ def metal(mask: Image.Image, style: str) -> Image.Image:
     if style == "dark_silver":
         bevel = ImageChops.subtract(mask.filter(ImageFilter.MaxFilter(3)), mask)
         edge = Image.new("RGBA", mask.size, "#c7d2df")
-        edge.putalpha(bevel.point(lambda x: x * 0.65))
+        edge.putalpha(bevel.point(lambda x: x * 0.65 * sheen))
         result.alpha_composite(edge)
     result.alpha_composite(colored)
     return result
@@ -135,7 +163,7 @@ def overlay(
         raise FooterError("Choose silver neon, gold, or dark silver.")
     if not 60 <= icon_scale <= 120:
         raise FooterError("Icon size must be between 60 and 120 percent.")
-    result = asset(f"{style}_frame.png").convert("RGBA")
+    result = rectangular_frame(style, SIZE)
     for data, cx in ((left_icon, 206), (right_icon, 1970)):
         if data is None:
             icon = asset(f"{style}_icon.png").convert("RGBA")
@@ -176,13 +204,13 @@ def render_footer(
     if not all(0 <= value <= 100 for value in (crop_x, crop_y)) or not 0 <= dim <= 80:
         raise FooterError("Crop positions must be 0–100 and dimming must be 0–80.")
     image = read_upload(background)
-    # Fit into the actual capsule area, so the selected crop matches the visible region.
+    # Fill the rectangle to its edges so artwork and text share a consistent left edge.
     image = ImageOps.fit(
-        image, (2144, 272), Image.Resampling.LANCZOS, centering=(crop_x / 100, crop_y / 100)
+        image, SIZE, Image.Resampling.LANCZOS, centering=(crop_x / 100, crop_y / 100)
     )
     image.alpha_composite(Image.new("RGBA", image.size, (0, 0, 0, round(255 * dim / 100))))
     result = Image.new("RGBA", SIZE)
-    result.alpha_composite(image, (16, 24))
+    result.alpha_composite(image, (0, 0))
     result.putalpha(ImageChops.multiply(result.getchannel("A"), capsule()))
     result.alpha_composite(overlay(style, **branding))
     output = io.BytesIO()

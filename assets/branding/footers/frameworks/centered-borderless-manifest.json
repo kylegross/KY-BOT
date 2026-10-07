@@ -18,5 +18,6 @@
   ],
   "frame": null,
   "slogan": null,
-  "customization": "Replace background and center icon; bot integration pending"
+  "customization": "Replace background and center icon; bot integration pending",
+  "shape": "Wide rectangle with subtle 8-pixel corners"
 }

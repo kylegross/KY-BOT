@@ -8,6 +8,7 @@ from PIL import Image, ImageDraw, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+from ky_bot.services.footers import rectangular_frame  # noqa: E402
 from ky_bot.services.headers import SIZE, STYLES, overlay, render_header  # noqa: E402
 from ky_bot.services.typography import text_mask  # noqa: E402
 
@@ -29,14 +30,7 @@ def main():
         (OUTPUT / directory).mkdir(parents=True, exist_ok=True)
     lettering = text_mask("KY BOT", role="heading", size=40, min_size=40, max_width=200)
     for style in STYLES:
-        # Extend only the straight sides; retain the original corner curvature and border texture.
-        original = Image.open(ROOT / f"src/ky_bot/assets/footer/{style}_frame.png").convert("RGBA")
-        original = original.resize((1600, 235), Image.Resampling.LANCZOS)
-        frame = Image.new("RGBA", SIZE)
-        frame.alpha_composite(original.crop((0, 0, 1600, 117)), (0, 0))
-        middle = original.crop((0, 117, 1600, 118)).resize((1600, 285))
-        frame.alpha_composite(middle, (0, 117))
-        frame.alpha_composite(original.crop((0, 117, 1600, 235)), (0, 402))
+        frame = rectangular_frame(style, SIZE)
         frame.save(PACKAGE / f"{style}_frame.png")
         frame.save(OUTPUT / "layers" / f"ky_header_{style}_frame.png")
 
@@ -73,6 +67,7 @@ def main():
             (PACKAGE / compact_name).write_bytes(compact)
     manifest = {
         "canvas": list(SIZE),
+        "shape": "Wide rectangle with 8-pixel corner radius",
         "brand": "KY BOT",
         "slogan": None,
         "brand_position": "Top left; icon before KY BOT",

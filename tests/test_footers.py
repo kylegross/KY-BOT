@@ -49,6 +49,14 @@ def test_crop_focal_point_changes_visible_background():
     assert lower.getpixel((1088, 100))[:3] == (0, 0, 255)
 
 
+def test_footer_fills_rectangular_corner_area():
+    image = Image.open(io.BytesIO(render_footer(
+        png(Image.new("RGB", SIZE, "red")), "dark_silver", dim=0
+    )))
+    assert image.getpixel((20, 20)) == (255, 0, 0, 255)
+    assert image.getpixel((SIZE[0] - 21, SIZE[1] - 21)) == (255, 0, 0, 255)
+
+
 @pytest.mark.parametrize(
     "data", [b"not an image", b"", b"x" * (MAX_UPLOAD + 1)], ids=["invalid", "empty", "oversize"]
 )

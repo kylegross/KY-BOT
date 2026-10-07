@@ -18,5 +18,6 @@
     "center_icon"
   ],
   "slogan": null,
-  "customization": "Background and center icon can be replaced using separate layers; bot integration pending"
+  "customization": "Background and center icon can be replaced using separate layers; bot integration pending",
+  "shape": "Wide rectangle with subtle 8-pixel corners"
 }

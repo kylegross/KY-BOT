@@ -37,5 +37,6 @@
     "silver_neon": "Iridescent silver",
     "gold": "Original gold",
     "dark_silver": "Black metallic"
-  }
+  },
+  "shape": "Wide rectangle with subtle 8-pixel corners"
 }

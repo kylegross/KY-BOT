@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
-from ky_bot.services.footers import FooterError, metal, read_upload
+from ky_bot.services.footers import FooterError, metal, read_upload, rectangular_frame
 from ky_bot.services.typography import TypographyError, text_mask
 
 SIZE = (1600, 520)
@@ -21,8 +21,8 @@ def asset(name: str) -> Image.Image:
 
 def background_mask(*, framed: bool = True, height: int = SIZE[1]) -> Image.Image:
     mask = Image.new("L", (SIZE[0], height))
-    box = (28, 24, 1571, height - 25) if framed else (0, 0, 1599, height - 1)
-    ImageDraw.Draw(mask).rounded_rectangle(box, radius=100 if framed else 32, fill=255)
+    box = (0, 0, 1599, height - 1)
+    ImageDraw.Draw(mask).rounded_rectangle(box, radius=8, fill=255)
     return mask
 
 
@@ -32,18 +32,7 @@ def overlay(style: str, *, framed: bool = True, height: int = SIZE[1]) -> Image.
     result = asset(f"{style}_brand.png")
     if framed:
         # The brand sits above the frame, within the top-left interior safe area.
-        frame = asset(f"{style}_frame.png")
-        if height != SIZE[1]:
-            # Keep the curved corners intact and extend only the straight vertical sides.
-            resized = Image.new("RGBA", (SIZE[0], height))
-            resized.alpha_composite(frame.crop((0, 0, SIZE[0], 110)), (0, 0))
-            resized.alpha_composite(
-                frame.crop((0, 110, SIZE[0], 410)).resize(
-                    (SIZE[0], height - 220), Image.Resampling.LANCZOS
-                ), (0, 110),
-            )
-            resized.alpha_composite(frame.crop((0, 410, SIZE[0], 520)), (0, height - 110))
-            frame = resized
+        frame = rectangular_frame(style, (SIZE[0], height))
         brand = result.crop((100, 68, 371, 149)).resize((190, 57), Image.Resampling.LANCZOS)
         frame.alpha_composite(brand, (72, 68))
         return frame
@@ -116,7 +105,7 @@ def render_header(
         pen = ImageDraw.Draw(image)
         for rule_y in (top, bottom):
             pen.line((rule_left, rule_y, rule_left + rule_width, rule_y), fill=colour, width=3)
-        text = metal(mask, style)
+        text = metal(mask, style, sheen=0.3)
         image.alpha_composite(text, (x, y))
     output = io.BytesIO()
     image.save(output, format="PNG")

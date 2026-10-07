@@ -10,7 +10,8 @@
   "frame": null,
   "icon": null,
   "slogan": null,
-  "crop": "Cover crop within the shared capsule; transparent exterior",
+  "crop": "Cover crop across full rectangular canvas",
   "example": "Existing botanical background used solely to illustrate an uploaded image",
-  "bot_integration": "Pending"
+  "bot_integration": "Pending",
+  "shape": "Wide rectangle with subtle 8-pixel corners"
 }

@@ -26,7 +26,7 @@ def build_header(*, framed: bool = False) -> Image.Image:
     image.alpha_composite(overlay("dark_silver", framed=framed, height=280))
     mask = text_mask("COMMAND CENTER", role="display", size=80, max_width=1280)
     x, y = (image.width - mask.width) // 2, (image.height - mask.height) // 2
-    title = metal(mask, "dark_silver")
+    title = metal(mask, "dark_silver", sheen=0.3)
     image.alpha_composite(title, (x, y))
     draw = ImageDraw.Draw(image)
     for line_y in (y - 18, y + mask.height + 18):
@@ -48,7 +48,7 @@ def main() -> None:
     lettering = Image.new("RGBA", mask.size, "#D8BB78")
     lettering.putalpha(mask)
     label = Image.new("RGBA", (1600, 80))
-    label.alpha_composite(lettering, (48, (80 - mask.height) // 2))
+    label.alpha_composite(lettering, (0, (80 - mask.height) // 2))
     label.save(ROOT / "src/ky_bot/assets/header/ky_settings_title.png")
 
 
