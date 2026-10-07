@@ -18,6 +18,7 @@ EXTENSIONS = (
     "ky_bot.cogs.footers",
     "ky_bot.cogs.headers",
     "ky_bot.cogs.artwork",
+    "ky_bot.cogs.activity",
 )
 
 
@@ -27,6 +28,8 @@ def build_intents() -> discord.Intents:
     intents.members = True
     intents.messages = True
     intents.message_content = True
+    intents.moderation = True
+    intents.invites = True
     intents.presences = False
     return intents
 
@@ -39,8 +42,8 @@ class KYBot(commands.Bot):
             tree_cls=CommandTree,
             intents=build_intents(),
             allowed_mentions=discord.AllowedMentions.none(),
-            chunk_guilds_at_startup=False,
-            member_cache_flags=discord.MemberCacheFlags.none(),
+            chunk_guilds_at_startup=True,
+            member_cache_flags=discord.MemberCacheFlags.from_intents(build_intents()),
             activity=discord.Game(name="/help · KY BOT"),
         )
         self.settings = settings

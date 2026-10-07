@@ -111,7 +111,8 @@ class SettingsView(discord.ui.LayoutView):
             )
             separator()
             row(
-                "**SERVER ACTIVITY**\n-# Moderation logs · Coming soon",
+                "**SERVER ACTIVITY**\n-# Moderation logs · "
+                + ("Enabled" if self.settings.log_channel_id else "Disabled"),
                 self.navigation("Manage", "logging"),
             )
         elif section == "welcome":
@@ -176,7 +177,7 @@ class SettingsView(discord.ui.LayoutView):
         else:
             panel.add_item(
                 discord.ui.TextDisplay(
-                    "-# Coming soon · Save a destination for future moderation logs."
+                    "-# Track messages, members, roles, bans and invites in this server."
                 )
             )
             separator()
@@ -196,7 +197,16 @@ class SettingsView(discord.ui.LayoutView):
             separator()
             self.clear_channel = self.button("Clear channel", self.clear_log_channel)
             self.clear_channel.disabled = self.settings.log_channel_id is None
-            row("**SAVED DESTINATION**\n-# Remove the selected channel.", self.clear_channel)
+            row("**DELIVERY**\n-# Clear the destination to disable logging.", self.clear_channel)
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    "**TRACKED EVENTS**\n-# Message edits/deletions · Joins/leaves · "
+                    "Role changes · "
+                    "Bans/unbans · Invite creation/deletion\n"
+                    "-# Invite events require Manage Channels. Message text requires Message "
+                    "Content Intent; older uncached text may be unavailable."
+                )
+            )
 
         separator()
         controls = discord.ui.ActionRow()
@@ -282,7 +292,7 @@ class SettingsView(discord.ui.LayoutView):
             interaction,
             "Welcome channel saved. Welcome messages are enabled."
             if welcome
-            else "Log channel saved. Logging is not active yet.",
+            else "Log channel saved. Server activity logging is enabled.",
         )
 
     async def clear_log_channel(self, interaction: discord.Interaction) -> None:
