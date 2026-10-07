@@ -44,6 +44,12 @@ def main() -> None:
     ).convert("RGBA")
     footer = footer.crop(footer.getchannel("A").getbbox())
     footer.save(ROOT / "src/ky_bot/assets/footer/ky_footer_floral_wreath_centered_framed.png")
+    mask = text_mask("SERVER SETTINGS", role="display", size=44, min_size=44, max_width=1500)
+    lettering = Image.new("RGBA", mask.size, "#D8BB78")
+    lettering.putalpha(mask)
+    label = Image.new("RGBA", (1600, 80))
+    label.alpha_composite(lettering, (48, (80 - mask.height) // 2))
+    label.save(ROOT / "src/ky_bot/assets/header/ky_settings_title.png")
 
 
 if __name__ == "__main__":
