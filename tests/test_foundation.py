@@ -76,11 +76,11 @@ async def test_extensions_intents_and_sync_scope(mode, expected_calls):
         elif mode == "global":
             bot.tree.sync.assert_awaited_once_with()
         await bot.unload_extension("ky_bot.cogs.core")
-        await bot.unload_extension("ky_bot.cogs.settings")
-        await bot.unload_extension("ky_bot.cogs.footers")
-        await bot.unload_extension("ky_bot.cogs.headers")
-        await bot.unload_extension("ky_bot.cogs.artwork")
-        await bot.unload_extension("ky_bot.cogs.activity")
+        await bot.unload_extension("ky_bot.admin_functions.settings_command")
+        await bot.unload_extension("ky_bot.design.footer_command")
+        await bot.unload_extension("ky_bot.design.header_command")
+        await bot.unload_extension("ky_bot.design.artwork_command")
+        await bot.unload_extension("ky_bot.admin_functions.activity")
         assert not bot.tree.get_commands()
 
 

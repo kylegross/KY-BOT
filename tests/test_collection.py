@@ -6,24 +6,24 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from ky_bot.services.collection import COLOURS, floral_background
-from ky_bot.services.footers import centered_overlay, render_footer
-from ky_bot.services.headers import DESIGNS, design_file, overlay, render_header
+from ky_bot.design.collection import COLOURS, floral_background
+from ky_bot.design.footers import centered_overlay, render_footer
+from ky_bot.design.headers import DESIGNS, design_file, overlay, render_header
 
 
 @pytest.mark.parametrize("style", DESIGNS)
 def test_collection_and_downloads_only_offer_new_finishes(style):
     assert set(DESIGNS) == set(COLOURS)
     assert Image.open(io.BytesIO(design_file(style, compact=True))).size == (1600, 280)
-    directory = files("ky_bot").joinpath("assets", "header")
+    directory = files("ky_bot.design").joinpath("assets", "header")
     assert not any(
         "volcanic" in path.name or "floral_wreath" in path.name for path in directory.iterdir()
     )
     root = Path(__file__).resolve().parents[1]
     for archive in [
-        "assets/branding/headers/ky_header_templates.zip",
-        "assets/branding/footers/ky_footer_frameworks.zip",
-        "assets/branding/footers/ky_footer_library.zip",
+        "design/assets/branding/headers/ky_header_templates.zip",
+        "design/assets/branding/footers/ky_footer_frameworks.zip",
+        "design/assets/branding/footers/ky_footer_library.zip",
     ]:
         with zipfile.ZipFile(root / archive) as bundle:
             assert not any(

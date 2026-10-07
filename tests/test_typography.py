@@ -1,6 +1,6 @@
 import pytest
 
-from ky_bot.services.typography import TAGLINE, TypographyError, font_file, text_mask
+from ky_bot.design.typography import TAGLINE, TypographyError, font_file, text_mask
 
 
 def test_tagline_uses_real_light_font_and_fits():

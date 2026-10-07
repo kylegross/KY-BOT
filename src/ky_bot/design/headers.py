@@ -6,9 +6,9 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
-from ky_bot.services.collection import COLOURS
-from ky_bot.services.footers import FooterError, read_upload, rectangular_frame
-from ky_bot.services.typography import TypographyError, text_mask
+from ky_bot.design.collection import COLOURS
+from ky_bot.design.footers import FooterError, read_upload, rectangular_frame
+from ky_bot.design.typography import TypographyError, text_mask
 
 SIZE = (1600, 520)
 STYLES = ("gold", "silver_neon", "dark_silver")
@@ -16,7 +16,7 @@ DESIGNS = ("dark_silver", "gold", "silver_neon")
 
 
 def asset(name: str) -> Image.Image:
-    with files("ky_bot").joinpath("assets", "header", name).open("rb") as stream:
+    with files("ky_bot.design").joinpath("assets", "header", name).open("rb") as stream:
         return Image.open(stream).convert("RGBA")
 
 
@@ -121,5 +121,7 @@ def design_file(name: str, *, framed: bool = True, compact: bool = False) -> byt
     if compact:
         suffix += "_compact"
     return (
-        files("ky_bot").joinpath("assets", "header", f"ky_header_{name}{suffix}.png").read_bytes()
+        files("ky_bot.design")
+        .joinpath("assets", "header", f"ky_header_{name}{suffix}.png")
+        .read_bytes()
     )

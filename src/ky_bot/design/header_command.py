@@ -8,9 +8,9 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ky_bot.services.footers import MAX_UPLOAD, FooterError
-from ky_bot.services.headers import render_header
-from ky_bot.views.artwork import ArtworkView
+from ky_bot.design.artwork_view import ArtworkView
+from ky_bot.design.footers import MAX_UPLOAD, FooterError
+from ky_bot.design.headers import render_header
 
 if TYPE_CHECKING:
     from ky_bot.bot import KYBot

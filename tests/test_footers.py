@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock
 import pytest
 from PIL import Image
 
-from ky_bot.cogs.footers import Footers
-from ky_bot.services.footers import (
+from ky_bot.design.footer_command import Footers
+from ky_bot.design.footers import (
     MAX_UPLOAD,
     SIZE,
     STYLES,
@@ -59,7 +59,7 @@ def test_footer_fills_rectangular_corner_area():
 
 @pytest.mark.parametrize("style", STYLES)
 def test_thin_outline_matches_every_edge_and_canvas_size(style):
-    from ky_bot.services.footers import rectangular_frame
+    from ky_bot.design.footers import rectangular_frame
 
     short = rectangular_frame(style, (1600, 240))
     tall = rectangular_frame(style, (2176, 800))

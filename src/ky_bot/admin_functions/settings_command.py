@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ky_bot.views.settings import SettingsView, settings_files
+from ky_bot.admin_functions.settings_view import SettingsView, settings_files
 
 if TYPE_CHECKING:
     from ky_bot.bot import KYBot

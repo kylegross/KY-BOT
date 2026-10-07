@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from ky_bot.views.artwork import ArtworkView
+from ky_bot.design.artwork_view import ArtworkView
 
 
 async def test_creator_can_delete_generated_message():

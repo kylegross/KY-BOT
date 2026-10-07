@@ -15,7 +15,7 @@ data/
 *.sqlite*
 
 # Licensed local typography assets
-assets/branding/fonts/private/
+design/assets/branding/fonts/private/
 *.otf
 *.ttf
 *.woff
@@ -23,4 +23,4 @@ assets/branding/fonts/private/
 
 # Review-only drafts and retired artwork; never ship these with the bot.
 previews/
-assets/branding/archive/
+design/assets/branding/archive/

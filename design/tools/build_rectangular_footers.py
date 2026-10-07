@@ -7,10 +7,10 @@ from pathlib import Path
 
 from artwork_io import save_artwork
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
-from ky_bot.services.collection import floral_background  # noqa: E402
-from ky_bot.services.footers import (  # noqa: E402
+from ky_bot.design.collection import floral_background  # noqa: E402
+from ky_bot.design.footers import (  # noqa: E402
     SIZE,
     STYLES,
     capsule,
@@ -21,7 +21,7 @@ from ky_bot.services.footers import (  # noqa: E402
 
 FINISHES = {style: style for style in STYLES}
 
-BASE = ROOT / "assets/branding/footers"
+BASE = ROOT / "design/assets/branding/footers"
 FRAMEWORKS = BASE / "frameworks"
 STANDARD = BASE / "standardized"
 

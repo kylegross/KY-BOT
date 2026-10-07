@@ -26,7 +26,7 @@ Restart the bot to load these changes; the existing `/settings` command needs no
 The upload menu requires discord.py 2.7 or later; install the updated project dependencies.
 The panel uses Discord Components V2. The title artwork
 is packaged with the bot, so hosting it does not require fonts. Regenerate just this header with
-`python tools/build_command_center_header.py` when the licensed local VONCA fonts are available.
+`python design/tools/build_command_center_header.py` when the licensed local VONCA fonts are available.
 Dynamic welcome text uses those local fonts when available, with a built-in fallback on other hosts.
 
 A slash-command-first discord.py application with modular cogs, private Discord UI menus,
@@ -169,8 +169,8 @@ Upload still PNG, JPEG or WebP images up to 8 MB, 16 megapixels and 8192 pixels 
 Custom icons need transparency. Images are processed in memory; exports do not automatically
 change existing messages. Custom slogans need the owner's licensed VONCA font on the host.
 
-The floral library and transparent templates are in `assets/branding/footers/standardized/`
-and `assets/branding/footers/frameworks/`. Place your background beneath a transparent template
+The floral library and transparent templates are in `design/assets/branding/footers/standardized/`
+and `design/assets/branding/footers/frameworks/`. Place your background beneath a transparent template
 to keep the fixed centered KY BOT icon. Matching frame layers are optional. The ZIP downloads
 include the updated artwork and manifests. The old photographic collection has been retired.
 
@@ -244,9 +244,9 @@ Railway references: [Dockerfiles](https://docs.railway.com/builds/dockerfiles),
 
 VONCA is the standard for all designed visual text. Use Bold for display titles, Medium for
 headings, Regular for body and labels, and Light for POWERFUL BY NATURE. SIMPLE BY DESIGN.
-The shared graphic renderer is `ky_bot.services.typography`; font roles and tracking live there.
-See [the typography reference](assets/branding/typography/KY-BOT-Typography-Reference.md)
-and [style tokens](assets/branding/typography/KY-BOT-Typography-Tokens.json) for the complete hierarchy.
+The shared graphic renderer is `ky_bot.design.typography`; font roles and tracking live there.
+See [the typography reference](design/assets/branding/typography/KY-BOT-Typography-Reference.md)
+and [style tokens](design/assets/branding/typography/KY-BOT-Typography-Tokens.json) for the complete hierarchy.
 
 Licensed local fonts are ignored by Git and excluded from the Docker build. For hosted custom
 slogans, install your private font on the persistent volume and point `KY_BOT_FONT_DIR` at
@@ -268,23 +268,23 @@ Width stays at 1600 pixels. A thin matching outline is optional; borderless is t
 Titles have subdued color with two fine rules. Dark silver uses a soft charcoal badge plate with a pale silver name and icon.
 
 Transparent header templates and separate brand/frame layers are in
-`assets/branding/headers/templates/` and `assets/branding/headers/layers/`. Put your own image
+`design/assets/branding/headers/templates/` and `design/assets/branding/headers/layers/`. Put your own image
 underneath the transparent template; the badge remains in place. Use `ky_header_templates.zip`
-for all finishes and sizes. The final floral presets are in `assets/branding/headers/designs/`.
+for all finishes and sizes. The final floral presets are in `design/assets/branding/headers/designs/`.
 Runtime artwork is bundled into the Python package and Docker image. No licensed font files
 are committed or bundled. Blank headers work without fonts; custom titles require the owner's
 licensed VONCA Bold in `KY_BOT_FONT_DIR`.
 
-`ky_bot.services.headers.design_file(style, framed=False, compact=True)` returns a compact
+`ky_bot.design.headers.design_file(style, framed=False, compact=True)` returns a compact
 preset for one of `dark_silver`, `gold`, or `silver_neon`. `render_header` handles uploads and
 custom sizes. Exports are private downloads and do not change existing bot messages.
 
 To rebuild the approved collection locally with the licensed fonts available, run:
 
 ```powershell
-python tools/build_rectangular_footers.py
-python tools/build_headers.py
-python tools/build_command_center_header.py
+python design/tools/build_rectangular_footers.py
+python design/tools/build_headers.py
+python design/tools/build_command_center_header.py
 ```
 
 The old presets and their historical builders were removed from the active collection.
@@ -308,3 +308,16 @@ Members are cached to compare role assignments; recent messages use discord.py's
 or predates a restart is marked unavailable. No message archive is stored in SQLite.
 Log posts remain in Discord until server moderators delete them. Events in the log channel
 are excluded to prevent logging its own messages. The bot never pings people through logs.
+
+
+## Project folders
+
+- `design/`: editable branding assets, header/footer templates, profile images and artwork builders.
+- `admin-functions/`: admin maintenance tools and an index of server configuration features.
+- `src/ky_bot/design/`: installed design commands, renderers and runtime images.
+- `src/ky_bot/admin_functions/`: settings menus, validation, persistence, welcomes and event logs.
+- `src/ky_bot/cogs/` and `src/ky_bot/views/`: general help/ping commands and shared UI.
+- `tests/`: verification for all features.
+
+Private licensed fonts now live at `design/assets/branding/fonts/private/`; they remain
+excluded from Git. Railway's persistent `/data/fonts` installation is unchanged.

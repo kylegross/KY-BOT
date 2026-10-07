@@ -6,9 +6,9 @@ from importlib.resources import files
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-from ky_bot.database.settings import WelcomeArtwork
-from ky_bot.services.footers import read_upload
-from ky_bot.services.typography import TypographyError, font_file
+from ky_bot.admin_functions.settings_repository import WelcomeArtwork
+from ky_bot.design.footers import read_upload
+from ky_bot.design.typography import TypographyError, font_file
 
 SIZE = (1200, 800)
 
@@ -42,11 +42,15 @@ def render_welcome(
 ) -> bytes:
     background = (
         artwork.background
-        or files("ky_bot").joinpath("assets", "welcome", "ky_silver_flowers.png").read_bytes()
+        or files("ky_bot.design")
+        .joinpath("assets", "welcome", "ky_silver_flowers.png")
+        .read_bytes()
     )
     image = ImageOps.fit(read_upload(background), SIZE, Image.Resampling.LANCZOS)
     image.alpha_composite(Image.new("RGBA", SIZE, (0, 0, 0, round(255 * artwork.dim / 100))))
-    brand = files("ky_bot").joinpath("assets", "header", "silver_neon_brand.png").read_bytes()
+    brand = (
+        files("ky_bot.design").joinpath("assets", "header", "silver_neon_brand.png").read_bytes()
+    )
     logo = Image.open(io.BytesIO(brand)).convert("RGBA").crop((100, 68, 371, 149))
     logo = logo.resize((190, 57), Image.Resampling.LANCZOS)
     image.alpha_composite(logo, (24, 24))

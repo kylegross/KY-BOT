@@ -5,7 +5,7 @@ import re
 
 import discord
 
-from ky_bot.database.settings import SettingsRepository
+from ky_bot.admin_functions.settings_repository import SettingsRepository
 
 SETTINGS_TITLES = {
     "overview": ("SERVER SETTINGS", "ky_settings_title.png"),
@@ -20,7 +20,7 @@ class SettingsService:
         self.repository = repository
 
     async def set_welcome_background(self, guild_id: int, data: bytes) -> None:
-        from ky_bot.services.welcome import normalize_background
+        from ky_bot.design.welcome import normalize_background
 
         background = await asyncio.to_thread(normalize_background, data)
         await self.repository.set_welcome_background(guild_id, background)
@@ -81,7 +81,7 @@ class SettingsService:
         return channel
 
     async def render_welcome_card(self, member: discord.Member) -> bytes:
-        from ky_bot.services.welcome import render_welcome
+        from ky_bot.design.welcome import render_welcome
 
         settings = await self.repository.get(member.guild.id)
         artwork = await self.repository.get_welcome_artwork(member.guild.id)

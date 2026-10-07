@@ -6,19 +6,19 @@ from contextlib import AsyncExitStack
 import discord
 from discord.ext import commands
 
+from ky_bot.admin_functions.settings_repository import open_settings
+from ky_bot.admin_functions.settings_service import SettingsService
 from ky_bot.config import Settings
-from ky_bot.database.settings import open_settings
 from ky_bot.errors import CommandTree
-from ky_bot.services.settings import SettingsService
 
 log = logging.getLogger(__name__)
 EXTENSIONS = (
     "ky_bot.cogs.core",
-    "ky_bot.cogs.settings",
-    "ky_bot.cogs.footers",
-    "ky_bot.cogs.headers",
-    "ky_bot.cogs.artwork",
-    "ky_bot.cogs.activity",
+    "ky_bot.admin_functions.settings_command",
+    "ky_bot.design.footer_command",
+    "ky_bot.design.header_command",
+    "ky_bot.design.artwork_command",
+    "ky_bot.admin_functions.activity",
 )
 
 

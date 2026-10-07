@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
-from ky_bot.cogs.artwork import Artwork
+from ky_bot.design.artwork_command import Artwork
 
 
 def request():

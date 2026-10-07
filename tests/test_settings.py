@@ -8,12 +8,12 @@ import discord
 import pytest
 from discord import app_commands
 
+from ky_bot.admin_functions.settings_command import ServerSettings
+from ky_bot.admin_functions.settings_repository import open_settings
+from ky_bot.admin_functions.settings_service import SettingsService
+from ky_bot.admin_functions.settings_view import SettingsView, channel_label
 from ky_bot.bot import KYBot
-from ky_bot.cogs.settings import ServerSettings
 from ky_bot.config import Settings
-from ky_bot.database.settings import open_settings
-from ky_bot.services.settings import SettingsService
-from ky_bot.views.settings import SettingsView, channel_label
 
 
 async def test_persistence_isolation_clear_and_schema(tmp_path):
@@ -331,7 +331,7 @@ async def test_inline_navigation_refresh_and_close_use_v2_payloads():
 async def test_submenu_title_changes_keep_header_footer_and_caps_sections():
     from importlib.resources import files
 
-    from ky_bot.services.settings import SETTINGS_TITLES
+    from ky_bot.admin_functions.settings_service import SETTINGS_TITLES
 
     async with open_settings(Path(":memory:")) as repo:
         view = SettingsView(1, 2, SettingsService(repo))
@@ -361,7 +361,7 @@ async def test_submenu_title_changes_keep_header_footer_and_caps_sections():
             assert title_file.filename == "ky_settings_title.png"
             assert (
                 uploaded[title_file.filename]
-                == files("ky_bot")
+                == files("ky_bot.design")
                 .joinpath("assets", "header", SETTINGS_TITLES[page][1])
                 .read_bytes()
             )
@@ -413,7 +413,7 @@ async def test_failed_page_update_preserves_live_buttons_for_retry():
 
 
 async def test_welcome_modal_saves_and_rechecks_permissions():
-    from ky_bot.views.settings import WelcomeModal
+    from ky_bot.admin_functions.settings_view import WelcomeModal
 
     async with open_settings(Path(":memory:")) as repo:
         view = SettingsView(1, 2, SettingsService(repo))

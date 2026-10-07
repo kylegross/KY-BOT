@@ -5,16 +5,16 @@ from importlib.resources import files
 
 import discord
 
-from ky_bot.database.settings import GuildSettings
+from ky_bot.admin_functions.settings_repository import GuildSettings
+from ky_bot.admin_functions.settings_service import SETTINGS_TITLES, SettingsService
 from ky_bot.errors import report_error, send_private
-from ky_bot.services.settings import SETTINGS_TITLES, SettingsService
 
 HEADER_URL = "attachment://ky_settings_header.png"
 
 
 def settings_title_file(section: str) -> discord.File:
     return discord.File(
-        files("ky_bot").joinpath("assets", "header", SETTINGS_TITLES[section][1]).open("rb"),
+        files("ky_bot.design").joinpath("assets", "header", SETTINGS_TITLES[section][1]).open("rb"),
         filename="ky_settings_title.png",
     )
 
@@ -23,11 +23,15 @@ def settings_files(section: str) -> list[discord.File]:
     # Components V2 media attachments aren't reliably present in Message.attachments.
     return [
         discord.File(
-            files("ky_bot").joinpath("assets", "header", "ky_header_command_center.png").open("rb"),
+            files("ky_bot.design")
+            .joinpath("assets", "header", "ky_header_command_center.png")
+            .open("rb"),
             filename="ky_settings_header.png",
         ),
         discord.File(
-            files("ky_bot").joinpath("assets", "footer", "ky_footer_command_center.png").open("rb"),
+            files("ky_bot.design")
+            .joinpath("assets", "footer", "ky_footer_command_center.png")
+            .open("rb"),
             filename="ky_settings_footer.png",
         ),
         settings_title_file(section),
@@ -407,7 +411,7 @@ class WelcomeBackgroundModal(WelcomeDesignModal):
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
-        from ky_bot.services.footers import MAX_UPLOAD
+        from ky_bot.design.footers import MAX_UPLOAD
 
         attachment = self.upload.values[0]
         if attachment.size > MAX_UPLOAD:

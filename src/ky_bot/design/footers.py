@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageColor, ImageDraw, ImageFilter, ImageOps
 
-from ky_bot.services.typography import TAGLINE, TypographyError, text_mask
+from ky_bot.design.typography import TAGLINE, TypographyError, text_mask
 
 SIZE = (2176, 320)
 SLOGAN = TAGLINE
@@ -51,7 +51,7 @@ def read_upload(data: bytes, *, icon: bool = False) -> Image.Image:
 
 
 def asset(name: str) -> Image.Image:
-    with files("ky_bot").joinpath("assets", "footer", name).open("rb") as stream:
+    with files("ky_bot.design").joinpath("assets", "footer", name).open("rb") as stream:
         return Image.open(stream).copy()
 
 
@@ -67,7 +67,7 @@ def rectangular_frame(
     style: str, size: tuple[int, int], *, radius: int = 8, inset: int = 10
 ) -> Image.Image:
     """A quiet, proportionate outline that matches the illustrated floral collection."""
-    from ky_bot.services.collection import COLOURS
+    from ky_bot.design.collection import COLOURS
 
     if style not in STYLES:
         raise FooterError("Choose silver neon, gold, or dark silver.")
@@ -191,7 +191,7 @@ def centered_overlay(
     style: str, size: tuple[int, int], *, framed: bool = False, icon_scale: int = 100
 ) -> Image.Image:
     """Small fixed botanical icon for the new minimal footer template."""
-    from ky_bot.services.collection import COLOURS
+    from ky_bot.design.collection import COLOURS
 
     if style not in STYLES or not 60 <= icon_scale <= 120:
         raise FooterError("Choose a finish and an icon size from 60 to 120 percent.")

@@ -4,9 +4,9 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from ky_bot.database.settings import WelcomeArtwork, open_settings
-from ky_bot.services.settings import SettingsService
-from ky_bot.services.welcome import normalize_background, render_welcome
+from ky_bot.admin_functions.settings_repository import WelcomeArtwork, open_settings
+from ky_bot.admin_functions.settings_service import SettingsService
+from ky_bot.design.welcome import normalize_background, render_welcome
 
 
 def background():

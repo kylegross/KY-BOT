@@ -11,7 +11,7 @@ def floral_background(style: str, size: tuple[int, int]) -> Image.Image:
     if style not in COLOURS:
         raise ValueError("Choose dark silver, gold, or silver neon.")
     with (
-        files("ky_bot")
+        files("ky_bot.design")
         .joinpath("assets", "header", f"floral_{style}_background.png")
         .open("rb") as stream
     ):

@@ -5,10 +5,10 @@ from unittest.mock import AsyncMock
 import pytest
 from PIL import Image, ImageChops
 
-from ky_bot.cogs.headers import Headers
-from ky_bot.services.footers import MAX_UPLOAD, FooterError
-from ky_bot.services.headers import DESIGNS, SIZE, STYLES, design_file, overlay, render_header
-from ky_bot.services.typography import TypographyError, font_file, text_mask
+from ky_bot.design.footers import MAX_UPLOAD, FooterError
+from ky_bot.design.header_command import Headers
+from ky_bot.design.headers import DESIGNS, SIZE, STYLES, design_file, overlay, render_header
+from ky_bot.design.typography import TypographyError, font_file, text_mask
 
 
 def png(image):

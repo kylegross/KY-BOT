@@ -39,8 +39,10 @@ async def main():
         global_commands = await call("GET", base + "/commands")
         guild_route = base + "/guilds/" + str(config.dev_guild_id) + "/commands"
         guild_commands = await call("GET", guild_route)
+
         def matches(commands):
             return [c for c in commands if c["name"] == "settings" and c["type"] == 1]
+
         globals_found, guilds_found = matches(global_commands), matches(guild_commands)
 
         def current(command):

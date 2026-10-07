@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock
 import discord
 import pytest
 
-from ky_bot.cogs.activity import Activity
+from ky_bot.admin_functions.activity import Activity
 
 
 def setup_activity(channel_id=20):

@@ -26,7 +26,7 @@ def font_file(role: str) -> Path:
     directory = (
         Path(configured)
         if configured
-        else Path(__file__).resolve().parents[3] / "assets/branding/fonts/private"
+        else Path(__file__).resolve().parents[3] / "design/assets/branding/fonts/private"
     )
     for suffix in ("otf", "ttf"):
         candidate = directory / f"Vonca-{style}.{suffix}"

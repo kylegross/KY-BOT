@@ -9,15 +9,15 @@ from pathlib import Path
 from artwork_io import save_artwork, write_artwork
 from PIL import Image, ImageDraw, ImageOps
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
-from ky_bot.services.collection import floral_background  # noqa: E402
-from ky_bot.services.footers import rectangular_frame  # noqa: E402
-from ky_bot.services.headers import SIZE, STYLES, overlay, render_header  # noqa: E402
-from ky_bot.services.typography import text_mask  # noqa: E402
+from ky_bot.design.collection import floral_background  # noqa: E402
+from ky_bot.design.footers import rectangular_frame  # noqa: E402
+from ky_bot.design.headers import SIZE, STYLES, overlay, render_header  # noqa: E402
+from ky_bot.design.typography import text_mask  # noqa: E402
 
-PACKAGE = ROOT / "src/ky_bot/assets/header"
-OUTPUT = ROOT / "assets/branding/headers"
+PACKAGE = ROOT / "src/ky_bot/design/assets/header"
+OUTPUT = ROOT / "design/assets/branding/headers"
 FINISHES = {style: style for style in STYLES}
 
 
@@ -30,7 +30,9 @@ def main():
         frame = rectangular_frame(style, SIZE)
         save_artwork(frame, OUTPUT / "layers" / f"ky_header_{style}_frame.png")
 
-        icon = Image.open(ROOT / f"src/ky_bot/assets/footer/{style}_icon.png").convert("RGBA")
+        icon = Image.open(ROOT / f"src/ky_bot/design/assets/footer/{style}_icon.png").convert(
+            "RGBA"
+        )
         bounds = icon.getchannel("A").getbbox()
         icon = ImageOps.contain(icon.crop(bounds), (50, 50), Image.Resampling.LANCZOS)
         brand = Image.new("RGBA", SIZE)
