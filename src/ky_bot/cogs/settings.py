@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ky_bot.views.settings import SettingsView, settings_embed
+from ky_bot.views.settings import SettingsView
 
 if TYPE_CHECKING:
     from ky_bot.bot import KYBot
@@ -52,12 +52,19 @@ class ServerSettings(commands.Cog):
         await interaction.response.defer(ephemeral=True, thinking=True)
         settings = await self.bot.server_settings.repository.get(interaction.guild_id)
         view = SettingsView(interaction.user.id, interaction.guild_id, self.bot.server_settings)
+        view.settings = settings
+        view.guild = interaction.guild
+        view.show_section("overview")
         await interaction.edit_original_response(
-            embed=settings_embed(settings, interaction.guild), view=view,
+            view=view, allowed_mentions=discord.AllowedMentions.none(),
             attachments=[discord.File(
                 files("ky_bot").joinpath(
-                    "assets", "header", "ky_header_volcanic_borderless.png"
+                    "assets", "header", "ky_header_command_center.png"
                 ).open("rb"), filename="ky_settings_header.png",
+            ), discord.File(
+                files("ky_bot").joinpath(
+                    "assets", "footer", "ky_footer_floral_wreath_centered_framed.png"
+                ).open("rb"), filename="ky_settings_footer.png",
             )],
         )
         view.message = await interaction.original_response()

@@ -94,11 +94,14 @@ async def test_header_command_returns_private_export():
         response=SimpleNamespace(defer=AsyncMock(), send_message=AsyncMock()),
         followup=SimpleNamespace(send=AsyncMock()),
     )
-    await cog.header.callback(cog, request, background, SimpleNamespace(value="gold"), framed=False)
+    await cog.header.callback(
+        cog, request, background, SimpleNamespace(value="gold"), framed=False, height=280
+    )
     request.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
     sent = request.followup.send.call_args.kwargs
     assert sent["ephemeral"]
     assert sent["file"].filename == "ky_header_gold.png"
+    assert Image.open(sent["file"].fp).size == (1600, 280)
     sent["file"].close()
 
 
@@ -109,3 +112,46 @@ async def test_oversized_upload_is_rejected_before_download():
     await cog.header.callback(cog, request, background, SimpleNamespace(value="gold"))
     background.read.assert_not_awaited()
     assert request.response.send_message.call_args.kwargs["ephemeral"]
+
+
+@pytest.mark.parametrize("height", [240, 280, 520, 800])
+@pytest.mark.parametrize("framed", [True, False])
+def test_custom_height_preserves_brand_and_transparent_corners(height, framed):
+    data = png(Image.new("RGB", (300, 300), "blue"))
+    image = Image.open(io.BytesIO(render_header(data, height=height, framed=framed)))
+    assert image.size == (1600, height)
+    assert image.getpixel((0, 0))[3] == 0
+    assert image.getpixel((1599, height - 1))[3] == 0
+    brand_area = (72, 68, 343, 149) if framed else (24, 24, 295, 105)
+    original = overlay("gold", framed=framed).crop(brand_area)
+    adjusted = overlay("gold", framed=framed, height=height).crop(brand_area)
+    assert original.tobytes() == adjusted.tobytes()
+
+
+@pytest.mark.parametrize("height", [239, 801, 280.5, True])
+def test_invalid_height_rejected(height):
+    with pytest.raises(FooterError, match="height"):
+        render_header(b"", height=height)
+
+
+@pytest.mark.parametrize("height", [240, 280, 800])
+@pytest.mark.parametrize("framed", [True, False])
+def test_title_fits_custom_height(height, framed):
+    try:
+        font_file("display")
+    except TypographyError:
+        pytest.skip("Licensed fonts remain private production assets.")
+    data = png(Image.new("RGB", SIZE, "blue"))
+    result = Image.open(io.BytesIO(render_header(
+        data, title="COMMAND CENTER", height=height, framed=framed
+    )))
+    plain = Image.open(io.BytesIO(render_header(data, height=height, framed=framed)))
+    area = ImageChops.difference(result.convert("RGB"), plain.convert("RGB")).getbbox()
+    assert area is not None
+    # Lettering and both rules must fit within the frame's bottom safe margin.
+    mask = text_mask(
+        "COMMAND CENTER", role="display", size=min(108, round(height * 108 / 520)),
+        min_size=40, max_width=1280,
+    )
+    y = max(155 if framed else 120, (height - mask.height) // 2)
+    assert y + mask.height + min(28, round(height * 28 / 520)) < height - 24

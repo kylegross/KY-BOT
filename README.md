@@ -5,8 +5,10 @@ KY BOT is a sophisticated, all-in-one Discord bot created around simplicity, ver
 
 ### Welcome messages and server settings
 
-Administrators can use `/settings` to open a private branded overview, then press **Welcome**
-or **Logging** to open that section. **Choose channel** opens Discord's channel picker;
+Administrators can use `/settings` to open a private Command Center panel. The branded
+**COMMAND CENTER** header appears at the top, with Welcome and Logging rows beneath it.
+Each row has an inline **Configure** button beside its description. **Choose channel** opens
+Discord's channel picker;
 no channel IDs are needed. Each server saves its own configuration across restarts.
 
 In **Welcome**, choose a channel to enable messages on member joins. Use **Edit welcome message**
@@ -16,6 +18,9 @@ Only the joining member can be pinged; role and everyone mentions are suppressed
 The bot needs View Channel, Send Messages, and Embed Links in the selected channel,
 and Server Members Intent must be enabled in the Discord Developer Portal.
 Restart the bot to load these changes; the existing `/settings` command needs no new registration.
+The panel uses Discord Components V2, supported by discord.py 2.6 and later. The title artwork
+is packaged with the bot, so hosting it does not require fonts. Regenerate just this header with
+`python tools/build_command_center_header.py` when the licensed local VONCA fonts are available.
 
 A slash-command-first discord.py application with modular cogs, private Discord UI menus,
 validated environment configuration, rotating logs, safe error responses, and async resource cleanup.
@@ -293,6 +298,10 @@ or black metallic, and choose framed or borderless. Optional inputs are `title`,
 customization profile. The brand mark stays fixed; there is no slogan input. Upload limits
 match `/footer`: 8 MB, 16 megapixels, and 8192 pixels per side. Exported graphics can be used
 in menus and embeds; the command does not automatically change existing bot messages.
+
+The optional `height` input accepts 240–800 pixels (default 520); try 280 for a compact banner.
+Width stays at 1600 pixels. The background crop, frame, and title adapt to the selected height.
+Sync commands once after updating the bot to expose this new `/header` option.
 
 Blank headers and brand marks work without fonts on the host. Custom titles require your
 licensed `Vonca-Bold.otf` or `Vonca-Bold.ttf` in the private local font directory or in

@@ -13,7 +13,7 @@ from ky_bot.cogs.settings import ServerSettings
 from ky_bot.config import Settings
 from ky_bot.database.settings import open_settings
 from ky_bot.services.settings import SettingsService
-from ky_bot.views.settings import SettingsView, settings_embed
+from ky_bot.views.settings import SettingsView, channel_label
 
 
 async def test_persistence_isolation_clear_and_schema(tmp_path):
@@ -138,7 +138,10 @@ async def test_menu_saves_clears_and_disables_selector():
         assert (await repo.get(2)).log_channel_id is None
         view.message = SimpleNamespace(edit=AsyncMock())
         await view.on_timeout()
-        assert all(child.disabled for child in view.children)
+        assert all(
+            child.disabled for child in view.walk_children()
+            if isinstance(child, (discord.ui.Button, discord.ui.ChannelSelect))
+        )
         view.stop()
 
 
@@ -164,9 +167,9 @@ async def test_settings_command_admin_check_and_private_response():
 async def test_uncached_channel_display():
     async with open_settings(Path(":memory:")) as repo:
         await repo.set_log_channel(2, 10)
-        embed = settings_embed(await repo.get(2), request().guild, "logging")
-        assert "reselect to verify access" in embed.fields[0].value
-        assert "<#10>" in embed.fields[0].value
+        label = channel_label((await repo.get(2)).log_channel_id, request().guild)
+        assert "reselect to verify access" in label
+        assert "<#10>" in label
 
 
 async def test_uncached_text_channel_is_fetched_and_saved():
@@ -275,12 +278,46 @@ async def test_welcome_delivery_limits_mentions_and_honors_disabled():
 
 async def test_overview_uses_buttons_and_channel_picker_is_on_demand():
     view = SettingsView(1, 2, Mock())
-    assert all(isinstance(child, discord.ui.Button) for child in view.children)
+    assert isinstance(view, discord.ui.LayoutView)
+    panel = view.children[0]
+    assert isinstance(panel.children[0], discord.ui.MediaGallery)
+    sections = [item for item in panel.children if isinstance(item, discord.ui.Section)]
+    assert len(sections) == 2
+    assert all(isinstance(section.accessory, discord.ui.Button) for section in sections)
+    assert not any(isinstance(item, discord.ui.ChannelSelect) for item in view.walk_children())
+    assert view.to_components()[0]["type"] == 17
+    payload_sections = [item for item in view.to_components()[0]["components"] if item["type"] == 9]
+    assert all(section["accessory"]["type"] == 2 for section in payload_sections)
     view.show_section("welcome")
-    assert all(isinstance(child, discord.ui.Button) for child in view.children)
+    assert not any(isinstance(item, discord.ui.ChannelSelect) for item in view.walk_children())
     view.show_section("welcome", picker=True)
-    assert view.welcome_channel in view.children
+    assert view.welcome_channel in list(view.walk_children())
     view.stop()
+
+
+async def test_inline_navigation_refresh_and_close_use_v2_payloads():
+    async with open_settings(Path(":memory:")) as repo:
+        view = SettingsView(1, 2, SettingsService(repo))
+        interaction = request()
+        welcome = next(
+            item for item in view.walk_children() if isinstance(item, discord.ui.Section)
+        )
+        await welcome.accessory.callback(interaction)
+        assert view.section == "welcome"
+        kwargs = interaction.edit_original_response.call_args.kwargs
+        assert "content" not in kwargs and "embed" not in kwargs
+        assert view.content_length() <= 4000
+        choose = next(
+            item for item in view.walk_children()
+            if isinstance(item, discord.ui.Button) and item.label == "Choose channel"
+        )
+        await choose.callback(interaction)
+        assert view.picker
+        assert view.welcome_channel in list(view.walk_children())
+        await view.close_menu(interaction)
+        assert view.is_finished()
+        assert isinstance(view.children[0], discord.ui.TextDisplay)
+        interaction.response.edit_message.assert_awaited_once_with(view=view, attachments=[])
 
 
 async def test_welcome_modal_saves_and_rechecks_permissions():

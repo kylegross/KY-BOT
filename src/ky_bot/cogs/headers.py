@@ -38,6 +38,7 @@ class Headers(commands.Cog):
         crop_x="Background focal point: 0 left, 50 center, 100 right.",
         crop_y="Background focal point: 0 top, 50 center, 100 bottom.",
         dim="Darken your background by this percentage.",
+        height="Header height in pixels: 240–800. Default 520; try 280 for a compact banner.",
     )
     async def header(
         self,
@@ -49,6 +50,7 @@ class Headers(commands.Cog):
         crop_x: app_commands.Range[int, 0, 100] = 50,
         crop_y: app_commands.Range[int, 0, 100] = 50,
         dim: app_commands.Range[int, 0, 80] = 0,
+        height: app_commands.Range[int, 240, 800] = 520,
     ) -> None:
         if background.size > MAX_UPLOAD:
             await interaction.response.send_message("Use an image under 8 MB.", ephemeral=True)
@@ -71,6 +73,7 @@ class Headers(commands.Cog):
                     crop_x=crop_x,
                     crop_y=crop_y,
                     dim=dim,
+                    height=height,
                 )
             except FooterError as exc:
                 await interaction.followup.send(str(exc), ephemeral=True)
@@ -82,7 +85,7 @@ class Headers(commands.Cog):
                 )
                 return
         await interaction.followup.send(
-            "Your header is ready. Run `/header` again to adjust the crop or finish.",
+            "Your header is ready. Run `/header` again to adjust the height, crop or finish.",
             file=discord.File(io.BytesIO(result), filename=f"ky_header_{style.value}.png"),
             ephemeral=True,
         )

@@ -1,111 +1,150 @@
-"""Private server configuration with authorization checked on every interaction."""
+"""Private server settings arranged as inline Components V2 sections."""
 
 import discord
 
 from ky_bot.database.settings import GuildSettings
-from ky_bot.errors import send_private
+from ky_bot.errors import report_error, send_private
 from ky_bot.services.settings import SettingsService
-from ky_bot.views.base import OwnerView
+
+HEADER_URL = "attachment://ky_settings_header.png"
 
 
-def settings_embed(
-    settings: GuildSettings, guild: discord.Guild, section: str = "overview"
-) -> discord.Embed:
-    channel_id = settings.log_channel_id
-    channel = guild.get_channel(channel_id) if channel_id else None
-    value = "Not configured"
-    if channel_id:
-        value = f"<#{channel_id}>" if channel else f"<#{channel_id}> (reselect to verify access)"
-    embed = discord.Embed(
-        title="Server settings",
-        description="Configure KY BOT for this server. Changes are saved immediately.",
-        colour=0x8B5CF6,
-    )
-    embed.add_field(name="Log channel", value=value, inline=False)
-    embed.add_field(
-        name="Welcome channel",
-        value=f"<#{settings.welcome_channel_id}>" if settings.welcome_channel_id else "Disabled",
-        inline=False,
-    )
-    embed.add_field(name="Welcome message", value=settings.welcome_message[:1024], inline=False)
-    embed.add_field(
-        name="Personalize your message",
-        value="Use `{member}` for the new member and `{server}` for the server name. "
-        "Logging is planned and is not active yet.", inline=False,
-    )
-    embed.set_footer(text="Administrators only • Menu expires after 3 minutes of inactivity")
-    embed.set_author(name="KY BOT • Command Center")
-    embed.set_image(url="attachment://ky_settings_header.png")
-    if section == "overview":
-        embed.clear_fields()
-        embed.description = "Your server. Your settings.\nChoose a section below to get started."
-        embed.add_field(
-            name="👋 Welcome", value="Enabled" if settings.welcome_channel_id else "Disabled",
-            inline=True,
-        )
-        embed.add_field(name="📋 Logging", value="Coming soon", inline=True)
-    elif section == "welcome":
-        embed.title = "Welcome settings"
-        embed.remove_field(0)
-        embed.description = "Greet new members with a message made for this server."
-        embed.set_field_at(
-            2, name="Message placeholders",
-            value="`{member}` mentions the new member · `{server}` adds the server name.",
-            inline=False,
-        )
-    elif section == "logging":
-        embed.title = "Logging settings"
-        while len(embed.fields) > 1:
-            embed.remove_field(1)
-        embed.description = "Save a channel for future moderation logs. Logging is not active yet."
-    return embed
+def channel_label(channel_id: int | None, guild: discord.Guild) -> str:
+    if channel_id is None:
+        return "Not configured"
+    label = f"<#{channel_id}>"
+    return label if guild.get_channel(channel_id) else f"{label} (reselect to verify access)"
 
 
-class SettingsView(OwnerView):
+class SettingsView(discord.ui.LayoutView):
     def __init__(self, owner_id: int, guild_id: int, service: SettingsService) -> None:
-        super().__init__(owner_id)
+        super().__init__(timeout=180)
+        self.owner_id = owner_id
         self.guild_id = guild_id
         self.service = service
+        self.message: discord.InteractionMessage | None = None
+        self.settings = GuildSettings(guild_id)
+        self.guild: discord.Guild | None = None
         self.section = "overview"
+        self.picker = False
         self.show_section("overview")
 
-    def show_section(self, section: str, *, picker: bool = False) -> None:
-        self.section = section
+    def button(self, label: str, callback) -> discord.ui.Button:
+        button = discord.ui.Button(label=label, style=discord.ButtonStyle.secondary)
+        button.callback = callback
+        return button
+
+    def navigation(self, label: str, target: str, *, picker: bool = False) -> discord.ui.Button:
+        async def callback(interaction: discord.Interaction) -> None:
+            await interaction.response.defer()
+            self.show_section(target, picker=picker)
+            await self.refresh(interaction)
+
+        return self.button(label, callback)
+
+    def show_section(
+        self, section: str, *, picker: bool = False, notice: str | None = None
+    ) -> None:
+        self.section, self.picker = section, picker
         self.clear_items()
+        panel = discord.ui.Container(accent_colour=0xB89656)
+        panel.add_item(discord.ui.MediaGallery(discord.MediaGalleryItem(
+            HEADER_URL, description="KY BOT • COMMAND CENTER",
+        )))
+        title = {"overview": "Server settings", "welcome": "Welcome", "logging": "Logging"}[section]
+        panel.add_item(discord.ui.TextDisplay(f"### {title}"))
+        if notice:
+            panel.add_item(discord.ui.TextDisplay(notice))
 
-        def navigation(label: str, target: str, *, pick: bool = False) -> None:
-            button = discord.ui.Button(label=label, style=discord.ButtonStyle.secondary, row=0)
+        def row(text: str, button: discord.ui.Button) -> None:
+            panel.add_item(discord.ui.Section(text, accessory=button))
 
-            async def callback(interaction: discord.Interaction) -> None:
-                await interaction.response.defer()
-                self.show_section(target, picker=pick)
-                await self.refresh(interaction)
+        def separator() -> None:
+            panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
 
-            button.callback = callback
-            self.add_item(button)
+        def channel(channel_id: int | None) -> str:
+            if self.guild is None:
+                return f"<#{channel_id}>" if channel_id else "Not configured"
+            return channel_label(channel_id, self.guild)
 
         if section == "overview":
-            navigation("👋 Welcome", "welcome")
-            navigation("📋 Logging", "logging")
-        else:
-            navigation("Choose channel", section, pick=True)
-            if section == "welcome":
-                self.edit_welcome.row = 0
-                self.disable_welcome.row = 0
-                self.add_item(self.edit_welcome)
-                self.add_item(self.disable_welcome)
-            else:
-                self.clear_channel.row = 0
-                self.add_item(self.clear_channel)
-            navigation("Back", "overview")
+            status = "Enabled" if self.settings.welcome_channel_id else "Disabled"
+            row(
+                f"**WELCOME** · {status}\nGreet new members with your own message.",
+                self.navigation("Configure", "welcome"),
+            )
+            separator()
+            row(
+                "**LOGGING** · Coming soon\nChoose where future moderation logs will go.",
+                self.navigation("Configure", "logging"),
+            )
+        elif section == "welcome":
+            panel.add_item(discord.ui.TextDisplay("Customize how new members are welcomed."))
+            separator()
+            row(
+                f"**WELCOME CHANNEL**\n{channel(self.settings.welcome_channel_id)}",
+                self.navigation("Choose channel", section, picker=True),
+            )
             if picker:
-                select = self.welcome_channel if section == "welcome" else self.log_channel
-                select.row = 1
-                self.add_item(select)
-        self.reload_settings.row = 2
-        self.close_menu.row = 2
-        self.add_item(self.reload_settings)
-        self.add_item(self.close_menu)
+                self.welcome_channel = discord.ui.ChannelSelect(
+                    channel_types=[discord.ChannelType.text],
+                    placeholder="Choose a welcome channel…",
+                    min_values=1, max_values=1,
+                )
+                self.welcome_channel.callback = self.save_welcome_channel
+                panel.add_item(discord.ui.ActionRow(self.welcome_channel))
+            separator()
+            # Escape user-authored Markdown in the configuration display only.
+            text = discord.utils.escape_markdown(self.settings.welcome_message)
+            self.edit_welcome = self.button("Edit message", self.open_welcome_editor)
+            row(f"**WELCOME MESSAGE**\n{text}", self.edit_welcome)
+            panel.add_item(discord.ui.TextDisplay(
+                "-# Use {member} to mention the new member and {server} for the server name."
+            ))
+            separator()
+            self.disable_welcome = self.button("Disable", self.turn_off_welcomes)
+            self.disable_welcome.disabled = self.settings.welcome_channel_id is None
+            row(
+                "**WELCOME DELIVERY**\n"
+                + ("Enabled — sent when someone joins." if self.settings.welcome_channel_id
+                   else "Disabled — choose a channel to enable."),
+                self.disable_welcome,
+            )
+        else:
+            panel.add_item(discord.ui.TextDisplay(
+                "Prepare a channel for future moderation logs. Logging is not active yet."
+            ))
+            separator()
+            row(
+                f"**LOG CHANNEL**\n{channel(self.settings.log_channel_id)}",
+                self.navigation("Choose channel", section, picker=True),
+            )
+            if picker:
+                self.log_channel = discord.ui.ChannelSelect(
+                    channel_types=[discord.ChannelType.text], placeholder="Choose a log channel…",
+                    min_values=1, max_values=1,
+                )
+                self.log_channel.callback = self.save_log_channel
+                panel.add_item(discord.ui.ActionRow(self.log_channel))
+            separator()
+            self.clear_channel = self.button("Clear channel", self.clear_log_channel)
+            self.clear_channel.disabled = self.settings.log_channel_id is None
+            row("**SAVED CHANNEL**\nRemove the saved logging destination.", self.clear_channel)
+
+        separator()
+        controls = discord.ui.ActionRow()
+        if section != "overview":
+            controls.add_item(self.navigation("Back", "overview"))
+        controls.add_item(self.button("Refresh", self.reload_settings))
+        controls.add_item(self.button("Close", self.close_menu))
+        panel.add_item(controls)
+        panel.add_item(discord.ui.TextDisplay(
+            "-# Administrators only · Changes save automatically · Expires after 3 minutes"
+        ))
+        panel.add_item(discord.ui.MediaGallery(discord.MediaGalleryItem(
+            "attachment://ky_settings_footer.png", description="KY BOT floral wreath footer",
+        )))
+        self.add_item(panel)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if (
@@ -123,85 +162,70 @@ class SettingsView(OwnerView):
         return True
 
     async def refresh(self, interaction: discord.Interaction, notice: str | None = None) -> None:
-        settings = await self.service.repository.get(self.guild_id)
+        self.settings = await self.service.repository.get(self.guild_id)
+        self.guild = interaction.guild
+        self.show_section(self.section, picker=self.picker, notice=notice)
         await interaction.edit_original_response(
-            content=notice,
-            embed=settings_embed(settings, interaction.guild, self.section), view=self,
+            view=self, allowed_mentions=discord.AllowedMentions.none()
         )
 
-    @discord.ui.select(
-        cls=discord.ui.ChannelSelect,
-        channel_types=[discord.ChannelType.text],
-        placeholder="Choose a log channel…",
-        min_values=1,
-        max_values=1,
-    )
-    async def log_channel(
-        self, interaction: discord.Interaction, select: discord.ui.ChannelSelect
-    ) -> None:
+    async def save_log_channel(self, interaction: discord.Interaction) -> None:
+        await self.save_channel(interaction, welcome=False)
+
+    async def save_welcome_channel(self, interaction: discord.Interaction) -> None:
+        await self.save_channel(interaction, welcome=True)
+
+    async def save_channel(self, interaction: discord.Interaction, *, welcome: bool) -> None:
         await interaction.response.defer()
+        select = self.welcome_channel if welcome else self.log_channel
+        setter = self.service.set_welcome_channel if welcome else self.service.set_log_channel
         try:
-            await self.service.set_log_channel(interaction.guild, select.values[0].id)
+            await setter(interaction.guild, select.values[0].id)
         except ValueError as error:
             await send_private(interaction, str(error))
             return
+        self.picker = False
         await self.refresh(
-            interaction, "Log channel saved. Logging will be added in a future module."
+            interaction, "Welcome channel saved. Welcome messages are enabled." if welcome
+            else "Log channel saved. Logging is not active yet.",
         )
 
-    @discord.ui.button(label="Clear log channel", style=discord.ButtonStyle.secondary)
-    async def clear_channel(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ) -> None:
+    async def clear_log_channel(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
         await self.service.repository.clear_log_channel(self.guild_id)
         await self.refresh(interaction, "Log channel cleared.")
 
-    @discord.ui.button(label="Refresh", style=discord.ButtonStyle.secondary)
-    async def reload_settings(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ) -> None:
+    async def reload_settings(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
         await self.refresh(interaction)
 
-    @discord.ui.button(label="Close", style=discord.ButtonStyle.secondary)
-    async def close_menu(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
-        await interaction.response.edit_message(
-            content="Settings closed. Use `/settings` to reopen.", embed=None, view=None
-        )
+    async def close_menu(self, interaction: discord.Interaction) -> None:
+        self.clear_items()
+        self.add_item(discord.ui.TextDisplay("Settings closed. Use `/settings` to reopen."))
+        await interaction.response.edit_message(view=self, attachments=[])
         self.stop()
 
-    @discord.ui.select(
-        cls=discord.ui.ChannelSelect,
-        channel_types=[discord.ChannelType.text],
-        placeholder="Choose a welcome channel…",
-        min_values=1, max_values=1, row=2,
-    )
-    async def welcome_channel(
-        self, interaction: discord.Interaction, select: discord.ui.ChannelSelect
-    ) -> None:
-        await interaction.response.defer()
-        try:
-            await self.service.set_welcome_channel(interaction.guild, select.values[0].id)
-        except ValueError as error:
-            await send_private(interaction, str(error))
-            return
-        await self.refresh(interaction, "Welcome messages enabled in the selected channel.")
-
-    @discord.ui.button(label="Edit welcome message", style=discord.ButtonStyle.primary, row=3)
-    async def edit_welcome(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ) -> None:
+    async def open_welcome_editor(self, interaction: discord.Interaction) -> None:
         settings = await self.service.repository.get(self.guild_id)
         await interaction.response.send_modal(WelcomeModal(self, settings.welcome_message))
 
-    @discord.ui.button(label="Disable welcomes", style=discord.ButtonStyle.secondary, row=3)
-    async def disable_welcome(
-        self, interaction: discord.Interaction, button: discord.ui.Button
-    ) -> None:
+    async def turn_off_welcomes(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer()
         await self.service.repository.set_welcome_channel(self.guild_id, None)
         await self.refresh(interaction, "Welcome messages disabled. Your message is saved.")
+
+    async def on_timeout(self) -> None:
+        for item in self.walk_children():
+            if isinstance(item, (discord.ui.Button, discord.ui.ChannelSelect)):
+                item.disabled = True
+        if self.message is not None:
+            try:
+                await self.message.edit(view=self)
+            except discord.HTTPException:
+                pass
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception, item) -> None:
+        await report_error(interaction, error)
 
 
 class WelcomeModal(discord.ui.Modal, title="Edit welcome message"):
@@ -229,6 +253,4 @@ class WelcomeModal(discord.ui.Modal, title="Edit welcome message"):
         await self.menu.refresh(interaction, "Welcome message saved.")
 
     async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        from ky_bot.errors import report_error
-
         await report_error(interaction, error)
