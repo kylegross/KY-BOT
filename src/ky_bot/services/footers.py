@@ -64,7 +64,7 @@ def capsule() -> Image.Image:
 
 
 def rectangular_frame(
-    style: str, size: tuple[int, int], *, radius: int = 8, inset: int = 0
+    style: str, size: tuple[int, int], *, radius: int = 8, inset: int = 10
 ) -> Image.Image:
     """A quiet, proportionate outline that matches the illustrated floral collection."""
     from ky_bot.services.collection import COLOURS

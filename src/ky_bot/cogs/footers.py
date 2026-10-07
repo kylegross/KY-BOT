@@ -9,6 +9,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ky_bot.services.footers import MAX_UPLOAD, SLOGAN, FooterError, render_footer
+from ky_bot.views.artwork import ArtworkView
 
 if TYPE_CHECKING:
     from ky_bot.bot import KYBot
@@ -97,6 +98,7 @@ class Footers(commands.Cog):
         await interaction.followup.send(
             "Your footer is ready. Run `/footer` again to adjust the crop, slogan or icons.",
             file=discord.File(io.BytesIO(result), filename=f"ky_footer_{style.value}.png"),
+            view=ArtworkView(interaction.user.id),
             ephemeral=True,
         )
 

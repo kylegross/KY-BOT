@@ -63,6 +63,10 @@ def test_thin_outline_matches_every_edge_and_canvas_size(style):
 
     short = rectangular_frame(style, (1600, 240))
     tall = rectangular_frame(style, (2176, 800))
+    assert short.getpixel((800, 0))[3] == 0
+    assert short.getpixel((0, 120))[3] == 0
+    assert short.getpixel((800, 10))[3] == 255
+    assert short.getpixel((10, 120))[3] == 255
     top = short.crop((20, 0, 120, 12))
     side = short.crop((0, 20, 12, 120)).transpose(Image.Transpose.ROTATE_270)
     assert top.tobytes() == side.tobytes()
@@ -120,6 +124,7 @@ async def test_command_defers_and_sends_private_export():
     data = png(Image.new("RGB", (100, 100), "blue"))
     attachment = SimpleNamespace(size=len(data), read=AsyncMock(return_value=data))
     request = SimpleNamespace(
+        user=SimpleNamespace(id=123),
         response=SimpleNamespace(defer=AsyncMock(), send_message=AsyncMock()),
         followup=SimpleNamespace(send=AsyncMock()),
     )

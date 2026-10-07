@@ -81,8 +81,8 @@ def render_welcome(
         draw.text((600, y), text, font=chosen, fill=colour, anchor="mt")
 
     centered(artwork.title.upper(), 320, "display", 70, accent)
-    centered(member_name, 415, "heading", 44, "#F5F1E8")
-    centered(server_name, 478, "body", 28, accent)
+    centered(member_name, 415, "display", 68, "#F5F1E8")
+    centered(server_name, 506, "body", 28, accent)
     body_font = font("body", 30)
     # Bound the visual copy; the full configured message remains in the accessible caption.
     body = readable(message)
@@ -106,7 +106,7 @@ def render_welcome(
         lines = lines[:5]
         lines[-1] = lines[-1][:-3] + "…"
     for index, line in enumerate(lines):
-        draw.text((600, 550 + index * 38), line, font=body_font, fill="#E9E6DF", anchor="mt")
+        draw.text((600, 574 + index * 38), line, font=body_font, fill="#E9E6DF", anchor="mt")
     output = io.BytesIO()
     image.convert("RGB").save(output, format="PNG")
     return output.getvalue()

@@ -93,6 +93,7 @@ async def test_header_command_returns_private_export():
     data = png(Image.new("RGB", (300, 300), "blue"))
     background = SimpleNamespace(size=len(data), read=AsyncMock(return_value=data))
     request = SimpleNamespace(
+        user=SimpleNamespace(id=123),
         response=SimpleNamespace(defer=AsyncMock(), send_message=AsyncMock()),
         followup=SimpleNamespace(send=AsyncMock()),
     )

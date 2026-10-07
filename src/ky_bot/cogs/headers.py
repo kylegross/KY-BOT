@@ -10,6 +10,7 @@ from discord.ext import commands
 
 from ky_bot.services.footers import MAX_UPLOAD, FooterError
 from ky_bot.services.headers import render_header
+from ky_bot.views.artwork import ArtworkView
 
 if TYPE_CHECKING:
     from ky_bot.bot import KYBot
@@ -87,6 +88,7 @@ class Headers(commands.Cog):
         await interaction.followup.send(
             "Your header is ready. Run `/header` again to adjust the height, crop or finish.",
             file=discord.File(io.BytesIO(result), filename=f"ky_header_{style.value}.png"),
+            view=ArtworkView(interaction.user.id),
             ephemeral=True,
         )
 
