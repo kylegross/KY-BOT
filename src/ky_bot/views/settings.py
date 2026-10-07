@@ -77,7 +77,6 @@ class SettingsView(discord.ui.LayoutView):
             discord.ui.MediaGallery(
                 discord.MediaGalleryItem(
                     HEADER_URL,
-                    description="KY BOT • COMMAND CENTER",
                 )
             )
         )
@@ -85,7 +84,6 @@ class SettingsView(discord.ui.LayoutView):
             discord.ui.MediaGallery(
                 discord.MediaGalleryItem(
                     "attachment://ky_settings_title.png",
-                    description=SETTINGS_TITLES[section][0],
                 )
             )
         )
@@ -229,7 +227,6 @@ class SettingsView(discord.ui.LayoutView):
             discord.ui.MediaGallery(
                 discord.MediaGalleryItem(
                     "attachment://ky_settings_footer.png",
-                    description="KY BOT floral wreath footer",
                 )
             )
         )

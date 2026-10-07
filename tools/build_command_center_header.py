@@ -45,8 +45,8 @@ def main() -> None:
         lettering = Image.new("RGBA", mask.size, "#D6E2F3")
         lettering.putalpha(mask)
         label = Image.new("RGBA", (1120, mask.height + 32))
-        # Vertical clearance protects the first glyph while preserving the text's left edge.
-        label.alpha_composite(lettering, (0, 16))
+        # Two source pixels give about one displayed pixel of left clearance at 560px.
+        label.alpha_composite(lettering, (2, 16))
         save_artwork(label, ROOT / "src/ky_bot/assets/header" / filename)
 
 

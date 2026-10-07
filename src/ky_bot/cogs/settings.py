@@ -42,13 +42,7 @@ class ServerSettings(commands.Cog):
                         member.guild.id,
                     )
             file_options = (
-                {
-                    "file": discord.File(
-                        io.BytesIO(image), filename="welcome.png", description=content[:1024]
-                    )
-                }
-                if image
-                else {}
+                {"file": discord.File(io.BytesIO(image), filename="welcome.png")} if image else {}
             )
             await channel.send(
                 content[:2000],
