@@ -68,6 +68,7 @@ async def test_extensions_intents_and_sync_scope(mode, expected_calls):
             "Delete header/footer",
         }
         assert bot.intents.members and bot.intents.message_content
+        assert bot.intents.invites and bot.intents.moderation
         assert not bot.intents.presences
         assert bot.tree.sync.await_count == expected_calls
         if mode == "guild":
@@ -79,6 +80,7 @@ async def test_extensions_intents_and_sync_scope(mode, expected_calls):
         await bot.unload_extension("ky_bot.cogs.footers")
         await bot.unload_extension("ky_bot.cogs.headers")
         await bot.unload_extension("ky_bot.cogs.artwork")
+        await bot.unload_extension("ky_bot.cogs.activity")
         assert not bot.tree.get_commands()
 
 

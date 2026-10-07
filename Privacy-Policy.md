@@ -1,6 +1,6 @@
 # KY BOT — Privacy Policy
 
-**Last Updated: September 29, 2026**
+**Last Updated: October 6, 2026**
 
 This Privacy Policy explains how KY BOT (“KY BOT,” “the Bot,” “we,” “us,” or “our”) collects, processes, stores, and protects information when you interact with KY BOT through Discord.
 
@@ -66,6 +66,21 @@ For example, automation, message-management, moderation, game, thread-management
 Access to content does not necessarily mean that content is permanently stored.
 
 Unless a feature specifically requires retention, KY BOT should process content only for the period reasonably necessary to perform the requested function.
+
+
+
+### Server Activity Logs
+
+When a server administrator selects a log channel, KY BOT posts message edits and
+deletions, member joins and departures, role changes, bans and unbans, and invite
+creation and deletion to that channel. Logs can contain user, channel, role and
+message identifiers, recent cached message text, attachment filenames, and invite
+codes. Who can view these logs depends on the channel permissions set by the server.
+
+Recent message text and member information are held in memory to process events;
+this feature does not store a message archive in the bot database. Log posts are
+stored by Discord and remain until removed by server moderators. Clearing the
+configured log channel stops future activity logging and does not remove prior posts.
 
 ### Technical and Diagnostic Information
 

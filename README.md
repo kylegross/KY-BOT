@@ -199,8 +199,7 @@ timeout, `/ping`, restart with sync disabled, and confirm the token does not app
 - **Python not found:** install Python, reopen PowerShell, and check `py --version`.
 
 `.env`, logs, environments, caches, and local databases are ignored by Git. Logs contain diagnostics
-and IDs; restrict access and retention when hosting. Do not log message content, credentials, or
-full interaction payloads when adding modules. Review the existing [Privacy Policy](Privacy-Policy.md)
+and IDs; restrict access and retention when hosting. Do not put message content, credentials, or full interaction payloads in diagnostic logs. Review the existing [Privacy Policy](Privacy-Policy.md)
 and [Terms of Service](Terms-of-Service.md) as data-handling features are implemented.
 
 Implementation references: [discord.py commands API](https://discordpy.readthedocs.io/en/stable/ext/commands/api.html),
@@ -292,3 +291,20 @@ The old presets and their historical builders were removed from the active colle
 Unused drafts, retired archives, and duplicate runtime exports have been removed. Restart or redeploy the bot
 for new artwork. Sync slash commands once if command options or descriptions changed, then
 return `COMMAND_SYNC` to `none`.
+
+
+## Server activity logging
+
+Open `/settings`, choose Server Activity, and select a log channel. Clearing the channel
+turns logging off for that server. The bot logs message edits, single/bulk deletions,
+member joins/leaves, member role assignments/removals, role creation/update/deletion,
+bans/unbans, and invite creation/deletion. It does not attribute joins to particular invites.
+
+The destination requires View Channel, Send Messages, and Embed Links. Discord's
+Server Members and Message Content privileged intents must be enabled in the Developer
+Portal. Invite gateway events additionally require Manage Channels permission.
+Members are cached to compare role assignments; recent messages use discord.py's bounded
+1,000-message memory cache. Deleted/previous text that was never cached, was evicted,
+or predates a restart is marked unavailable. No message archive is stored in SQLite.
+Log posts remain in Discord until server moderators delete them. Events in the log channel
+are excluded to prevent logging its own messages. The bot never pings people through logs.

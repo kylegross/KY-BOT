@@ -31,7 +31,8 @@ PAGES = {
     "admin": (
         "Admin tools",
         "Available: `/settings` — persistent server settings (administrators only).\n\n"
-        "Choose or clear a log channel for future moderation. Logging is not active yet.",
+        "Choose a log channel for messages, joins/leaves, roles, bans and invites. "
+        "Clear the channel to disable logging.",
     ),
 }
 
