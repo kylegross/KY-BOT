@@ -19,6 +19,7 @@ EXTENSIONS = (
     "ky_bot.design.header_command",
     "ky_bot.design.artwork_command",
     "ky_bot.admin_functions.activity",
+    "ky_bot.checklists.command",
 )
 
 

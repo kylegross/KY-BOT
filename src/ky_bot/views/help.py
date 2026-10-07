@@ -10,6 +10,7 @@ PAGES = {
         "`/settings` — server configuration (admins)\n"
         "`/footer` — custom background and branding footer\n\n"
         "`/header` — branded header with your own background\n\n"
+        "`/create checklist` — inline task boards with optional checklist logs\n\n"
         "Choose a category below to see what’s planned.",
     ),
     "moderation": (
@@ -20,7 +21,8 @@ PAGES = {
     "automation": (
         "Automation",
         "Planned: configurable autodelete and automatic message threads.\n\n"
-        "No messages are deleted or threaded by this foundation.",
+        "Configured checklists preserve task messages and attachments before removing "
+        "their originals, with private task discussion threads.",
     ),
     "utilities": (
         "Utilities & games",
@@ -32,7 +34,9 @@ PAGES = {
         "Admin tools",
         "Available: `/settings` — persistent server settings (administrators only).\n\n"
         "Choose a log channel for messages, joins/leaves, roles, bans and invites. "
-        "Clear the channel to disable logging.",
+        "Clear the channel to disable logging.\n\n"
+        "Use `/create checklist` for an inline task board. Choose Yes for a checklist "
+        "log channel picker or No for no checklist log.",
     ),
 }
 

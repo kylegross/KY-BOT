@@ -1,6 +1,6 @@
 # KY BOT — Privacy Policy
 
-**Last Updated: October 6, 2026**
+**Last Updated: October 7, 2026**
 
 This Privacy Policy explains how KY BOT (“KY BOT,” “the Bot,” “we,” “us,” or “our”) collects, processes, stores, and protects information when you interact with KY BOT through Discord.
 
@@ -243,3 +243,19 @@ You should never provide your Discord password or authentication credentials whe
 ---
 
 **KY BOT is built to provide comprehensive functionality without unnecessary collection—keeping the experience capable, intuitive, and considered.**
+
+
+### Checklist Content and History
+
+When an administrator creates a checklist, authorized messages in its channel are
+saved as tasks. The database retains task text, author/source identifiers, attachment
+metadata, categories, priorities, custom artwork, thread identifiers and completion
+history. Source messages are removed only after the board updates successfully and
+attachments are re-uploaded into a private task discussion thread.
+
+Deleting a task removes it from the visible checklist but retains its saved record,
+discussion and completion history. Checklist logs are optional: choosing Yes opens a
+server channel picker, while No disables delivery. Completions made with logs off
+are not posted later. History remains in the checklist database. Existing Discord
+log posts and discussion threads remain subject to server/channel permissions and
+moderator removal.

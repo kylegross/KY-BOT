@@ -20,6 +20,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "ky_bot.design" = ["assets/footer/*.png", "assets/header/*.png", "assets/welcome/*.png"]
+"ky_bot.checklists" = ["assets/*.png"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

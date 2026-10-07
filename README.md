@@ -321,3 +321,21 @@ are excluded to prevent logging its own messages. The bot never pings people thr
 
 Private licensed fonts now live at `design/assets/branding/fonts/private/`; they remain
 excluded from Git. Railway's persistent `/data/fonts` installation is unchanged.
+
+
+### Checklists
+
+Use `/create checklist` in the server text channel where the board should live.
+Choose `checklist_log: Yes` to open a private log-channel picker, or `No` to create
+without checklist logs. Setup creates nothing until the required selection is complete.
+The compact gold header and footer are default; customize the VONCA title, finish,
+header height, header/footer backgrounds, footer icon or text, and authorized role.
+
+Each task has an inline Manage button. Category headings match SERVER SETTINGS in
+VONCA, size and spacing, with italic open-task counts and pastel priority circles.
+Task completion/reopening, editing, priorities, category management, manual order,
+priority sorting, pagination, private discussion threads and completion history are
+preserved. Updating setup preserves tasks. See [checklist setup](design/checklists/README.md).
+
+After deploying, run command sync once to register `/create checklist`, then return
+COMMAND_SYNC to none. No checklist is created automatically.
