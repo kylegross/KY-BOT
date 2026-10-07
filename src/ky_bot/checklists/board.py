@@ -48,8 +48,9 @@ class BoardView(discord.ui.LayoutView):
         gallery("checklist_header.png")
         panel.add_item(
             discord.ui.TextDisplay(
-                "-# Type a message here to add a task. Manage a task to complete, edit,"
-                " reorder or open its discussion."
+                '-# *Type a message within this channel to add a task to the checklist. '
+                'Select the "Manage" button to the right of each task to edit, reorder, '
+                "open its discussion thread, or mark the task as complete.*"
             )
         )
 

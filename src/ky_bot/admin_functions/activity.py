@@ -45,7 +45,11 @@ class Activity(commands.Cog):
             channel = await self.bot.server_settings.validate_channel(
                 guild, settings.log_channel_id
             )
-            embed = discord.Embed(title=title, colour=0xC9DDF0, timestamp=discord.utils.utcnow())
+            embed = discord.Embed(
+                title=f"\\*ੈ𑁍  {title}  𑁍ੈ\\*",
+                colour=0xC9DDF0,
+                timestamp=discord.utils.utcnow(),
+            )
             for name, value in fields.items():
                 embed.add_field(name=name, value=value[:1024] or "(Unavailable)", inline=False)
             embed.set_footer(text="KY BOT · SERVER ACTIVITY")

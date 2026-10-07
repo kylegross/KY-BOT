@@ -24,7 +24,7 @@ async def test_event_uses_its_guild_destination_and_disables_mentions():
     service.validate_channel.assert_awaited_once_with(cog.bot.get_guild.return_value, 20)
     options = channel.send.call_args.kwargs
     assert options["allowed_mentions"].to_dict()["parse"] == []
-    assert options["embed"].title == "MEMBER JOINED"
+    assert options["embed"].title == r"\*ੈ𑁍  MEMBER JOINED  𑁍ੈ\*"
 
 
 @pytest.mark.parametrize(
@@ -42,7 +42,7 @@ async def test_uncached_deleted_message_still_logs_ids():
         NS(guild_id=1, channel_id=10, message_id=30, cached_message=None)
     )
     embed = channel.send.call_args.kwargs["embed"]
-    assert embed.title == "MESSAGE DELETED"
+    assert embed.title == r"\*ੈ𑁍  MESSAGE DELETED  𑁍ੈ\*"
     assert "not in the bot's cache" in embed.fields[-1].value
 
 
@@ -93,16 +93,16 @@ async def test_bans_unbans_and_uncached_departure():
     await cog.on_member_unban(NS(id=1), user)
     await cog.on_raw_member_remove(NS(guild_id=1, user=user))
     assert [c.kwargs["embed"].title for c in channel.send.call_args_list] == [
-        "MEMBER BANNED",
-        "MEMBER UNBANNED",
-        "MEMBER LEFT",
+        r"\*ੈ𑁍  MEMBER BANNED  𑁍ੈ\*",
+        r"\*ੈ𑁍  MEMBER UNBANNED  𑁍ੈ\*",
+        r"\*ੈ𑁍  MEMBER LEFT  𑁍ੈ\*",
     ]
 
 
 async def test_invite_deletion_handles_partial_invite():
     cog, channel, _ = setup_activity()
     await cog.on_invite_delete(NS(guild=NS(id=1), channel=NS(id=10), code="example"))
-    assert channel.send.call_args.kwargs["embed"].title == "INVITE DELETED"
+    assert channel.send.call_args.kwargs["embed"].title == r"\*ੈ𑁍  INVITE DELETED  𑁍ੈ\*"
 
 
 async def test_invalid_destination_does_not_break_event_listener():
@@ -122,7 +122,7 @@ async def test_bulk_delete_limits_cached_content_and_reports_total():
     )
     await cog.on_raw_bulk_message_delete(payload)
     embed = channel.send.call_args.kwargs["embed"]
-    assert embed.title == "MESSAGES BULK DELETED"
+    assert embed.title == r"\*ੈ𑁍  MESSAGES BULK DELETED  𑁍ੈ\*"
     assert embed.fields[1].value == "10"
     assert all(len(field.value) <= 1024 for field in embed.fields)
 
@@ -153,8 +153,8 @@ async def test_invite_creation_and_role_lifecycle():
     await cog.on_guild_role_update(old, new)
     await cog.on_guild_role_delete(new)
     assert [c.kwargs["embed"].title for c in channel.send.call_args_list] == [
-        "INVITE CREATED",
-        "ROLE CREATED",
-        "ROLE UPDATED",
-        "ROLE DELETED",
+        r"\*ੈ𑁍  INVITE CREATED  𑁍ੈ\*",
+        r"\*ੈ𑁍  ROLE CREATED  𑁍ੈ\*",
+        r"\*ੈ𑁍  ROLE UPDATED  𑁍ੈ\*",
+        r"\*ੈ𑁍  ROLE DELETED  𑁍ੈ\*",
     ]

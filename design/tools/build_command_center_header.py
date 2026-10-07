@@ -14,7 +14,7 @@ from ky_bot.admin_functions.settings_service import SETTINGS_TITLES  # noqa: E40
 from ky_bot.design.collection import floral_background  # noqa: E402
 from ky_bot.design.footers import centered_overlay, rectangular_frame  # noqa: E402
 from ky_bot.design.headers import render_header  # noqa: E402
-from ky_bot.design.typography import text_mask  # noqa: E402
+from ky_bot.design.typography import section_heading_mask  # noqa: E402
 
 
 def build_header(*, framed: bool = False) -> Image.Image:
@@ -41,7 +41,7 @@ def main() -> None:
     save_artwork(footer, ROOT / "src/ky_bot/design/assets/footer/ky_footer_command_center.png")
     # Render at 2x the usual 560px panel width, with larger Bold lettering and more leading.
     for title, filename in SETTINGS_TITLES.values():
-        mask = text_mask(title, role="display", size=36, min_size=36, max_width=1080)
+        mask = section_heading_mask(title)
         lettering = Image.new("RGBA", mask.size, "#D6E2F3")
         lettering.putalpha(mask)
         label = Image.new("RGBA", (1120, mask.height + 32))

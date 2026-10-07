@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 TAGLINE = "POWERFUL BY NATURE. SIMPLE BY DESIGN."
 ROLES = {
@@ -18,6 +18,16 @@ ROLES = {
 
 class TypographyError(ValueError):
     """A font or text configuration that cannot produce branded lettering."""
+
+
+def section_heading_mask(text: str) -> Image.Image:
+    """Keep section metrics unchanged while strengthening small displayed edges.
+
+    Sharpen coverage only, so transparent lettering cannot acquire colored halos.
+    All finishes and menus use the same treatment before Discord scales the image.
+    """
+    mask = text_mask(text, role="display", size=36, min_size=36, max_width=1080)
+    return mask.filter(ImageFilter.UnsharpMask(radius=1.2, percent=220, threshold=2))
 
 
 def font_file(role: str) -> Path:

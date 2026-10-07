@@ -7,7 +7,7 @@ from PIL import Image, ImageOps
 from ky_bot.design.collection import COLOURS, floral_background
 from ky_bot.design.footers import centered_overlay, read_upload, rectangular_frame
 from ky_bot.design.headers import render_header
-from ky_bot.design.typography import text_mask
+from ky_bot.design.typography import section_heading_mask, text_mask
 
 
 def png(image):
@@ -22,7 +22,7 @@ def title_image(title, style):
     text = title.upper()
     while True:
         try:
-            mask = text_mask(text, role="display", size=36, min_size=36, max_width=1080)
+            mask = section_heading_mask(text)
             break
         except TypographyError:
             if len(text) <= 4:
