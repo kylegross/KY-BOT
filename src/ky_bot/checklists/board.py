@@ -17,8 +17,8 @@ def safe(value):
 
 def category_heading(store, task):
     category = (
-        store.category(task["category"], task["channel"])["name"]
-        if task.get("category") is not None
+        store.category(task["category_id"], task["channel"])["name"]
+        if task.get("category_id") is not None
         else "Uncategorized"
     )
     return f"\\*ੈ𑁍  {safe(category)}  𑁍ੈ\\*"

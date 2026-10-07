@@ -339,3 +339,85 @@ preserved. Updating setup preserves tasks. See [checklist setup](design/checklis
 
 After deploying, run command sync once to register `/create checklist`, then return
 COMMAND_SYNC to none. No checklist is created automatically.
+
+
+## Shared PostgreSQL storage
+
+`DATABASE_URL` selects PostgreSQL for server settings, welcome artwork, checklists,
+category ordering, discussion IDs and completion history. If it is unset, the bot
+continues using SQLite. An invalid/unreachable PostgreSQL destination does not
+silently fall back to an empty SQLite database.
+
+### Railway setup and migration
+
+1. Push this version yourself and deploy it with `DATABASE_URL` still unset.
+   This keeps the live bot on its existing SQLite data while installing the driver.
+2. Add a PostgreSQL service to the same Railway project. Keep the current bot
+   volume: it still holds the licensed fonts and the original SQLite files.
+3. For the maintenance window, temporarily set the bot service Start Command to
+   `sleep infinity` and redeploy. This keeps the volume accessible without running
+   the Discord bot. Back up `/data/ky-bot.sqlite3` and `/data/ky-checklists.sqlite3` using SQLite's
+   backup facility. Pause checklist/settings changes during the final copy, then
+   stop the bot process before importing. Do not migrate stale local test files.
+4. Open a Railway SSH shell in that maintenance deployment. Run the migration
+   from a maintenance process that has the current bot volume
+   mounted and the new database reachable. Set `MIGRATION_DATABASE_URL` in that
+   process to the PostgreSQL destination (not in source code). First preview:
+
+   ```sh
+   python -m ky_bot.storage.migrate --settings /data/ky-bot.sqlite3 --checklists /data/ky-checklists.sqlite3
+   ```
+
+   Then run the same command with `--apply`. Use actual source paths if your
+   `DATABASE_PATH` differs. The tool leaves source files unchanged, refuses a
+   populated destination, preserves IDs/artwork/history, verifies record counts,
+   restores ID sequences and imports all records in one transaction. Do not run
+   this automatically on every deployment. For a fresh installation with no
+   existing data, skip importing and start with the new empty database.
+5. After the import succeeds, add the PostgreSQL service's `DATABASE_URL` as a
+   reference variable on the bot service, restore its Start Command to
+   `python -m ky_bot`, then start/redeploy the bot. The old
+   `DATABASE_PATH` remains the SQLite fallback path, not the PostgreSQL location.
+6. A future web backend uses a reference to the same database. Keep one running
+   Discord bot worker; the web process accesses storage without starting KYBot.
+
+Railway documentation: [PostgreSQL](https://docs.railway.com/databases/postgresql)
+and [reference variables](https://docs.railway.com/variables).
+
+### Access from a web backend
+
+Use `open_settings(path, database_url=url)` for async server settings and
+`PostgresChecklistStore(url)` for checklist storage. `ServerChecklistData` wraps
+checklist reads/edits/completion with a required server scope. The web app must
+first authenticate with Discord and verify membership plus admin/authorized-role
+permissions; never trust a server ID or actor ID supplied by the browser.
+
+```python
+import asyncio
+from ky_bot.storage.postgres import PostgresChecklistStore
+from ky_bot.storage.server_data import ServerChecklistData
+
+store = PostgresChecklistStore(database_url)
+server = ServerChecklistData(store, verified_guild_id)
+# Checklist methods are synchronous; async web routes run them in a worker thread.
+tasks = await asyncio.to_thread(server.tasks, verified_channel_id)
+updated = await asyncio.to_thread(
+    server.complete, verified_channel_id, task_id, verified_user_id, task_revision,
+)
+# Close store.db when the web service shuts down.
+```
+
+Checklist writes are transactionally serialized across processes and reject stale
+revisions. Use repository methods rather than direct table writes, so task edits
+mark the board for refresh and completions enter the normal checklist-log outbox.
+The bot polls pending work every 15 seconds; a web change may appear after the
+next poll. Render acknowledgements keep later changes pending instead of clearing
+an update written while Discord was receiving the previous panel.
+
+Settings are read from shared storage on demand. Both services need private
+server-side database credentials; browser clients never receive them. Checklist
+storage currently retains a synchronous API with bounded database timeouts; keep
+bot and database on the same private network. PostgreSQL-backed tests require a
+**disposable** `TEST_DATABASE_URL`; these tests truncate its KY BOT tables.
+
+No web dashboard, Discord OAuth flow or HTTP API is included in this storage change.

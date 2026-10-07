@@ -115,7 +115,13 @@ class SettingsRepository:
 
 
 @asynccontextmanager
-async def open_settings(path: Path):
+async def open_settings(path: Path, *, database_url: str | None = None):
+    if database_url:
+        from ky_bot.storage.postgres import open_postgres_settings
+
+        async with open_postgres_settings(database_url) as repository:
+            yield repository
+        return
     if str(path) != ":memory:":
         path.parent.mkdir(parents=True, exist_ok=True)
     async with aiosqlite.connect(str(path), isolation_level=None, timeout=10) as connection:

@@ -54,7 +54,7 @@ class KYBot(commands.Bot):
 
     async def setup_hook(self) -> None:
         repository = await self.resources.enter_async_context(
-            open_settings(self.settings.database_path)
+            open_settings(self.settings.database_path, database_url=self.settings.database_url)
         )
         self.server_settings = SettingsService(repository)
         for extension in EXTENSIONS:

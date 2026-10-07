@@ -20,6 +20,7 @@ class Settings:
     log_dir: Path = Path("logs")
     database_path: Path = Path("data/ky-bot.sqlite3")
     footer_font_path: Path | None = None
+    database_url: str | None = field(default=None, repr=False)
 
     @classmethod
     def from_env(cls, env_file: Path = Path(".env")) -> "Settings":
@@ -48,6 +49,9 @@ class Settings:
         if not database_path:
             raise ConfigurationError("DATABASE_PATH must be a database file path.")
         font_path = os.getenv("FOOTER_FONT_PATH", "").strip()
+        database_url = os.getenv("DATABASE_URL", "").strip()
+        if database_url and not database_url.startswith(("postgresql://", "postgres://")):
+            raise ConfigurationError("DATABASE_URL must be a PostgreSQL connection URL.")
         return cls(
             token,
             mode,
@@ -56,4 +60,5 @@ class Settings:
             Path(os.getenv("LOG_DIR", "logs")),
             Path(database_path),
             Path(font_path) if font_path else None,
+            database_url or None,
         )

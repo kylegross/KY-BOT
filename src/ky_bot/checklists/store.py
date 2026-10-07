@@ -9,12 +9,15 @@ from pathlib import Path
 class ChecklistStore:
     def is_checklist_channel(self, guild, channel):
         """Keep checklist channels, logs and task discussions out of server message logs."""
-        return self.db.execute(
-            "SELECT 1 FROM boards WHERE guild=? AND (channel=? OR log_channel=?) "
-            "UNION ALL SELECT 1 FROM tasks JOIN boards ON tasks.channel=boards.channel "
-            "WHERE boards.guild=? AND tasks.thread=? LIMIT 1",
-            (guild, channel, channel, guild, channel),
-        ).fetchone() is not None
+        return (
+            self.db.execute(
+                "SELECT 1 FROM boards WHERE guild=? AND (channel=? OR log_channel=?) "
+                "UNION ALL SELECT 1 FROM tasks JOIN boards ON tasks.channel=boards.channel "
+                "WHERE boards.guild=? AND tasks.thread=? LIMIT 1",
+                (guild, channel, channel, guild, channel),
+            ).fetchone()
+            is not None
+        )
 
     def __init__(self, path):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -97,6 +100,7 @@ class ChecklistStore:
             )
         columns = {row["name"] for row in self.db.execute("PRAGMA table_info(boards)")}
         for column, definition in [
+            ("revision", "INTEGER NOT NULL DEFAULT 0"),
             ("name", "TEXT NOT NULL DEFAULT 'ADMIN CHECKLIST'"),
             ("style", "TEXT NOT NULL DEFAULT 'gold'"),
             ("height", "INTEGER NOT NULL DEFAULT 280"),
@@ -145,6 +149,8 @@ class ChecklistStore:
             )
 
     def update_board(self, channel, **values):
+        if set(values) - {"message", "dirty"}:
+            values.setdefault("dirty", 1)
         assert set(values) <= {
             "message",
             "page",
@@ -162,8 +168,19 @@ class ChecklistStore:
         }
         with self.db:
             self.db.execute(
-                "UPDATE boards SET " + ",".join(f"{k}=?" for k in values) + " WHERE channel=?",
+                "UPDATE boards SET "
+                + ",".join(f"{k}=?" for k in values)
+                + ",revision=revision+1 WHERE channel=?",
                 (*values.values(), channel),
+            )
+
+    def rendered(self, channel, message, revision):
+        """Acknowledge only the version sent to Discord; retain newer pending edits."""
+        with self.db:
+            self.db.execute(
+                "UPDATE boards SET message=?,dirty=CASE WHEN revision=? THEN 0 ELSE 1 END "
+                "WHERE channel=?",
+                (message, revision, channel),
             )
 
     def add(self, channel, source, author, title, attachments):
@@ -185,7 +202,9 @@ class ChecklistStore:
                 ),
             )
             if cursor.rowcount:
-                self.db.execute("UPDATE boards SET dirty=1 WHERE channel=?", (channel,))
+                self.db.execute(
+                    "UPDATE boards SET dirty=1,revision=revision+1 WHERE channel=?", (channel,)
+                )
             return bool(cursor.rowcount)
 
     def tasks(self, channel):
@@ -215,7 +234,9 @@ class ChecklistStore:
                 "UPDATE tasks SET done=?,thread_sync=1,revision=revision+1 WHERE id=?",
                 (int(done), tid),
             )
-            self.db.execute("UPDATE boards SET dirty=1 WHERE channel=?", (item["channel"],))
+            self.db.execute(
+                "UPDATE boards SET dirty=1,revision=revision+1 WHERE channel=?", (item["channel"],)
+            )
             if done:
                 self.db.execute(
                     "INSERT INTO logs(channel,task,title,actor,created,log_channel) "
@@ -262,7 +283,9 @@ class ChecklistStore:
                 "INSERT OR IGNORE INTO categories(channel,name,name_key,position) VALUES (?,?,?,?)",
                 (channel, name, name.casefold(), self.next_category_position(channel)),
             )
-            self.db.execute("UPDATE boards SET dirty=1 WHERE channel=?", (channel,))
+            self.db.execute(
+                "UPDATE boards SET dirty=1,revision=revision+1 WHERE channel=?", (channel,)
+            )
         return self.db.execute(
             "SELECT id FROM categories WHERE channel=? AND name_key=?", (channel, name.casefold())
         ).fetchone()[0]
@@ -288,7 +311,9 @@ class ChecklistStore:
                 ),
                 (category, priority or task["priority"], self.next_position(task["channel"]), tid),
             )
-            self.db.execute("UPDATE boards SET dirty=1 WHERE channel=?", (task["channel"],))
+            self.db.execute(
+                "UPDATE boards SET dirty=1,revision=revision+1 WHERE channel=?", (task["channel"],)
+            )
 
     def category_tasks(self):
         return [
@@ -312,7 +337,9 @@ class ChecklistStore:
                 "UPDATE tasks SET deleted=1,deleted_by=?,revision=revision+1 WHERE id=?",
                 (actor, tid),
             )
-            self.db.execute("UPDATE boards SET dirty=1 WHERE channel=?", (task["channel"],))
+            self.db.execute(
+                "UPDATE boards SET dirty=1,revision=revision+1 WHERE channel=?", (task["channel"],)
+            )
 
     def next_position(self, channel):
         return self.db.execute(
@@ -339,7 +366,9 @@ class ChecklistStore:
                 "UPDATE tasks SET title=?,priority=?,revision=revision+1 WHERE id=?",
                 (task["title"] if title is None else title, priority or task["priority"], tid),
             )
-            self.db.execute("UPDATE boards SET dirty=1 WHERE channel=?", (task["channel"],))
+            self.db.execute(
+                "UPDATE boards SET dirty=1,revision=revision+1 WHERE channel=?", (task["channel"],)
+            )
 
     def category(self, cid, channel):
         row = self.db.execute(
@@ -366,7 +395,9 @@ class ChecklistStore:
                 "UPDATE categories SET name=?,name_key=?,revision=revision+1 WHERE id=?",
                 (name, name.casefold(), cid),
             )
-            self.db.execute("UPDATE boards SET dirty=1 WHERE channel=?", (channel,))
+            self.db.execute(
+                "UPDATE boards SET dirty=1,revision=revision+1 WHERE channel=?", (channel,)
+            )
 
     def reorder(self, channel, kind, ident, action, revision):
         if kind == "task":
@@ -411,7 +442,9 @@ class ChecklistStore:
                     f"UPDATE {table} SET position=?,revision=revision+1 WHERE id=?",
                     (position, item_id),
                 )
-            self.db.execute("UPDATE boards SET dirty=1 WHERE channel=?", (channel,))
+            self.db.execute(
+                "UPDATE boards SET dirty=1,revision=revision+1 WHERE channel=?", (channel,)
+            )
 
     def pending_thread_sync(self):
         return [

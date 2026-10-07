@@ -298,14 +298,14 @@ class ChecklistService:
                         attachments=attachments,
                         allowed_mentions=discord.AllowedMentions.none(),
                     )
-                    self.store.update_board(board["channel"], dirty=0)
+                    self.store.rendered(board["channel"], board["message"], board["revision"])
                     return
                 except discord.NotFound:
                     pass
             message = await channel.send(
                 view=view, files=attachments, allowed_mentions=discord.AllowedMentions.none()
             )
-            self.store.update_board(board["channel"], message=message.id, dirty=0)
+            self.store.rendered(board["channel"], message.id, board["revision"])
         finally:
             for file in attachments:
                 file.close()

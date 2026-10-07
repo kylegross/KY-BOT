@@ -23,6 +23,7 @@ def clean_env(monkeypatch, tmp_path):
         "LOG_LEVEL",
         "LOG_DIR",
         "DATABASE_PATH",
+        "DATABASE_URL",
     ):
         monkeypatch.delenv(key, raising=False)
     return tmp_path / ".env"

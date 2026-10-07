@@ -25,7 +25,12 @@ def main() -> None:
     configure_logging(settings)
     log = logging.getLogger("ky_bot")
     try:
-        asyncio.run(run(settings))
+        # Psycopg async sockets require the selector loop on Windows.
+        factory = (
+            asyncio.SelectorEventLoop if sys.platform == "win32" and settings.database_url else None
+        )
+        with asyncio.Runner(loop_factory=factory) as runner:
+            runner.run(run(settings))
     except KeyboardInterrupt:
         log.info("KY BOT stopped.")
     except discord.LoginFailure:

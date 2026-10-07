@@ -81,7 +81,13 @@ class Checklists(commands.Cog):
             if str(bot.settings.database_path) == ":memory:"
             else Path(bot.settings.database_path).with_name("ky-checklists.sqlite3")
         )
-        self.service = ChecklistService(bot, ChecklistStore(path))
+        if bot.settings.database_url:
+            from ky_bot.storage.postgres import PostgresChecklistStore
+
+            store = PostgresChecklistStore(bot.settings.database_url)
+        else:
+            store = ChecklistStore(path)
+        self.service = ChecklistService(bot, store)
         bot.checklists = self.service
 
     async def cog_load(self):
