@@ -79,18 +79,18 @@ class SettingsView(discord.ui.LayoutView):
         if section == "overview":
             status = "Enabled" if self.settings.welcome_channel_id else "Disabled"
             row(
-                f"### WELCOME EXPERIENCE\n"
+                f"**WELCOME EXPERIENCE**\n"
                 f"-# Personal greetings for new members · {status}",
                 self.navigation("Manage", "welcome"),
             )
             separator()
             row(
-                "### SERVER ACTIVITY\n-# Moderation logs · Coming soon",
+                "**SERVER ACTIVITY**\n-# Moderation logs · Coming soon",
                 self.navigation("Manage", "logging"),
             )
         elif section == "welcome":
             row(
-                f"### Destination\n{channel(self.settings.welcome_channel_id)}",
+                f"**Destination**\n{channel(self.settings.welcome_channel_id)}",
                 self.navigation("Choose channel", section, picker=True),
             )
             if picker:
@@ -105,7 +105,7 @@ class SettingsView(discord.ui.LayoutView):
             # Escape user-authored Markdown in the configuration display only.
             text = discord.utils.escape_markdown(self.settings.welcome_message)
             self.edit_welcome = self.button("Edit message", self.open_welcome_editor)
-            row(f"### Welcome message\n{text}", self.edit_welcome)
+            row(f"**Welcome message**\n{text}", self.edit_welcome)
             panel.add_item(discord.ui.TextDisplay(
                 "-# Use {member} to mention the new member and {server} for the server name."
             ))
@@ -113,7 +113,7 @@ class SettingsView(discord.ui.LayoutView):
             self.disable_welcome = self.button("Disable", self.turn_off_welcomes)
             self.disable_welcome.disabled = self.settings.welcome_channel_id is None
             row(
-                "### Delivery\n-# "
+                "**Delivery**\n-# "
                 + ("Enabled — sent when someone joins." if self.settings.welcome_channel_id
                    else "Disabled — choose a channel to enable."),
                 self.disable_welcome,
@@ -124,7 +124,7 @@ class SettingsView(discord.ui.LayoutView):
             ))
             separator()
             row(
-                f"### Destination\n{channel(self.settings.log_channel_id)}",
+                f"**Destination**\n{channel(self.settings.log_channel_id)}",
                 self.navigation("Choose channel", section, picker=True),
             )
             if picker:
@@ -137,7 +137,7 @@ class SettingsView(discord.ui.LayoutView):
             separator()
             self.clear_channel = self.button("Clear channel", self.clear_log_channel)
             self.clear_channel.disabled = self.settings.log_channel_id is None
-            row("### Saved destination\n-# Remove the selected channel.", self.clear_channel)
+            row("**Saved destination**\n-# Remove the selected channel.", self.clear_channel)
 
         separator()
         controls = discord.ui.ActionRow()

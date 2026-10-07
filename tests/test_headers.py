@@ -26,7 +26,7 @@ def test_uploaded_background_and_corner_brand_are_preserved(style, framed):
     assert image.getpixel((0, 0))[3] == 0
     assert image.getpixel((800, 260)) == (255, 0, 0, 255)
     assert image.getpixel((800, 440)) == (255, 0, 0, 255)
-    brand_area = (72, 68, 262, 125) if framed else (24, 24, 214, 81)
+    brand_area = (24, 24, 214, 81)
     assert overlay(style, framed=framed).crop(brand_area).getbbox() is not None
     if not framed:
         assert overlay(style, framed=False).getbbox() == brand_area
@@ -124,7 +124,7 @@ def test_custom_height_preserves_brand_and_transparent_corners(height, framed):
     assert image.size == (1600, height)
     assert image.getpixel((0, 0))[3] == 0
     assert image.getpixel((1599, height - 1))[3] == 0
-    brand_area = (72, 68, 262, 125) if framed else (24, 24, 214, 81)
+    brand_area = (24, 24, 214, 81)
     original = overlay("gold", framed=framed).crop(brand_area)
     adjusted = overlay("gold", framed=framed, height=height).crop(brand_area)
     assert original.tobytes() == adjusted.tobytes()

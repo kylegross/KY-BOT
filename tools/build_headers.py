@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 
+from artwork_io import save_artwork, write_artwork
 from PIL import Image, ImageDraw, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,8 +32,8 @@ def main():
     lettering = text_mask("KY BOT", role="heading", size=40, min_size=40, max_width=200)
     for style in STYLES:
         frame = rectangular_frame(style, SIZE)
-        frame.save(PACKAGE / f"{style}_frame.png")
-        frame.save(OUTPUT / "layers" / f"ky_header_{style}_frame.png")
+        save_artwork(frame, PACKAGE / f"{style}_frame.png")
+        save_artwork(frame, OUTPUT / "layers" / f"ky_header_{style}_frame.png")
 
         icon = Image.open(ROOT / f"src/ky_bot/assets/footer/{style}_icon.png").convert("RGBA")
         bounds = icon.getchannel("A").getbbox()
@@ -47,31 +48,35 @@ def main():
         text = Image.new("RGBA", lettering.size, colour)
         text.putalpha(lettering)
         brand.alpha_composite(text, (184, 108 - lettering.height // 2))
-        brand.save(PACKAGE / f"{style}_brand.png")
-        overlay(style, framed=False).save(OUTPUT / "layers" / f"ky_header_{style}_brand.png")
+        save_artwork(brand, PACKAGE / f"{style}_brand.png")
+        save_artwork(
+            overlay(style, framed=False), OUTPUT / "layers" / f"ky_header_{style}_brand.png"
+        )
         for framed in (True, False):
             name = f"ky_header_{style}_{'framed' if framed else 'borderless'}_template.png"
-            overlay(style, framed=framed).save(OUTPUT / "templates" / name)
+            save_artwork(overlay(style, framed=framed), OUTPUT / "templates" / name)
             compact_name = name.replace("_template.png", "_compact_template.png")
-            overlay(style, framed=framed, height=280).save(OUTPUT / "templates" / compact_name)
+            save_artwork(
+                overlay(style, framed=framed, height=280), OUTPUT / "templates" / compact_name
+            )
     for design, finish in FINISHES.items():
         bg = (BASE / "masters/approved-materials" / f"{design}_background.png").read_bytes()
         for framed in (True, False):
             content = render_header(bg, finish, framed=framed)
             name = f"ky_header_{design}{'' if framed else '_borderless'}.png"
-            (OUTPUT / "designs" / name).write_bytes(content)
-            (PACKAGE / name).write_bytes(content)
+            write_artwork((OUTPUT / "designs" / name), content)
+            write_artwork((PACKAGE / name), content)
             compact = render_header(bg, finish, framed=framed, height=280)
             compact_name = name.replace(".png", "_compact.png")
-            (OUTPUT / "designs" / compact_name).write_bytes(compact)
-            (PACKAGE / compact_name).write_bytes(compact)
+            write_artwork((OUTPUT / "designs" / compact_name), compact)
+            write_artwork((PACKAGE / compact_name), compact)
     manifest = {
         "canvas": list(SIZE),
         "shape": "Wide rectangle with 8-pixel corner radius",
         "brand": "KY BOT",
         "slogan": None,
         "brand_position": "Top left; icon before KY BOT",
-        "brand_bounds": {"framed": [72, 68, 262, 125], "borderless": [24, 24, 214, 81]},
+        "brand_bounds": {"framed": [24, 24, 214, 81], "borderless": [24, 24, 214, 81]},
         "brand_plate": "Keep the pale plate for dark silver; dark plate for gold and silver neon",
         "brand_font": "Vonca-Medium.otf",
         "title_font": "Vonca-Bold.otf",

@@ -70,15 +70,52 @@ def rectangular_frame(style: str, size: tuple[int, int]) -> Image.Image:
     strip = strip.crop(strip.getchannel("A").getbbox())
     width, height = size
     edge = 12
-    top = strip.resize((width, edge), Image.Resampling.LANCZOS)
-    side = strip.resize((height, edge), Image.Resampling.LANCZOS).transpose(
-        Image.Transpose.ROTATE_90
-    )
+    # Scale proportionally once; repeat the same texture instead of stretching each edge.
+    tile = strip.resize((round(strip.width * edge / strip.height), edge), Image.Resampling.LANCZOS)
+
+    def run(length: int) -> Image.Image:
+        result = Image.new("RGBA", (length, edge))
+        for index, offset in enumerate(range(0, length, tile.width)):
+            segment = tile if index % 2 == 0 else tile.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+            result.alpha_composite(
+                segment.crop((0, 0, min(tile.width, length - offset), edge)), (offset, 0)
+            )
+        return result
+
+    top = run(width)
+    side = run(height).transpose(Image.Transpose.ROTATE_270)
     frame = Image.new("RGBA", size)
-    frame.alpha_composite(top, (0, 0))
-    frame.alpha_composite(top.transpose(Image.Transpose.FLIP_TOP_BOTTOM), (0, height - edge))
-    frame.alpha_composite(side, (0, 0))
-    frame.alpha_composite(side.transpose(Image.Transpose.FLIP_LEFT_RIGHT), (width - edge, 0))
+    # Diagonal joins give the four runs a consistent corner rather than overlapping strips.
+    for texture, position, polygon in (
+        (top, (0, 0), [(0, 0), (width - 1, 0), (width - edge - 1, edge - 1), (edge - 1, edge - 1)]),
+        (
+            top.transpose(Image.Transpose.FLIP_TOP_BOTTOM),
+            (0, height - edge),
+            [
+                (0, height - 1),
+                (width - 1, height - 1),
+                (width - edge - 1, height - edge),
+                (edge - 1, height - edge),
+            ],
+        ),
+        (side, (0, 0), [(0, 0), (edge - 1, edge - 1), (edge - 1, height - edge), (0, height - 1)]),
+        (
+            side.transpose(Image.Transpose.FLIP_LEFT_RIGHT),
+            (width - edge, 0),
+            [
+                (width - 1, 0),
+                (width - edge, edge - 1),
+                (width - edge, height - edge),
+                (width - 1, height - 1),
+            ],
+        ),
+    ):
+        layer = Image.new("RGBA", size)
+        layer.alpha_composite(texture, position)
+        join_mask = Image.new("L", size)
+        ImageDraw.Draw(join_mask).polygon(polygon, fill=255)
+        layer.putalpha(ImageChops.multiply(layer.getchannel("A"), join_mask))
+        frame.alpha_composite(layer)
     mask = Image.new("L", size)
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, width - 1, height - 1), radius=8, fill=255)
     frame.putalpha(ImageChops.multiply(frame.getchannel("A"), mask))

@@ -34,7 +34,7 @@ def overlay(style: str, *, framed: bool = True, height: int = SIZE[1]) -> Image.
         # The brand sits above the frame, within the top-left interior safe area.
         frame = rectangular_frame(style, (SIZE[0], height))
         brand = result.crop((100, 68, 371, 149)).resize((190, 57), Image.Resampling.LANCZOS)
-        frame.alpha_composite(brand, (72, 68))
+        frame.alpha_composite(brand, (24, 24))
         return frame
     # Borderless layouts can place the mark closer to the actual image corner.
     corner = Image.new("RGBA", (SIZE[0], height))

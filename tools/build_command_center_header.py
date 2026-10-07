@@ -3,12 +3,13 @@
 import sys
 from pathlib import Path
 
+from artwork_io import save_artwork
 from PIL import Image, ImageDraw, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from ky_bot.services.footers import metal  # noqa: E402
+from ky_bot.services.footers import asset, metal, rectangular_frame  # noqa: E402
 from ky_bot.services.headers import background_mask, overlay  # noqa: E402
 from ky_bot.services.typography import text_mask  # noqa: E402
 
@@ -38,18 +39,26 @@ def main() -> None:
     header = build_header(framed=True)
     header = header.crop(header.getchannel("A").getbbox())
     header = ImageOps.contain(header, (1600, 280), Image.Resampling.LANCZOS)
-    header.save(ROOT / "src/ky_bot/assets/header/ky_header_command_center.png")
-    footer = Image.open(
-        ROOT / "assets/branding/footers/standardized/ky_footer_floral_wreath_centered_framed.png"
+    save_artwork(header, ROOT / "src/ky_bot/assets/header/ky_header_command_center.png")
+    # Keep a compact background crop and a proportionate centered icon at the new height.
+    background = Image.open(
+        ROOT / "assets/branding/footers/masters/approved-materials/floral_wreath_background.png"
     ).convert("RGBA")
-    footer = footer.crop(footer.getchannel("A").getbbox())
-    footer.save(ROOT / "src/ky_bot/assets/footer/ky_footer_floral_wreath_centered_framed.png")
+    footer = ImageOps.fit(background, (2176, 210), Image.Resampling.LANCZOS)
+    footer.alpha_composite(rectangular_frame("dark_silver", footer.size))
+    icon = ImageOps.contain(asset("dark_silver_icon.png").convert("RGBA"), (145, 98))
+    footer.alpha_composite(
+        icon, ((footer.width - icon.width) // 2, (footer.height - icon.height) // 2)
+    )
+    save_artwork(
+        footer, ROOT / "src/ky_bot/assets/footer/ky_footer_floral_wreath_centered_framed.png"
+    )
     mask = text_mask("SERVER SETTINGS", role="display", size=44, min_size=44, max_width=1500)
     lettering = Image.new("RGBA", mask.size, "#D8BB78")
     lettering.putalpha(mask)
-    label = Image.new("RGBA", (1600, 80))
-    label.alpha_composite(lettering, (0, (80 - mask.height) // 2))
-    label.save(ROOT / "src/ky_bot/assets/header/ky_settings_title.png")
+    label = Image.new("RGBA", (1600, mask.height + 8))
+    label.alpha_composite(lettering, (0, 4))
+    save_artwork(label, ROOT / "src/ky_bot/assets/header/ky_settings_title.png")
 
 
 if __name__ == "__main__":

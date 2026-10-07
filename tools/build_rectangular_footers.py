@@ -5,6 +5,7 @@ import sys
 import zipfile
 from pathlib import Path
 
+from artwork_io import save_artwork
 from PIL import Image, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,13 +40,15 @@ def centered(style, framed):
 
 def main():
     for style in STYLES:
-        rectangular_frame(style, SIZE).save(FRAMEWORKS / f"ky_framework_{style}_frame.png")
-        overlay(style).save(FRAMEWORKS / f"ky_framework_{style}.png")
+        save_artwork(rectangular_frame(style, SIZE), FRAMEWORKS / f"ky_framework_{style}_frame.png")
+        save_artwork(overlay(style), FRAMEWORKS / f"ky_framework_{style}.png")
         for framed in (True, False):
             suffix = "framed" if framed else "borderless"
-            centered(style, framed).save(FRAMEWORKS / f"ky_framework_{style}_centered_{suffix}.png")
-    capsule().save(FRAMEWORKS / "ky_framework_background_mask.png")
-    capsule().save(FRAMEWORKS / "ky_framework_image_only_mask.png")
+            save_artwork(
+                centered(style, framed), FRAMEWORKS / f"ky_framework_{style}_centered_{suffix}.png"
+            )
+    save_artwork(capsule(), FRAMEWORKS / "ky_framework_background_mask.png")
+    save_artwork(capsule(), FRAMEWORKS / "ky_framework_image_only_mask.png")
     for name, style in FINISHES.items():
         bg = ImageOps.fit(
             Image.open(BASE / f"masters/approved-materials/{name}_background.png").convert("RGBA"),
@@ -53,12 +56,12 @@ def main():
             Image.Resampling.LANCZOS,
         )
         bg.putalpha(capsule())
-        bg.save(STANDARD / f"ky_footer_{name}.png")
+        save_artwork(bg, STANDARD / f"ky_footer_{name}.png")
         for framed in (True, False):
             result = bg.copy()
             result.alpha_composite(centered(style, framed))
             suffix = "framed" if framed else "borderless"
-            result.save(STANDARD / f"ky_footer_{name}_centered_{suffix}.png")
+            save_artwork(result, STANDARD / f"ky_footer_{name}_centered_{suffix}.png")
     for path in FRAMEWORKS.glob("*manifest.json"):
         data = json.loads(path.read_text())
         data["shape"] = "Wide rectangle with subtle 8-pixel corners"
