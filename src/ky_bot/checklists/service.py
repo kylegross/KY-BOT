@@ -6,7 +6,7 @@ import logging
 
 import discord
 
-from ky_bot.checklists.board import BoardView, safe
+from ky_bot.checklists.board import BoardView, category_heading, safe
 from ky_bot.checklists.categories import CategoryPrompt
 from ky_bot.checklists.dots import PriorityDots
 from ky_bot.checklists.inline import InlineView
@@ -243,7 +243,9 @@ class ChecklistService:
             await thread.add_user(member)
         if not task["seeded"]:
             embed = discord.Embed(
-                title=f"✦ TASK #{tid} ✦", description=safe(task["title"])[:4000], color=0xE8C47C
+                title=category_heading(self.store, task),
+                description=safe(task["title"])[:4000],
+                color=0xE8C47C,
             )
             embed.add_field(name="Added by", value=f"<@{task['author']}>")
             await thread.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())

@@ -15,6 +15,15 @@ def safe(value):
     return discord.utils.escape_markdown(discord.utils.escape_mentions(value))
 
 
+def category_heading(store, task):
+    category = (
+        store.category(task["category"], task["channel"])["name"]
+        if task.get("category") is not None
+        else "Uncategorized"
+    )
+    return f"\\*ੈ𑁍  {safe(category)}  𑁍ੈ\\*"
+
+
 def page_entries(board, tasks, categories):
     completed = board.get("task_view") == "completed"
     ordered = rows([t for t in tasks if bool(t["done"]) == completed], categories)

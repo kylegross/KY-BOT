@@ -2,7 +2,7 @@
 
 import discord
 
-from ky_bot.checklists.board import safe
+from ky_bot.checklists.board import category_heading, safe
 from ky_bot.checklists.categories import CategoryPicker, validate
 from ky_bot.checklists.manage import ItemControls
 from ky_bot.checklists.notices import notice
@@ -17,7 +17,9 @@ class TaskActions(discord.ui.LayoutView):
         board = service.store.board(task["channel"])
         panel = discord.ui.Container(accent_colour=int(COLOURS[board["style"]][1:], 16))
         panel.add_item(
-            discord.ui.TextDisplay(f"## \\*ੈ𑁍  {safe(task['title'][:500])}  𑁍ੈ\\*")
+            discord.ui.TextDisplay(
+                f"## {category_heading(service.store, task)}\n{safe(task['title'][:500])}"
+            )
         )
 
         def row(title, description, label, callback):
