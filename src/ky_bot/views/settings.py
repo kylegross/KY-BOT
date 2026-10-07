@@ -69,7 +69,7 @@ class SettingsView(discord.ui.LayoutView):
             panel.add_item(discord.ui.Section(text, accessory=button))
 
         def separator() -> None:
-            panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
+            panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
 
         def channel(channel_id: int | None) -> str:
             if self.guild is None:
