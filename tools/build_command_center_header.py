@@ -32,12 +32,12 @@ def build_header(*, framed: bool = False) -> Image.Image:
 def main() -> None:
     header = build_header(framed=False)
     # Same source width, outline color and thickness produce the same displayed border.
-    # A larger frame radius survives Discord's rounded media clipping without an inset.
-    header.alpha_composite(rectangular_frame("silver_neon", header.size, radius=24))
+    # Keep the entire outline inside Discord's rounded media clipping area.
+    header.alpha_composite(rectangular_frame("silver_neon", header.size, radius=24, inset=10))
     save_artwork(header, ROOT / "src/ky_bot/assets/header/ky_header_command_center.png")
     footer = floral_background("silver_neon", (1600, 150))
     footer.alpha_composite(centered_overlay("silver_neon", footer.size))
-    footer.alpha_composite(rectangular_frame("silver_neon", footer.size, radius=24))
+    footer.alpha_composite(rectangular_frame("silver_neon", footer.size, radius=24, inset=10))
     save_artwork(footer, ROOT / "src/ky_bot/assets/footer/ky_footer_command_center.png")
     # Render at 2x the usual 560px panel width, with larger Bold lettering and more leading.
     for title, filename in SETTINGS_TITLES.values():

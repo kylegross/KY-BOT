@@ -63,7 +63,9 @@ def capsule() -> Image.Image:
     return mask.resize(SIZE, Image.Resampling.LANCZOS)
 
 
-def rectangular_frame(style: str, size: tuple[int, int], *, radius: int = 8) -> Image.Image:
+def rectangular_frame(
+    style: str, size: tuple[int, int], *, radius: int = 8, inset: int = 0
+) -> Image.Image:
     """A quiet, proportionate outline that matches the illustrated floral collection."""
     from ky_bot.services.collection import COLOURS
 
@@ -72,7 +74,10 @@ def rectangular_frame(style: str, size: tuple[int, int], *, radius: int = 8) -> 
     frame = Image.new("RGBA", size)
     width, height = size
     ImageDraw.Draw(frame).rounded_rectangle(
-        (0, 0, width - 1, height - 1), radius=radius, outline=COLOURS[style], width=3
+        (inset, inset, width - 1 - inset, height - 1 - inset),
+        radius=radius,
+        outline=COLOURS[style],
+        width=3,
     )
     return frame
 
