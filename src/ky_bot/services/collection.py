@@ -20,13 +20,16 @@ def floral_background(style: str, size: tuple[int, int]) -> Image.Image:
     centre = source.crop((third, 0, source.width - third, source.height))
     result = ImageOps.fit(centre, size, Image.Resampling.LANCZOS)
     # Recompose the quiet centre instead of stretching flowers or cropping them out.
-    limit = min(size[1], size[0] // 3)
+    padding = max(16, min(32, round(size[1] * 0.08)))
+    inner_height = size[1] - padding * 2
+    limit = min(inner_height, size[0] // 3)
     for bounds, right in [
         ((0, 0, third, source.height), False),
         ((source.width - third, 0, source.width, source.height), True),
     ]:
-        end = ImageOps.contain(source.crop(bounds), (limit, size[1]), Image.Resampling.LANCZOS)
+        end = ImageOps.contain(source.crop(bounds), (limit, inner_height), Image.Resampling.LANCZOS)
         result.alpha_composite(
-            end, (size[0] - end.width if right else 0, (size[1] - end.height) // 2)
+            end,
+            (size[0] - end.width - padding if right else padding, (size[1] - end.height) // 2),
         )
     return result

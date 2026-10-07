@@ -7,7 +7,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ky_bot.views.settings import SettingsView
+from ky_bot.views.settings import SettingsView, settings_title_file
 
 if TYPE_CHECKING:
     from ky_bot.bot import KYBot
@@ -92,12 +92,7 @@ class ServerSettings(commands.Cog):
                     .open("rb"),
                     filename="ky_settings_footer.png",
                 ),
-                discord.File(
-                    files("ky_bot")
-                    .joinpath("assets", "header", "ky_settings_title.png")
-                    .open("rb"),
-                    filename="ky_settings_title.png",
-                ),
+                settings_title_file("overview"),
             ],
         )
         view.message = await interaction.original_response()

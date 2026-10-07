@@ -1,14 +1,22 @@
 """Private server settings arranged as inline Components V2 sections."""
 
 import io
+from importlib.resources import files
 
 import discord
 
 from ky_bot.database.settings import GuildSettings
 from ky_bot.errors import report_error, send_private
-from ky_bot.services.settings import SettingsService
+from ky_bot.services.settings import SETTINGS_TITLES, SettingsService
 
 HEADER_URL = "attachment://ky_settings_header.png"
+
+
+def settings_title_file(section: str) -> discord.File:
+    return discord.File(
+        files("ky_bot").joinpath("assets", "header", SETTINGS_TITLES[section][1]).open("rb"),
+        filename="ky_settings_title.png",
+    )
 
 
 def channel_label(channel_id: int | None, guild: discord.Guild) -> str:
@@ -58,23 +66,14 @@ class SettingsView(discord.ui.LayoutView):
                 )
             )
         )
-        title = {
-            "overview": "SERVER CONFIGURATION",
-            "welcome": "SERVER CONFIGURATION / WELCOME",
-            "logging": "SERVER CONFIGURATION / LOGGING",
-            "welcome_design": "WELCOME / IMAGE DESIGN",
-        }[section]
-        if section == "overview":
-            panel.add_item(
-                discord.ui.MediaGallery(
-                    discord.MediaGalleryItem(
-                        "attachment://ky_settings_title.png",
-                        description="SERVER SETTINGS",
-                    )
+        panel.add_item(
+            discord.ui.MediaGallery(
+                discord.MediaGalleryItem(
+                    "attachment://ky_settings_title.png",
+                    description=SETTINGS_TITLES[section][0],
                 )
             )
-        else:
-            panel.add_item(discord.ui.TextDisplay(f"-# {title}"))
+        )
         if notice:
             panel.add_item(discord.ui.TextDisplay(notice))
 
@@ -102,7 +101,7 @@ class SettingsView(discord.ui.LayoutView):
             )
         elif section == "welcome":
             row(
-                f"**Destination**\n{channel(self.settings.welcome_channel_id)}",
+                f"**DESTINATION**\n-# {channel(self.settings.welcome_channel_id)}",
                 self.navigation("Choose channel", section, picker=True),
             )
             if picker:
@@ -116,9 +115,11 @@ class SettingsView(discord.ui.LayoutView):
                 panel.add_item(discord.ui.ActionRow(self.welcome_channel))
             separator()
             # Escape user-authored Markdown in the configuration display only.
-            text = discord.utils.escape_markdown(self.settings.welcome_message)
+            text = discord.utils.escape_markdown(self.settings.welcome_message).replace(
+                "\n", "\n-# "
+            )
             self.edit_welcome = self.button("Edit message", self.open_welcome_editor)
-            row(f"**Welcome message**\n{text}", self.edit_welcome)
+            row(f"**WELCOME MESSAGE**\n-# {text}", self.edit_welcome)
             panel.add_item(
                 discord.ui.TextDisplay(
                     "-# Use {member} to mention the new member and {server} for the server name."
@@ -128,7 +129,7 @@ class SettingsView(discord.ui.LayoutView):
             self.disable_welcome = self.button("Disable", self.turn_off_welcomes)
             self.disable_welcome.disabled = self.settings.welcome_channel_id is None
             row(
-                "**Delivery**\n-# "
+                "**DELIVERY**\n-# "
                 + (
                     "Enabled — sent when someone joins."
                     if self.settings.welcome_channel_id
@@ -143,18 +144,18 @@ class SettingsView(discord.ui.LayoutView):
                 else "Silver floral"
             )
             row(
-                f"**Background**\n-# {background}",
+                f"**BACKGROUND**\n-# {background}",
                 self.button("Upload image", self.upload_welcome_background),
             )
             separator()
             row(
-                f"**Appearance**\n-# {self.settings.welcome_title} · "
+                f"**APPEARANCE**\n-# {self.settings.welcome_title} · "
                 f"#{self.settings.welcome_accent} · Darkening {self.settings.welcome_dim}%",
                 self.button("Edit style", self.edit_welcome_style),
             )
             separator()
             row(
-                "**Default background**\n-# Restore the silver floral artwork.",
+                "**DEFAULT BACKGROUND**\n-# Restore the silver floral artwork.",
                 self.button("Restore", self.reset_welcome_background),
             )
         else:
@@ -165,7 +166,7 @@ class SettingsView(discord.ui.LayoutView):
             )
             separator()
             row(
-                f"**Destination**\n{channel(self.settings.log_channel_id)}",
+                f"**DESTINATION**\n-# {channel(self.settings.log_channel_id)}",
                 self.navigation("Choose channel", section, picker=True),
             )
             if picker:
@@ -180,7 +181,7 @@ class SettingsView(discord.ui.LayoutView):
             separator()
             self.clear_channel = self.button("Clear channel", self.clear_log_channel)
             self.clear_channel.disabled = self.settings.log_channel_id is None
-            row("**Saved destination**\n-# Remove the selected channel.", self.clear_channel)
+            row("**SAVED DESTINATION**\n-# Remove the selected channel.", self.clear_channel)
 
         separator()
         controls = discord.ui.ActionRow()
@@ -229,8 +230,16 @@ class SettingsView(discord.ui.LayoutView):
         self.settings = await self.service.repository.get(self.guild_id)
         self.guild = interaction.guild
         self.show_section(self.section, picker=self.picker, notice=notice)
-        await interaction.edit_original_response(
-            view=self, allowed_mentions=discord.AllowedMentions.none()
+        attachments = self.message.attachments if self.message is not None else []
+        retained = [
+            attachment
+            for attachment in attachments
+            if attachment.filename in {"ky_settings_header.png", "ky_settings_footer.png"}
+        ]
+        self.message = await interaction.edit_original_response(
+            view=self,
+            allowed_mentions=discord.AllowedMentions.none(),
+            attachments=[*retained, settings_title_file(self.section)],
         )
 
     async def save_log_channel(self, interaction: discord.Interaction) -> None:

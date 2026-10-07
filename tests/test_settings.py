@@ -326,6 +326,45 @@ async def test_inline_navigation_refresh_and_close_use_v2_payloads():
         interaction.response.edit_message.assert_awaited_once_with(view=view, attachments=[])
 
 
+async def test_submenu_title_changes_keep_header_footer_and_caps_sections():
+    from importlib.resources import files
+
+    from ky_bot.services.settings import SETTINGS_TITLES
+
+    async with open_settings(Path(":memory:")) as repo:
+        view = SettingsView(1, 2, SettingsService(repo))
+        header = SimpleNamespace(filename="ky_settings_header.png")
+        footer = SimpleNamespace(filename="ky_settings_footer.png")
+        old_title = SimpleNamespace(filename="ky_settings_title.png")
+        interaction = request()
+        interaction.edit_original_response.return_value = SimpleNamespace(
+            attachments=[header, footer, old_title]
+        )
+        view.message = interaction.edit_original_response.return_value
+        for page in ("welcome", "logging", "welcome_design", "overview"):
+            view.show_section(page)
+            await view.refresh(interaction)
+            attachments = interaction.edit_original_response.call_args.kwargs["attachments"]
+            assert len(attachments) == 3
+            assert attachments[:2] == [header, footer]
+            title_file = attachments[2]
+            assert title_file.filename == "ky_settings_title.png"
+            assert (
+                title_file.fp.read()
+                == files("ky_bot")
+                .joinpath("assets", "header", SETTINGS_TITLES[page][1])
+                .read_bytes()
+            )
+            title_file.close()
+            sections = [
+                item for item in view.children[0].children if isinstance(item, discord.ui.Section)
+            ]
+            for section in sections:
+                heading = section.children[0].content.split("**")[1]
+                assert heading == heading.upper()
+        view.stop()
+
+
 async def test_welcome_modal_saves_and_rechecks_permissions():
     from ky_bot.views.settings import WelcomeModal
 

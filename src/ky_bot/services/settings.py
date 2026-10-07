@@ -7,6 +7,13 @@ import discord
 
 from ky_bot.database.settings import SettingsRepository
 
+SETTINGS_TITLES = {
+    "overview": ("SERVER SETTINGS", "ky_settings_title.png"),
+    "welcome": ("WELCOME SETTINGS", "ky_settings_welcome_title.png"),
+    "logging": ("SERVER ACTIVITY", "ky_settings_logging_title.png"),
+    "welcome_design": ("WELCOME IMAGE DESIGN", "ky_settings_design_title.png"),
+}
+
 
 class SettingsService:
     def __init__(self, repository: SettingsRepository) -> None:
