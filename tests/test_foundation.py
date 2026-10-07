@@ -65,6 +65,7 @@ async def test_extensions_intents_and_sync_scope(mode, expected_calls):
             "settings",
             "footer",
             "header",
+            "Delete header/footer",
         }
         assert bot.intents.members and bot.intents.message_content
         assert not bot.intents.presences
@@ -77,6 +78,7 @@ async def test_extensions_intents_and_sync_scope(mode, expected_calls):
         await bot.unload_extension("ky_bot.cogs.settings")
         await bot.unload_extension("ky_bot.cogs.footers")
         await bot.unload_extension("ky_bot.cogs.headers")
+        await bot.unload_extension("ky_bot.cogs.artwork")
         assert not bot.tree.get_commands()
 
 

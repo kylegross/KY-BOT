@@ -17,6 +17,7 @@ EXTENSIONS = (
     "ky_bot.cogs.settings",
     "ky_bot.cogs.footers",
     "ky_bot.cogs.headers",
+    "ky_bot.cogs.artwork",
 )
 
 
