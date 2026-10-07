@@ -88,7 +88,7 @@ class ServerSettings(commands.Cog):
                 ),
                 discord.File(
                     files("ky_bot")
-                    .joinpath("assets", "footer", "ky_footer_silver_neon_compact.png")
+                    .joinpath("assets", "footer", "ky_footer_command_center.png")
                     .open("rb"),
                     filename="ky_settings_footer.png",
                 ),

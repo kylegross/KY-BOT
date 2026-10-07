@@ -29,11 +29,11 @@ def build_header(*, framed: bool = False) -> Image.Image:
 
 
 def main() -> None:
-    header = build_header()
+    header = build_header(framed=True)
     save_artwork(header, ROOT / "src/ky_bot/assets/header/ky_header_command_center.png")
     footer = floral_background("silver_neon", (2176, 210))
-    footer.alpha_composite(centered_overlay("silver_neon", footer.size))
-    save_artwork(footer, ROOT / "src/ky_bot/assets/footer/ky_footer_silver_neon_compact.png")
+    footer.alpha_composite(centered_overlay("silver_neon", footer.size, framed=True))
+    save_artwork(footer, ROOT / "src/ky_bot/assets/footer/ky_footer_command_center.png")
     mask = text_mask("SERVER SETTINGS", role="display", size=44, min_size=44, max_width=1500)
     lettering = Image.new("RGBA", mask.size, "#D6E2F3")
     lettering.putalpha(mask)
