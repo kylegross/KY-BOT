@@ -98,6 +98,21 @@ class Activity(commands.Cog):
         if "content" not in payload.data and "attachments" not in payload.data:
             return
         before = payload.cached_message
+        raw_author = payload.data.get("author", {})
+        bot_user = getattr(self.bot, "user", None)
+        author_id = before.author.id if before else raw_author.get("id")
+        if bot_user is not None and str(author_id) == str(bot_user.id):
+            return
+        # Checklist navigation reuploads artwork, but is not a user message edit.
+        checklists = getattr(self.bot, "checklists", None)
+        if checklists is not None:
+            board = checklists.store.board(payload.channel_id)
+            if (
+                board
+                and board["guild"] == payload.guild_id
+                and board["message"] == payload.message_id
+            ):
+                return
         content = payload.data.get("content")
         attachments = payload.data.get("attachments")
         if (
@@ -110,7 +125,6 @@ class Activity(commands.Cog):
         ):
             return
         author = before.author if before else None
-        raw_author = payload.data.get("author", {})
         fields = {
             "Channel": f"<#{payload.channel_id}>",
             "Message": f"https://discord.com/channels/{payload.guild_id}/{payload.channel_id}/{payload.message_id}",

@@ -68,12 +68,51 @@ async def test_embed_update_and_unchanged_content_do_not_log():
         guild_id=1,
         channel_id=10,
         message_id=30,
-        cached_message=NS(content="Same", attachments=[]),
+        cached_message=NS(content="Same", attachments=[], author=NS(id=123)),
         data={"embeds": []},
     )
     await cog.on_raw_message_edit(payload)
     payload.data = {"content": "Same"}
     await cog.on_raw_message_edit(payload)
+    channel.send.assert_not_awaited()
+
+
+@pytest.mark.parametrize("cached", [True, False])
+async def test_bot_panel_edits_do_not_log(cached):
+    cog, channel, _ = setup_activity()
+    cog.bot.user = NS(id=999)
+    payload = NS(
+        guild_id=1,
+        channel_id=10,
+        message_id=30,
+        cached_message=NS(author=NS(id=999), content="Old", attachments=[]) if cached else None,
+        data={"author": {"id": "999"}, "content": "", "attachments": [{"id": "456"}]},
+    )
+    await cog.on_raw_message_edit(payload)
+    channel.send.assert_not_awaited()
+
+
+async def test_uncached_checklist_panel_without_author_does_not_log():
+    cog, channel, _ = setup_activity()
+    cog.bot.checklists = NS(
+        store=NS(
+            board=Mock(
+                return_value={
+                    "guild": 1,
+                    "message": 30,
+                }
+            )
+        )
+    )
+    await cog.on_raw_message_edit(
+        NS(
+            guild_id=1,
+            channel_id=10,
+            message_id=30,
+            cached_message=None,
+            data={"content": "", "attachments": [{"id": "456"}]},
+        )
+    )
     channel.send.assert_not_awaited()
 
 
