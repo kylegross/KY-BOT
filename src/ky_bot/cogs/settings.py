@@ -65,6 +65,10 @@ class ServerSettings(commands.Cog):
                 files("ky_bot").joinpath(
                     "assets", "footer", "ky_footer_floral_wreath_centered_framed.png"
                 ).open("rb"), filename="ky_settings_footer.png",
+            ), discord.File(
+                files("ky_bot").joinpath(
+                    "assets", "header", "ky_settings_title.png"
+                ).open("rb"), filename="ky_settings_title.png",
             )],
         )
         view.message = await interaction.original_response()

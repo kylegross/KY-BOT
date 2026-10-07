@@ -56,7 +56,12 @@ class SettingsView(discord.ui.LayoutView):
             "welcome": "SERVER CONFIGURATION / WELCOME",
             "logging": "SERVER CONFIGURATION / LOGGING",
         }[section]
-        panel.add_item(discord.ui.TextDisplay(f"-# {title}"))
+        if section == "overview":
+            panel.add_item(discord.ui.MediaGallery(discord.MediaGalleryItem(
+                "attachment://ky_settings_title.png", description="SERVER SETTINGS",
+            )))
+        else:
+            panel.add_item(discord.ui.TextDisplay(f"-# {title}"))
         if notice:
             panel.add_item(discord.ui.TextDisplay(notice))
 
