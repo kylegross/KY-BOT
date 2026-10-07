@@ -1,13 +1,12 @@
 import io
 import logging
-from importlib.resources import files
 from typing import TYPE_CHECKING
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ky_bot.views.settings import SettingsView, settings_title_file
+from ky_bot.views.settings import SettingsView, settings_files
 
 if TYPE_CHECKING:
     from ky_bot.bot import KYBot
@@ -76,26 +75,16 @@ class ServerSettings(commands.Cog):
         view.settings = settings
         view.guild = interaction.guild
         view.show_section("overview")
-        await interaction.edit_original_response(
-            view=view,
-            allowed_mentions=discord.AllowedMentions.none(),
-            attachments=[
-                discord.File(
-                    files("ky_bot")
-                    .joinpath("assets", "header", "ky_header_command_center.png")
-                    .open("rb"),
-                    filename="ky_settings_header.png",
-                ),
-                discord.File(
-                    files("ky_bot")
-                    .joinpath("assets", "footer", "ky_footer_command_center.png")
-                    .open("rb"),
-                    filename="ky_settings_footer.png",
-                ),
-                settings_title_file("overview"),
-            ],
-        )
-        view.message = await interaction.original_response()
+        attachments = settings_files("overview")
+        try:
+            view.message = await interaction.edit_original_response(
+                view=view,
+                allowed_mentions=discord.AllowedMentions.none(),
+                attachments=attachments,
+            )
+        finally:
+            for attachment in attachments:
+                attachment.close()
 
 
 async def setup(bot: "KYBot") -> None:

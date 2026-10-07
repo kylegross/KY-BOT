@@ -311,6 +311,7 @@ async def test_inline_navigation_refresh_and_close_use_v2_payloads():
         assert view.section == "welcome"
         kwargs = interaction.edit_original_response.call_args.kwargs
         assert "content" not in kwargs and "embed" not in kwargs
+        view = kwargs["view"]
         assert view.content_length() <= 4000
         choose = next(
             item
@@ -318,6 +319,7 @@ async def test_inline_navigation_refresh_and_close_use_v2_payloads():
             if isinstance(item, discord.ui.Button) and item.label == "Choose channel"
         )
         await choose.callback(interaction)
+        view = interaction.edit_original_response.call_args.kwargs["view"]
         assert view.picker
         assert view.welcome_channel in list(view.walk_children())
         await view.close_menu(interaction)
@@ -333,24 +335,32 @@ async def test_submenu_title_changes_keep_header_footer_and_caps_sections():
 
     async with open_settings(Path(":memory:")) as repo:
         view = SettingsView(1, 2, SettingsService(repo))
-        header = SimpleNamespace(filename="ky_settings_header.png")
-        footer = SimpleNamespace(filename="ky_settings_footer.png")
-        old_title = SimpleNamespace(filename="ky_settings_title.png")
         interaction = request()
-        interaction.edit_original_response.return_value = SimpleNamespace(
-            attachments=[header, footer, old_title]
-        )
-        view.message = interaction.edit_original_response.return_value
+        uploaded = {}
+
+        async def accept_update(**kwargs):
+            uploaded.clear()
+            uploaded.update({file.filename: file.fp.read() for file in kwargs["attachments"]})
+            return SimpleNamespace(attachments=[])
+
+        interaction.edit_original_response.side_effect = accept_update
+        view.message = SimpleNamespace(attachments=[])
         for page in ("welcome", "logging", "welcome_design", "overview"):
             view.show_section(page)
             await view.refresh(interaction)
+            view = interaction.edit_original_response.call_args.kwargs["view"]
             attachments = interaction.edit_original_response.call_args.kwargs["attachments"]
             assert len(attachments) == 3
-            assert attachments[:2] == [header, footer]
+            assert [file.filename for file in attachments[:2]] == [
+                "ky_settings_header.png",
+                "ky_settings_footer.png",
+            ]
+            assert uploaded["ky_settings_header.png"]
+            assert uploaded["ky_settings_footer.png"]
             title_file = attachments[2]
             assert title_file.filename == "ky_settings_title.png"
             assert (
-                title_file.fp.read()
+                uploaded[title_file.filename]
                 == files("ky_bot")
                 .joinpath("assets", "header", SETTINGS_TITLES[page][1])
                 .read_bytes()
@@ -363,6 +373,43 @@ async def test_submenu_title_changes_keep_header_footer_and_caps_sections():
                 heading = section.children[0].content.split("**")[1]
                 assert heading == heading.upper()
         view.stop()
+
+
+async def test_failed_page_update_preserves_live_buttons_for_retry():
+    from discord.ui.view import ViewStore
+
+    async with open_settings(Path(":memory:")) as repo:
+        view = SettingsView(1, 2, SettingsService(repo))
+        store = ViewStore(Mock())
+        store.add_view(view, 42)
+        interaction = request()
+        button = next(
+            item
+            for item in view.walk_children()
+            if isinstance(item, discord.ui.Button) and item.label == "Manage"
+        )
+        interaction.edit_original_response.side_effect = discord.HTTPException(
+            SimpleNamespace(status=400, reason="Bad Request"),
+            {"code": 50035, "message": "Attachment update rejected"},
+        )
+        with pytest.raises(discord.HTTPException):
+            await button.callback(interaction)
+        assert button.view is view
+        assert not view.is_finished()
+        assert store._views[42][(2, button.custom_id)] is button
+
+        async def register_update(**kwargs):
+            store.add_view(kwargs["view"], 42)
+            return SimpleNamespace(attachments=[])
+
+        interaction.edit_original_response.side_effect = register_update
+        await button.callback(interaction)
+        replacement = interaction.edit_original_response.call_args.kwargs["view"]
+        assert replacement.section == "welcome"
+        assert not replacement.is_finished()
+        assert view.is_finished()
+        assert all(item.view is replacement for item in store._views[42].values())
+        replacement.stop()
 
 
 async def test_welcome_modal_saves_and_rechecks_permissions():

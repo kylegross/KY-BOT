@@ -19,6 +19,21 @@ def settings_title_file(section: str) -> discord.File:
     )
 
 
+def settings_files(section: str) -> list[discord.File]:
+    # Components V2 media attachments aren't reliably present in Message.attachments.
+    return [
+        discord.File(
+            files("ky_bot").joinpath("assets", "header", "ky_header_command_center.png").open("rb"),
+            filename="ky_settings_header.png",
+        ),
+        discord.File(
+            files("ky_bot").joinpath("assets", "footer", "ky_footer_command_center.png").open("rb"),
+            filename="ky_settings_footer.png",
+        ),
+        settings_title_file(section),
+    ]
+
+
 def channel_label(channel_id: int | None, guild: discord.Guild) -> str:
     if channel_id is None:
         return "Not configured"
@@ -47,7 +62,7 @@ class SettingsView(discord.ui.LayoutView):
     def navigation(self, label: str, target: str, *, picker: bool = False) -> discord.ui.Button:
         async def callback(interaction: discord.Interaction) -> None:
             await interaction.response.defer()
-            self.show_section(target, picker=picker)
+            self.section, self.picker = target, picker
             await self.refresh(interaction)
 
         return self.button(label, callback)
@@ -227,20 +242,25 @@ class SettingsView(discord.ui.LayoutView):
         return True
 
     async def refresh(self, interaction: discord.Interaction, notice: str | None = None) -> None:
-        self.settings = await self.service.repository.get(self.guild_id)
-        self.guild = interaction.guild
-        self.show_section(self.section, picker=self.picker, notice=notice)
-        attachments = self.message.attachments if self.message is not None else []
-        retained = [
-            attachment
-            for attachment in attachments
-            if attachment.filename in {"ky_settings_header.png", "ky_settings_footer.png"}
-        ]
-        self.message = await interaction.edit_original_response(
-            view=self,
-            allowed_mentions=discord.AllowedMentions.none(),
-            attachments=[*retained, settings_title_file(self.section)],
-        )
+        replacement = SettingsView(self.owner_id, self.guild_id, self.service)
+        replacement.settings = await self.service.repository.get(self.guild_id)
+        replacement.guild = interaction.guild
+        replacement.show_section(self.section, picker=self.picker, notice=notice)
+        attachments = settings_files(self.section)
+        try:
+            replacement.message = await interaction.edit_original_response(
+                view=replacement,
+                allowed_mentions=discord.AllowedMentions.none(),
+                attachments=attachments,
+            )
+        except Exception:
+            replacement.stop()
+            raise
+        finally:
+            for attachment in attachments:
+                attachment.close()
+        # Retire old callbacks only after Discord has registered the replacement.
+        self.stop()
 
     async def save_log_channel(self, interaction: discord.Interaction) -> None:
         await self.save_channel(interaction, welcome=False)

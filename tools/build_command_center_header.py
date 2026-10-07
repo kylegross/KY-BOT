@@ -48,7 +48,7 @@ def main() -> None:
         lettering = Image.new("RGBA", mask.size, "#D6E2F3")
         lettering.putalpha(mask)
         label = Image.new("RGBA", (1120, mask.height + 16))
-        label.alpha_composite(lettering, (0, 8))
+        label.alpha_composite(lettering, (24, 8))
         save_artwork(label, ROOT / "src/ky_bot/assets/header" / filename)
 
 
