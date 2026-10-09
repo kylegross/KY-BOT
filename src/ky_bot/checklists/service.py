@@ -3,10 +3,11 @@
 import asyncio
 import json
 import logging
+import time
 
 import discord
 
-from ky_bot.checklists.board import BoardView, category_heading, safe
+from ky_bot.checklists.board import BoardView, safe
 from ky_bot.checklists.categories import CategoryPrompt
 from ky_bot.checklists.dots import PriorityDots
 from ky_bot.checklists.inline import InlineView
@@ -86,6 +87,13 @@ class ChecklistService:
         for task in self.store.category_tasks():
             if task["awaiting_category"] and not task["deleted"] and task["category_prompt"]:
                 self.client.add_view(CategoryPrompt(self, task), message_id=task["category_prompt"])
+        from ky_bot.checklists.subtasks import DiscussionPanel
+
+        for task in self.store.discussion_tasks():
+            if task["discussion_message"]:
+                self.client.add_view(
+                    DiscussionPanel(self, task), message_id=task["discussion_message"]
+                )
         self.worker = asyncio.create_task(self.run(), name="ky-checklist-worker")
 
     async def channel(self, cid):
@@ -120,6 +128,13 @@ class ChecklistService:
         self.wakeup.set()
 
     async def on_message(self, message):
+        if message.guild and isinstance(message.channel, discord.Thread) and not message.author.bot:
+            async with self.lock:
+                for task in self.store.discussion_tasks():
+                    board = self.store.board(task["channel"])
+                    if task["thread"] == message.channel.id and board["guild"] == message.guild.id:
+                        self.store.touch_thread(task["id"])
+                        return
         if (
             not message.guild
             or message.author.bot
@@ -237,18 +252,13 @@ class ChecklistService:
             await thread.edit(
                 archived=False,
                 locked=False,
+                auto_archive_duration=1440,
                 reason="Checklist admin opened an unfinished task discussion",
             )
         if member is not None:
             await thread.add_user(member)
         if not task["seeded"]:
-            embed = discord.Embed(
-                title=category_heading(self.store, task),
-                description=safe(task["title"])[:4000],
-                color=0xE8C47C,
-            )
-            embed.add_field(name="Added by", value=f"<@{task['author']}>")
-            await thread.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+            await self.render_discussion(self.store.task(tid), thread)
             # Re-upload original attachments into the thread while their signed URLs are current.
             if json.loads(task["attachments"]):
                 try:
@@ -270,7 +280,66 @@ class ChecklistService:
                         allowed_mentions=discord.AllowedMentions.none(),
                     )
             self.store.thread(tid, thread.id, seeded=True)
+        self.store.touch_thread(tid)
+        if task["seeded"]:
+            await self.render_discussion(self.store.task(tid), thread)
         return thread
+
+    async def render_discussion(self, task, thread):
+        from ky_bot.checklists.subtasks import DiscussionPanel
+
+        view = DiscussionPanel(self, task)
+        mid = task["discussion_message"]
+        if not mid and task["seeded"]:
+            # Upgrade the old task introduction in place when opening an existing thread.
+            async for previous in thread.history(limit=100, oldest_first=True):
+                if previous.author.id == self.client.user.id and any(
+                    field.name == "Added by" for embed in previous.embeds for field in embed.fields
+                ):
+                    mid = previous.id
+                    break
+        if mid:
+            try:
+                await thread.get_partial_message(mid).edit(
+                    content=None,
+                    embeds=[],
+                    view=view,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            except discord.NotFound:
+                mid = None
+        if not mid:
+            message = await thread.send(view=view, allowed_mentions=discord.AllowedMentions.none())
+            mid = message.id
+        self.store.discussion_rendered(task["id"], mid, task["discussion_revision"])
+
+    async def sync_discussions(self):
+        for task in self.store.discussion_tasks():
+            try:
+                thread = await self.channel(task["thread"])
+                if thread.archived:
+                    continue
+                if task["discussion_dirty"]:
+                    await self.render_discussion(task, thread)
+                if task["done"]:
+                    continue
+                last = task["thread_activity"]
+                if last is None:
+                    self.store.touch_thread(task["id"])
+                    continue
+                last_message = getattr(thread, "last_message_id", None)
+                if last_message:
+                    last = max(last, discord.utils.snowflake_time(last_message).timestamp())
+                current = self.store.task(task["id"])
+                last = max(last, current["thread_activity"] or last)
+                if time.time() - last >= 86400:
+                    await thread.edit(
+                        archived=True,
+                        locked=False,
+                        reason="Checklist discussion inactive for 24 hours",
+                    )
+            except (discord.HTTPException, ValueError):
+                logging.exception("Checklist discussion update pending; will retry")
 
     async def render_board(self, board):
         from ky_bot.checklists.artwork import board_artwork
@@ -392,6 +461,7 @@ class ChecklistService:
                 logging.exception("Checklist thread status pending; will retry")
 
     async def tick(self):
+        await self.sync_discussions()
         await self.sync_task_threads()
         await self.category_prompts()
         for board in self.store.boards():

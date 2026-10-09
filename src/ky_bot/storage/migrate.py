@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from ky_bot.storage.postgres import CHECKLIST_LOCK, PostgresChecklistStore
 
 SETTINGS_TABLES = ("guild_settings", "welcome_settings", "welcome_artwork")
-CHECKLIST_TABLES = ("boards", "categories", "tasks", "logs")
+CHECKLIST_TABLES = ("boards", "categories", "tasks", "logs", "subtasks")
 TABLES = SETTINGS_TABLES + CHECKLIST_TABLES
 
 
@@ -24,7 +24,7 @@ def snapshot(path, tables):
         existing = {
             row[0] for row in source.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        if not set(tables) <= existing:
+        if not (set(tables) - {"subtasks"}) <= existing:
             raise ValueError("Source database needs the current KY BOT SQLite schema.")
         return {
             table: (
@@ -32,6 +32,7 @@ def snapshot(path, tables):
                 source.execute(f"SELECT * FROM {table}").fetchall(),
             )
             for table in tables
+            if table in existing
         }
 
 
@@ -56,7 +57,7 @@ def import_snapshot(connection, data):
             count = connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             if count != len(rows):
                 raise ValueError("Import verification failed; all inserted records rolled back.")
-        for table in ("tasks", "categories", "logs"):
+        for table in ("tasks", "categories", "logs", "subtasks"):
             connection.execute(
                 "SELECT setval(pg_get_serial_sequence(%s, 'id'), "
                 f"COALESCE(MAX(id), 1), MAX(id) IS NOT NULL) FROM {table}",

@@ -121,6 +121,119 @@ class ChecklistStore:
                 )
                 self.db.execute("UPDATE boards SET dirty=1")
 
+        with self.db:
+            self.db.execute(
+                "CREATE TABLE IF NOT EXISTS subtasks (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "task INTEGER NOT NULL, title TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, "
+                "deleted INTEGER NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0, "
+                "position INTEGER NOT NULL DEFAULT 0, author INTEGER NOT NULL)"
+            )
+            for column, definition in (
+                ("discussion_message", "INTEGER"),
+                ("discussion_dirty", "INTEGER NOT NULL DEFAULT 1"),
+                ("discussion_revision", "INTEGER NOT NULL DEFAULT 0"),
+                ("subtask_page", "INTEGER NOT NULL DEFAULT 0"),
+                ("thread_activity", "REAL"),
+            ):
+                if column not in task_columns:
+                    self.db.execute(f"ALTER TABLE tasks ADD COLUMN {column} {definition}")
+
+    def discussion_tasks(self):
+        return [
+            dict(r)
+            for r in self.db.execute("SELECT * FROM tasks WHERE thread IS NOT NULL AND deleted=0")
+        ]
+
+    def touch_thread(self, tid, timestamp=None):
+        with self.db:
+            self.db.execute(
+                "UPDATE tasks SET thread_activity=? WHERE id=?",
+                (timestamp if timestamp is not None else time.time(), tid),
+            )
+
+    def discussion_changed(self, tid):
+        self.db.execute(
+            "UPDATE tasks SET discussion_dirty=1,discussion_revision=discussion_revision+1 "
+            "WHERE id=?",
+            (tid,),
+        )
+
+    def discussion_rendered(self, tid, mid, revision):
+        with self.db:
+            self.db.execute(
+                "UPDATE tasks SET discussion_message=?,discussion_dirty=CASE WHEN "
+                "discussion_revision=? THEN 0 ELSE 1 END WHERE id=?",
+                (mid, revision, tid),
+            )
+
+    def subtask_page(self, tid, page):
+        with self.db:
+            self.db.execute("UPDATE tasks SET subtask_page=? WHERE id=?", (max(0, page), tid))
+            self.discussion_changed(tid)
+            self.touch_thread(tid)
+
+    def subtasks(self, tid):
+        return [
+            dict(r)
+            for r in self.db.execute(
+                "SELECT * FROM subtasks WHERE task=? AND deleted=0 ORDER BY position,id", (tid,)
+            )
+        ]
+
+    def subtask(self, sid):
+        row = self.db.execute("SELECT * FROM subtasks WHERE id=? AND deleted=0", (sid,)).fetchone()
+        if row is None:
+            raise ValueError("This sub-task was deleted. Open its controls again.")
+        return dict(row)
+
+    def add_subtask(self, tid, title, author):
+        if self.task(tid)["done"]:
+            raise ValueError("Reopen the parent task before adding sub-tasks.")
+        title = title.strip()
+        if not 1 <= len(title) <= 400:
+            raise ValueError("Use 1–400 characters for a sub-task.")
+        if len(self.subtasks(tid)) >= 100:
+            raise ValueError("This task already has 100 sub-tasks.")
+        with self.db:
+            self.db.execute(
+                "INSERT INTO subtasks(task,title,author,position) VALUES (?,?,?, "
+                "(SELECT COALESCE(MAX(position),0)+1 FROM subtasks WHERE task=?))",
+                (tid, title, author, tid),
+            )
+            self.discussion_changed(tid)
+            self.touch_thread(tid)
+
+    def change_subtask(self, sid, revision, *, title=None, done=None, delete=False, move=None):
+        item = self.subtask(sid)
+        parent = self.task(item["task"])
+        if parent["done"]:
+            raise ValueError("Reopen the parent task before changing its sub-tasks.")
+        if item["revision"] != revision:
+            raise ValueError("This sub-task changed. Open its controls again.")
+        title = item["title"] if title is None else title.strip()
+        if not 1 <= len(title) <= 400:
+            raise ValueError("Use 1–400 characters for a sub-task.")
+        with self.db:
+            self.db.execute(
+                "UPDATE subtasks SET title=?,done=?,deleted=?,revision=revision+1 WHERE id=?",
+                (title, item["done"] if done is None else int(done), int(delete), sid),
+            )
+            if move is not None:
+                items = self.subtasks(item["task"])
+                ids = [r["id"] for r in items]
+                index = ids.index(sid)
+                target = {"up": max(0, index - 1), "down": min(len(ids) - 1, index + 1)}.get(move)
+                if target is None:
+                    raise ValueError("Choose Up or Down.")
+                ids.insert(target, ids.pop(index))
+                for position, ident in enumerate(ids):
+                    self.db.execute(
+                        "UPDATE subtasks SET position=?,revision=revision+1 WHERE id=?",
+                        (position, ident),
+                    )
+            self.discussion_changed(item["task"])
+            self.touch_thread(item["task"])
+
     def pending_cleanup(self):
         return [
             dict(r)
@@ -229,7 +342,12 @@ class ChecklistStore:
         item = self.task(tid)
         if item["revision"] != revision or bool(item["done"]) == done:
             raise ValueError("This task changed. Select it again for its current controls.")
+        if done and any(not sub["done"] for sub in self.subtasks(tid)):
+            raise ValueError(
+                "Complete or delete every unfinished sub-task before completing this task."
+            )
         with self.db:
+            self.discussion_changed(tid)
             self.db.execute(
                 "UPDATE tasks SET done=?,thread_sync=1,revision=revision+1 WHERE id=?",
                 (int(done), tid),

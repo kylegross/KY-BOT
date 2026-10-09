@@ -77,7 +77,8 @@ def pg_store():
     store = PostgresChecklistStore(url)
     # Integration tests are destructive only inside this explicitly designated test database.
     store.db.connection.execute(
-        "TRUNCATE boards,tasks,categories,logs,guild_settings,welcome_settings,welcome_artwork "
+        "TRUNCATE boards,tasks,categories,logs,subtasks,guild_settings,"
+        "welcome_settings,welcome_artwork "
         "RESTART IDENTITY"
     )
     yield store
@@ -132,6 +133,27 @@ async def test_postgres_settings_are_shared_and_keep_artwork(pg_store):
             assert (await second.get(1)).welcome_message == "Hello {member}"
             assert (await second.get_welcome_artwork(1)).background == b"example-image"
             assert (await second.get(2)).log_channel_id is None
+
+
+def test_postgres_subtasks_block_parent_and_survive_other_connections(pg_store):
+    second = PostgresChecklistStore(os.environ["TEST_DATABASE_URL"])
+    try:
+        pg_store.create(10, 1, 20)
+        pg_store.add(10, 100, 90, "Parent", [])
+        task = pg_store.category_tasks()[0]
+        pg_store.move_task(task["id"], None, task["revision"])
+        task = pg_store.task(task["id"])
+        pg_store.add_subtask(task["id"], "Remaining", 90)
+        child = second.subtasks(task["id"])[0]
+        with pytest.raises(ValueError, match="unfinished"):
+            second.set_done(task["id"], 90, task["revision"], True)
+        second.change_subtask(child["id"], child["revision"], delete=True)
+        pg_store.set_done(task["id"], 90, task["revision"], True)
+        assert second.task(task["id"])["done"] == 1
+        assert len(second.pending_logs()) == 1
+        assert second.subtasks(task["id"]) == []
+    finally:
+        second.db.close()
 
 
 async def test_migration_preserves_ids_history_and_source_files(pg_store, tmp_path):

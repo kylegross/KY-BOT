@@ -77,3 +77,30 @@ restores the saved controls and refreshes existing boards; it never creates a ne
 
 Task actions is the chosen design. The conversation preview retains Category actions
 for comparison and demonstrates private action panels; it does not execute Discord operations.
+
+
+## Thread sub-tasks
+
+Task discussions now use a persistent inline panel with the decorated category
+heading, task name, creator, sub-task progress and a green Add sub-task button.
+Authorized checklist administrators/roles can add, edit, complete/reopen, reorder
+and soft-delete sub-tasks through private controls. Four items are shown per page;
+a parent can hold up to 100 active sub-tasks. Controls are restored after restart.
+Existing discussion introductions are upgraded when the thread is opened again.
+
+A parent task can only be completed when all non-deleted sub-tasks are complete.
+The storage layer enforces this, including shared PostgreSQL/web writes. Deleted
+sub-tasks are excluded, but retained in storage. Completed parents must be reopened
+before sub-tasks can be changed. Only normal parent completion enters the existing
+checklist log; sub-task actions and panel refreshes are not server activity events.
+
+Thread inactivity is stored durably and reset by messages, sub-task actions, and
+opening the discussion from its parent task. The bot archives unfinished task
+threads after 24 hours of inactivity (checked by its 15-second worker), without
+locking or deleting them. Parent completion still archives/locks the discussion.
+Selecting the discussion on an unfinished task reopens its existing thread. Discord
+controls whether the thread pane/sidebar stays visible when switching channels;
+that UI behavior is separate from archiving.
+
+PostgreSQL and SQLite schema additions run on startup. Existing migrated servers
+only need the normal code deployment; do not repeat the SQLite-to-PostgreSQL import.

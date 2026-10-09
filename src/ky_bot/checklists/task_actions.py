@@ -21,6 +21,14 @@ class TaskActions(discord.ui.LayoutView):
                 f"## {category_heading(service.store, task)}\n{safe(task['title'][:500])}"
             )
         )
+        subtasks = service.store.subtasks(task["id"])
+        if subtasks:
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    f"*{sum(bool(item['done']) for item in subtasks)} of {len(subtasks)} "
+                    "sub-tasks complete*"
+                )
+            )
 
         def row(title, description, label, callback):
             button = discord.ui.Button(label=label)

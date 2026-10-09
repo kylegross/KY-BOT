@@ -111,6 +111,12 @@ for _name in (
     "cleaned",
     "thread_synced",
     "rendered",
+    "add_subtask",
+    "change_subtask",
+    "touch_thread",
+    "discussion_changed",
+    "discussion_rendered",
+    "subtask_page",
 ):
     setattr(PostgresChecklistStore, _name, mutation(getattr(ChecklistStore, _name)))
 
@@ -138,6 +144,9 @@ for _name in (
     "next_position",
     "next_category_position",
     "is_checklist_channel",
+    "discussion_tasks",
+    "subtasks",
+    "subtask",
 ):
     setattr(PostgresChecklistStore, _name, read_operation(getattr(ChecklistStore, _name)))
 
