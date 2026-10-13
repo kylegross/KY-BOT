@@ -6,6 +6,13 @@ from ky_bot.errors import report_error
 
 
 class InlineView(discord.ui.LayoutView):
+    def __init__(self, *, accent_colour=None, **kwargs):
+        super().__init__(**kwargs)
+        self.panel = None
+        if accent_colour is not None:
+            self.panel = discord.ui.Container(accent_colour=accent_colour)
+            super().add_item(self.panel)
+
     def add_item(self, item):
         if isinstance(item, discord.ui.Button):
             item.row = None
@@ -14,6 +21,9 @@ class InlineView(discord.ui.LayoutView):
         elif isinstance(item, discord.ui.Select):
             item.row = None
             item = discord.ui.ActionRow(item)
+        if self.panel is not None:
+            self.panel.add_item(item)
+            return self
         return super().add_item(item)
 
     async def on_error(self, interaction, error, item):

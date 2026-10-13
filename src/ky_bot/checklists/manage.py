@@ -5,6 +5,7 @@ import discord
 from ky_bot.checklists.categories import allowed, validate
 from ky_bot.checklists.inline import InlineView
 from ky_bot.checklists.notices import notice
+from ky_bot.design.collection import COLOURS
 
 PRIORITIES = {"high": "🔴 High", "medium": "🟡 Medium", "low": "🟢 Low"}
 
@@ -40,7 +41,7 @@ class EditText(discord.ui.Modal):
                     fresh = self.service.store.category(item["id"], item["channel"])
                 self.service.wakeup.set()
             await interaction.followup.send(
-                Noneview=ItemControls(self.service, fresh, self.kind), ephemeral=True
+                view=ItemControls(self.service, fresh, self.kind), ephemeral=True
             )
         except ValueError as exc:
             await notice(interaction, str(exc), ephemeral=True)
@@ -141,9 +142,12 @@ class ItemControls(InlineView):
 
 class ManageCategories(InlineView):
     def __init__(self, service, channel, page=0):
-        super().__init__(timeout=600)
+        board = service.store.board(channel)
+        super().__init__(timeout=600, accent_colour=int(COLOURS[board["style"]][1:], 16))
         self.add_item(
-            discord.ui.TextDisplay("**CATEGORIES**\nChoose a category to rename or reorder.")
+            discord.ui.TextDisplay(
+                "## \\*ੈ𑁍  CATEGORIES  𑁍ੈ\\*\nChoose a category to rename or reorder."
+            )
         )
         categories = service.store.categories(channel)
         pages = max(1, (len(categories) + 24) // 25)

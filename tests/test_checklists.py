@@ -290,6 +290,26 @@ async def test_private_forms_use_inline_buttons(store):
         assert view.to_components()
 
 
+@pytest.mark.parametrize("style", ["gold", "dark_silver", "silver_neon"])
+async def test_category_menu_uses_framed_card_and_keeps_added_controls_inside(store, style):
+    from ky_bot.design.collection import COLOURS
+
+    store.create(10, 1, 0)
+    store.update_board(10, style=style)
+    view = ManageCategories(SimpleNamespace(store=store), 10)
+    add = discord.ui.Button(label="Add category")
+    view.add_item(add)
+    assert len(view.children) == 1
+    panel = view.children[0]
+    assert isinstance(panel, discord.ui.Container)
+    assert panel.accent_colour == int(COLOURS[style][1:], 16)
+    assert panel.children[0].content == (
+        "## \\*ੈ𑁍  CATEGORIES  𑁍ੈ\\*\nChoose a category to rename or reorder."
+    )
+    assert add.parent.parent is panel
+    assert view.to_components()
+
+
 @pytest.mark.asyncio
 async def test_completion_logs_route_to_each_boards_channel(store):
     for channel, guild, log in ((10, 1, 30), (20, 2, 40)):
