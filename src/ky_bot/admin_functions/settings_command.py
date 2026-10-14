@@ -68,8 +68,13 @@ class ServerSettings(commands.Cog):
         view = SettingsView(interaction.user.id, interaction.guild_id, self.bot.server_settings)
         view.settings = settings
         view.guild = interaction.guild
+        _, profiles = await self.bot.server_settings.repository.get_designs(interaction.guild_id)
+        from ky_bot.design.menu_design import profile_for
+
+        if "settings:overview" in profiles:
+            view.design = profile_for(profiles, "settings:overview")
         view.show_section("overview")
-        attachments = settings_files("overview")
+        attachments = settings_files("overview", view.design)
         try:
             view.message = await interaction.edit_original_response(
                 view=view,

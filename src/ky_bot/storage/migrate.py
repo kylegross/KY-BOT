@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 
 from ky_bot.storage.postgres import CHECKLIST_LOCK, PostgresChecklistStore
 
-SETTINGS_TABLES = ("guild_settings", "welcome_settings", "welcome_artwork")
+SETTINGS_TABLES = ("guild_settings", "welcome_settings", "welcome_artwork", "embed_designs")
 CHECKLIST_TABLES = ("boards", "categories", "tasks", "logs", "subtasks")
 TABLES = SETTINGS_TABLES + CHECKLIST_TABLES
 
@@ -24,7 +24,7 @@ def snapshot(path, tables):
         existing = {
             row[0] for row in source.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        if not (set(tables) - {"subtasks"}) <= existing:
+        if not (set(tables) - {"subtasks", "embed_designs"}) <= existing:
             raise ValueError("Source database needs the current KY BOT SQLite schema.")
         return {
             table: (

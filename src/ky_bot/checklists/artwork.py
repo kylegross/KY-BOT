@@ -63,6 +63,11 @@ def board_artwork(board, categories, tasks=None):
         footer.alpha_composite(centered_overlay(style, size))
     footer.alpha_composite(rectangular_frame(style, size, radius=8, inset=10))
     result["checklist_footer.png"] = png(footer)
+    if board.get("_menu_profile"):
+        from ky_bot.design.menu_design import render_menu
+        result["checklist_header.png"], result["checklist_footer.png"] = render_menu(
+            board["_menu_profile"], board["name"]
+        )
     visible_names = None
     if tasks is not None:
         from ky_bot.checklists.board import page_entries

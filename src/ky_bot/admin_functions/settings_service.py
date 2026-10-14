@@ -80,11 +80,31 @@ class SettingsService:
             )
         return channel
 
-    async def render_welcome_card(self, member: discord.Member) -> bytes:
+    async def render_welcome_card(self, member: discord.Member, design=None) -> bytes:
         from ky_bot.design.welcome import render_welcome
 
         settings = await self.repository.get(member.guild.id)
         artwork = await self.repository.get_welcome_artwork(member.guild.id)
+        if design is None:
+            _, profiles = await self.repository.get_designs(member.guild.id)
+            design = profiles.get("welcome_image")
+        if design:
+            from ky_bot.admin_functions.settings_repository import WelcomeArtwork
+            from ky_bot.checklists.artwork import png
+            from ky_bot.design.collection import COLOURS, floral_background
+            from ky_bot.design.menu_design import decode
+
+            background = decode(design["header_background"])
+            if background is None:
+                background = await asyncio.to_thread(
+                    lambda: png(floral_background(design["style"], (1200, 800)))
+                )
+            artwork = WelcomeArtwork(
+                background,
+                design["title"] or "WELCOME",
+                COLOURS[design["style"]][1:],
+                design["dim"],
+            )
         try:
             avatar = await member.display_avatar.with_format("png").with_size(256).read()
         except discord.HTTPException:

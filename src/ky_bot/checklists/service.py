@@ -344,6 +344,13 @@ class ChecklistService:
     async def render_board(self, board):
         from ky_bot.checklists.artwork import board_artwork
 
+        repository = getattr(getattr(self.client, "server_settings", None), "repository", None)
+        if repository:
+            _, profiles = await repository.get_designs(board["guild"])
+            key = f"checklist:{board['channel']}"
+            if key in profiles or "checklist" in profiles:
+                from ky_bot.design.menu_design import board_with_profile, profile_for
+                board = board_with_profile(board, profile_for(profiles, key))
         channel = await self.channel(board["channel"])
         dots = await self.priority_dots.for_guild(channel.guild)
         artwork = await asyncio.to_thread(

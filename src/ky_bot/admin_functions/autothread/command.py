@@ -28,7 +28,16 @@ from ky_bot.errors import report_error
 from ky_bot.views.private_style import private_heading
 
 
-def artwork():
+def artwork(design=None):
+    if design is not None:
+        from ky_bot.design.menu_design import menu_files
+
+        return menu_files(
+            design,
+            "AUTOTHREAD",
+            "CHANNEL AUTOMATION",
+            ("ky_header_autothread.png", "dark_silver_icon.png", "ky_autothread_title.png"),
+        )
     return [
         discord.File(
             files("ky_bot.design").joinpath("assets", folder, filename).open("rb"),
@@ -52,6 +61,7 @@ class Session:
         self.original = None
         self.generation = 0
         self.lock = asyncio.Lock()
+        self.design = None
 
     async def allowed(self, interaction, generation):
         p = interaction.user.guild_permissions
@@ -68,9 +78,17 @@ class Session:
         return False
 
     async def show(self, interaction, page="main", rules_page=0):
+        _, profiles = await self.cog.bot.server_settings.repository.get_designs(self.guild.id)
+        from ky_bot.design.menu_design import profile_for
+
+        self.design = profile_for(profiles, "autothread") if "autothread" in profiles else None
         self.generation += 1
         view = Menu(self, page, rules_page)
-        uploads = artwork() if page in ("main", "configure", "rules", "all") else []
+        uploads = (
+            await asyncio.to_thread(artwork, self.design)
+            if page in ("main", "configure", "rules", "all")
+            else []
+        )
         try:
             await interaction.edit_original_response(
                 content=None, embeds=[], view=view, attachments=uploads
@@ -127,7 +145,10 @@ class Menu(discord.ui.LayoutView):
     def __init__(self, session, page="main", rules_page=0):
         super().__init__(timeout=600)
         self.session, self.page, self.generation = session, page, session.generation
-        panel = discord.ui.Container(accent_colour=0xBDC3CA)
+        from ky_bot.design.collection import COLOURS
+
+        colour = int(COLOURS[session.design["style"]][1:], 16) if session.design else 0xBDC3CA
+        panel = discord.ui.Container(accent_colour=colour)
         main = page in ("main", "configure", "rules", "all")
         if main:
             for filename in ("ky_header_autothread.png", "ky_autothread_title.png"):
@@ -547,12 +568,15 @@ class AutoThread(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     @app_commands.checks.has_permissions(manage_guild=True)
     async def autothread(self, interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
         session = Session(self, interaction)
-        uploads = artwork()
+        _, profiles = await self.bot.server_settings.repository.get_designs(interaction.guild_id)
+        from ky_bot.design.menu_design import profile_for
+
+        session.design = profile_for(profiles, "autothread") if "autothread" in profiles else None
+        uploads = await asyncio.to_thread(artwork, session.design)
         try:
-            await interaction.response.send_message(
-                view=Menu(session), files=uploads, ephemeral=True
-            )
+            await interaction.edit_original_response(view=Menu(session), attachments=uploads)
         finally:
             for upload in uploads:
                 upload.close()

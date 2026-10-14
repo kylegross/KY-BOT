@@ -23,7 +23,16 @@ CATALOG = json.loads(files(__package__).joinpath("emoji_catalog.json").read_text
 ]
 
 
-def artwork():
+def artwork(design=None):
+    if design is not None:
+        from ky_bot.design.menu_design import menu_files
+
+        return menu_files(
+            design,
+            "AUTOREACT",
+            "CHANNEL AUTOMATION",
+            ("ky_header_autoreact.png", "dark_silver_icon.png", "ky_autothread_title.png"),
+        )
     uploads = thread_artwork()
     uploads[0].close()
     uploads[0] = discord.File(
@@ -43,6 +52,7 @@ class Session:
         self.generation, self.page, self.query, self.group = 0, 0, "", "All"
         self.emoji_index = 0
         self.lock = asyncio.Lock()
+        self.design = None
 
     async def allowed(self, interaction, generation):
         p = interaction.user.guild_permissions
@@ -86,9 +96,17 @@ class Session:
         self.expected = {cid: r["revision"] if r else None for cid, r in zip(self.channels, rules)}
 
     async def show(self, interaction, page="main"):
+        _, profiles = await self.cog.bot.server_settings.repository.get_designs(self.guild.id)
+        from ky_bot.design.menu_design import profile_for
+
+        self.design = profile_for(profiles, "autoreact") if "autoreact" in profiles else None
         self.generation += 1
         view = Menu(self, page)
-        uploads = artwork() if page in ("main", "configure", "rules", "all") else []
+        uploads = (
+            await asyncio.to_thread(artwork, self.design)
+            if page in ("main", "configure", "rules", "all")
+            else []
+        )
         try:
             await interaction.edit_original_response(
                 content=None, embeds=[], attachments=uploads, view=view
@@ -138,7 +156,10 @@ class Menu(discord.ui.LayoutView):
     def __init__(self, s, page="main"):
         super().__init__(timeout=600)
         self.session, self.generation = s, s.generation
-        panel = discord.ui.Container(accent_colour=0xBDC3CA)
+        from ky_bot.design.collection import COLOURS
+
+        colour = int(COLOURS[s.design["style"]][1:], 16) if s.design else 0xBDC3CA
+        panel = discord.ui.Container(accent_colour=colour)
         main = page in ("main", "configure", "rules", "all")
         if main:
             for name in ("ky_header_autoreact.png", "ky_autothread_title.png"):
@@ -594,11 +615,15 @@ class AutoReact(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     @app_commands.checks.has_permissions(manage_guild=True)
     async def autoreact(self, interaction):
-        uploads = artwork()
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        session = Session(self, interaction)
+        _, profiles = await self.bot.server_settings.repository.get_designs(interaction.guild_id)
+        from ky_bot.design.menu_design import profile_for
+
+        session.design = profile_for(profiles, "autoreact") if "autoreact" in profiles else None
+        uploads = await asyncio.to_thread(artwork, session.design)
         try:
-            await interaction.response.send_message(
-                view=Menu(Session(self, interaction)), files=uploads, ephemeral=True
-            )
+            await interaction.edit_original_response(view=Menu(session), attachments=uploads)
         finally:
             for upload in uploads:
                 upload.close()

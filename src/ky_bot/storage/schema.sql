@@ -48,3 +48,7 @@ CREATE TABLE IF NOT EXISTS autoreact_jobs (
     revision TEXT, emojis TEXT, position INTEGER DEFAULT 0, done INTEGER DEFAULT 0,
     attempts INTEGER DEFAULT 0, retry DOUBLE PRECISION DEFAULT 0, created DOUBLE PRECISION
 );
+
+CREATE TABLE IF NOT EXISTS embed_designs (
+    guild_id TEXT PRIMARY KEY, revision TEXT NOT NULL, profiles TEXT NOT NULL
+);

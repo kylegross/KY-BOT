@@ -287,7 +287,7 @@ async def test_overview_uses_buttons_and_channel_picker_is_on_demand():
     panel = view.children[0]
     assert isinstance(panel.children[0], discord.ui.MediaGallery)
     sections = [item for item in panel.children if isinstance(item, discord.ui.Section)]
-    assert len(sections) == 2
+    assert len(sections) == 3
     assert all(isinstance(section.accessory, discord.ui.Button) for section in sections)
     assert not any(isinstance(item, discord.ui.ChannelSelect) for item in view.walk_children())
     assert view.to_components()[0]["type"] == 17

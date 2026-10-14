@@ -1,5 +1,7 @@
 """Async SQLite storage with a versioned schema and guild-scoped atomic writes."""
 
+import json
+import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -32,6 +34,33 @@ class WelcomeArtwork:
 class SettingsRepository:
     def __init__(self, connection: aiosqlite.Connection) -> None:
         self.connection = connection
+
+    async def get_designs(self, guild_id):
+        async with self.connection.execute(
+            "SELECT revision, profiles FROM embed_designs WHERE guild_id = ?", (str(guild_id),)
+        ) as cursor:
+            row = await cursor.fetchone()
+        return (row[0], json.loads(row[1])) if row else (None, {})
+
+    async def apply_designs(self, guild_id, profiles, expected):
+        """One compare-and-swap updates every selected menu together, across processes."""
+        revision = uuid.uuid4().hex
+        values = (str(guild_id), revision, json.dumps(profiles))
+        if expected is None:
+            sql = (
+                "INSERT INTO embed_designs(guild_id,revision,profiles) VALUES (?,?,?) "
+                "ON CONFLICT(guild_id) DO NOTHING RETURNING revision"
+            )
+        else:
+            sql = (
+                "UPDATE embed_designs SET revision=?,profiles=? "
+                "WHERE guild_id=? AND revision=? RETURNING revision"
+            )
+            values = (revision, json.dumps(profiles), str(guild_id), expected)
+        async with self.connection.execute(sql, values) as cursor:
+            if not await cursor.fetchone():
+                raise ValueError("Another administrator changed the designs. Reopen Embed Design.")
+        return revision
 
     async def get(self, guild_id: int) -> GuildSettings:
         async with self.connection.execute(
@@ -153,4 +182,8 @@ async def open_settings(path: Path, *, database_url: str | None = None):
                 "dim INTEGER NOT NULL DEFAULT 35);"
                 "PRAGMA user_version = 3;COMMIT;"
             )
+        await connection.execute(
+            "CREATE TABLE IF NOT EXISTS embed_designs "
+            "(guild_id TEXT PRIMARY KEY, revision TEXT NOT NULL, profiles TEXT NOT NULL)"
+        )
         yield SettingsRepository(connection)

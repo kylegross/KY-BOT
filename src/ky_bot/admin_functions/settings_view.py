@@ -19,7 +19,16 @@ def settings_title_file(section: str) -> discord.File:
     )
 
 
-def settings_files(section: str) -> list[discord.File]:
+def settings_files(section: str, design=None) -> list[discord.File]:
+    if design is not None:
+        from ky_bot.design.menu_design import menu_files
+
+        return menu_files(
+            design,
+            "COMMAND CENTER",
+            SETTINGS_TITLES[section][0],
+            ("ky_settings_header.png", "ky_settings_footer.png", "ky_settings_title.png"),
+        )
     # Components V2 media attachments aren't reliably present in Message.attachments.
     return [
         discord.File(
@@ -56,6 +65,7 @@ class SettingsView(discord.ui.LayoutView):
         self.guild: discord.Guild | None = None
         self.section = "overview"
         self.picker = False
+        self.design = None
         self.show_section("overview")
 
     def button(self, label: str, callback) -> discord.ui.Button:
@@ -76,7 +86,10 @@ class SettingsView(discord.ui.LayoutView):
     ) -> None:
         self.section, self.picker = section, picker
         self.clear_items()
-        panel = discord.ui.Container(accent_colour=0xC9DDF0)
+        from ky_bot.design.collection import COLOURS
+
+        colour = int(COLOURS[self.design["style"]][1:], 16) if self.design else 0xC9DDF0
+        panel = discord.ui.Container(accent_colour=colour)
         panel.add_item(
             discord.ui.MediaGallery(
                 discord.MediaGalleryItem(
@@ -116,6 +129,11 @@ class SettingsView(discord.ui.LayoutView):
                 "**SERVER ACTIVITY**\n-# Moderation logs · "
                 + ("Enabled" if self.settings.log_channel_id else "Disabled"),
                 self.navigation("Manage", "logging"),
+            )
+            separator()
+            row(
+                "**EMBED DESIGN**\n-# Customize menus together, preview, then apply.",
+                self.button("Manage", self.open_embed_design),
             )
         elif section == "welcome":
             row(
@@ -216,8 +234,6 @@ class SettingsView(discord.ui.LayoutView):
             controls.add_item(
                 self.navigation("Back", "welcome" if section == "welcome_design" else "overview")
             )
-        if section == "welcome":
-            controls.add_item(self.navigation("Design", "welcome_design"))
         if section in {"welcome", "welcome_design"}:
             controls.add_item(self.button("Preview", self.preview_welcome))
         controls.add_item(self.button("Refresh", self.reload_settings))
@@ -256,8 +272,13 @@ class SettingsView(discord.ui.LayoutView):
         replacement = SettingsView(self.owner_id, self.guild_id, self.service)
         replacement.settings = await self.service.repository.get(self.guild_id)
         replacement.guild = interaction.guild
+        _, profiles = await self.service.repository.get_designs(self.guild_id)
+        from ky_bot.design.menu_design import profile_for
+
+        key = "settings:" + self.section
+        replacement.design = profile_for(profiles, key) if key in profiles else None
         replacement.show_section(self.section, picker=self.picker, notice=notice)
-        attachments = settings_files(self.section)
+        attachments = settings_files(self.section, replacement.design)
         try:
             replacement.message = await interaction.edit_original_response(
                 view=replacement,
@@ -271,6 +292,14 @@ class SettingsView(discord.ui.LayoutView):
             for attachment in attachments:
                 attachment.close()
         # Retire old callbacks only after Discord has registered the replacement.
+        self.stop()
+
+    async def open_embed_design(self, interaction):
+        from ky_bot.design.editor import DesignSession
+
+        await interaction.response.defer()
+        session = await DesignSession.create(interaction, self.service)
+        await session.show(interaction)
         self.stop()
 
     async def save_log_channel(self, interaction: discord.Interaction) -> None:
