@@ -20,6 +20,7 @@ ky-bot-migrate = "ky_bot.storage.migrate:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
+"ky_bot.admin_functions.autoreact" = ["emoji_catalog.json", "UNICODE-LICENSE.txt"]
 "ky_bot.design" = ["assets/footer/*.png", "assets/header/*.png", "assets/welcome/*.png"]
 "ky_bot.checklists" = ["assets/*.png"]
 "ky_bot.storage" = ["schema.sql"]

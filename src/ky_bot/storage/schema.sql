@@ -37,3 +37,14 @@ CREATE TABLE IF NOT EXISTS autothread_processed (message BIGINT PRIMARY KEY, gui
 CREATE TABLE IF NOT EXISTS autothread_welcome_deliveries(message BIGINT PRIMARY KEY,description TEXT,color BIGINT);
 CREATE TABLE IF NOT EXISTS autothread_notices (message BIGINT PRIMARY KEY, channel BIGINT NOT NULL, expires DOUBLE PRECISION NOT NULL);
 CREATE TABLE IF NOT EXISTS autothread_retired_rules (id BIGINT PRIMARY KEY);
+
+CREATE TABLE IF NOT EXISTS autoreact_rules (
+    guild BIGINT NOT NULL, channel BIGINT NOT NULL, settings TEXT NOT NULL,
+    enabled INTEGER NOT NULL, revision TEXT NOT NULL, starts DOUBLE PRECISION NOT NULL,
+    error TEXT NOT NULL DEFAULT '', PRIMARY KEY(guild,channel)
+);
+CREATE TABLE IF NOT EXISTS autoreact_jobs (
+    message BIGINT PRIMARY KEY, guild BIGINT, channel BIGINT, parent BIGINT,
+    revision TEXT, emojis TEXT, position INTEGER DEFAULT 0, done INTEGER DEFAULT 0,
+    attempts INTEGER DEFAULT 0, retry DOUBLE PRECISION DEFAULT 0, created DOUBLE PRECISION
+);

@@ -19,6 +19,7 @@ EXTENSIONS = (
     "ky_bot.admin_functions.activity",
     "ky_bot.checklists.command",
     "ky_bot.admin_functions.autothread.command",
+    "ky_bot.admin_functions.autoreact.command",
 )
 
 

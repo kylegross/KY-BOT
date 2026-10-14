@@ -479,3 +479,9 @@ PostgreSQL uses isolated autothread_* tables in DATABASE_URL. Startup creates th
 new schema without enabling any rules or altering checklist records. Local SQLite
 uses ky-autothread.sqlite3 beside DATABASE_PATH. The service lives in
 src/ky_bot/admin_functions/autothread/. Do not repeat the earlier data migration.
+
+## AutoReact
+
+`/autoreact` opens a private Manage Server menu with dark silver artwork and inline controls. Choose channels, configure up to 20 ordered emojis, select content triggers and optional bot/webhook/thread-reply filters, then review and save. Opening the menu activates nothing. Existing paused rules stay paused on save. Rules can be paused, resumed or removed; removing a rule leaves existing reactions intact. The bot needs View Channel, Read Message History and Add Reactions in each destination. Only new messages are processed; delayed media embeds can qualify within five minutes. Delivery checkpoints and bounded retries survive restarts.
+
+AutoReact uses the shared DATABASE_URL when configured, with isolated autoreact tables created automatically. Otherwise it uses ky-autoreact.sqlite3 beside the settings database. No migration rerun is needed for these new tables. The bundled Unicode emoji catalog and license are packaged with the bot.
