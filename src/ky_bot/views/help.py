@@ -18,7 +18,8 @@ PAGES = {
     ),
     "automation": (
         "Automation",
-        "Planned: configurable autodelete and automatic message threads.\n\n"
+        "Available: `/autothread` for automatic public threads from new posts.\n"
+        "Planned: configurable autodelete.\n\n"
         "Configured checklists preserve task messages and attachments before removing "
         "their originals, with private task discussion threads.",
     ),

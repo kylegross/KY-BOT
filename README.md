@@ -441,3 +441,41 @@ can use `private_heading(title)` or an existing leading bold heading.
 Main menu panels keep their colored VONCA heading images and use their existing
 LayoutView composition; being ephemeral alone does not make a menu a context menu.
 Discord native modal input forms keep their plain titles.
+
+
+## AutoThread
+
+`/autothread` opens a private server-admin menu with compact dark silver artwork,
+inline action buttons and decorated hidden context titles. No channel is enrolled
+on installation, startup, menu open, or preview. Configure a destination, choose
+content and settings, then Preview & Save -> Save to enable future-post handling.
+Saved Rules and Server Rules reopen existing configurations; Turn On / Off toggles
+saved rules without creating new ones. Remove Rule requires a separate review and
+leaves posts and threads intact. Returning preserves the draft; Cancel discards it.
+
+Content includes text, picture/video/GIF uploads, Discord voice messages and
+media/GIF links. Multiple selections are supported. Require Attachment accepts
+uploaded pictures/videos. Media-only enforcement requires pictures/videos and
+removes invalid parent-channel posts (including GIFs), with a 10-second warning.
+Bots and thread replies are excluded; Ignore Webhooks defaults on. No external
+media URL is fetched and no historical scan runs.
+
+Public threads inherit channel access, add the original author when possible,
+use the display name + "'s thread", and create one welcome per original post.
+Welcome text supports {user}/{display_name}, explicit colors or category default,
+Restore Default and a private preview. Inactivity options are 1 hour, 24 hours
+(default), 3 days and 7 days. Explicit archiving only targets bot-owned tracked
+threads whose original rule is still enabled; threads are never locked/deleted by
+that timer. Delivery deduplication, bounded retries, stable welcome payloads and
+warning cleanup survive restarts.
+
+Manage Server permission is required. The bot needs View Channel, Read Message
+History, Create Public Threads, Send Messages in Threads, Send Messages, Embed
+Links and Manage Threads. Media-only enforcement also requires Manage Messages.
+Configuration is checked again on save; panels are owner/server-bound and stale
+rule edits are rejected. Run one active bot process per database.
+
+PostgreSQL uses isolated autothread_* tables in DATABASE_URL. Startup creates the
+new schema without enabling any rules or altering checklist records. Local SQLite
+uses ky-autothread.sqlite3 beside DATABASE_PATH. The service lives in
+src/ky_bot/admin_functions/autothread/. Do not repeat the earlier data migration.

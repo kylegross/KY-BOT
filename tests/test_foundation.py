@@ -66,6 +66,7 @@ async def test_extensions_intents_and_sync_scope(mode, expected_calls):
             "settings",
             "Delete header/footer",
             "create",
+            "autothread",
         }
         assert bot.intents.members and bot.intents.message_content
         assert bot.intents.invites and bot.intents.moderation
@@ -80,6 +81,7 @@ async def test_extensions_intents_and_sync_scope(mode, expected_calls):
         await bot.unload_extension("ky_bot.design.artwork_command")
         await bot.unload_extension("ky_bot.admin_functions.activity")
         await bot.unload_extension("ky_bot.checklists.command")
+        await bot.unload_extension("ky_bot.admin_functions.autothread.command")
         assert not bot.tree.get_commands()
 
 
