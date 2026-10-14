@@ -8,8 +8,6 @@ PAGES = {
         "Your server toolkit, one interaction away.\n\n"
         "**Available now**\n`/help` — explore this menu\n`/ping` — check bot responsiveness\n"
         "`/settings` — server configuration (admins)\n"
-        "`/footer` — custom background and branding footer\n\n"
-        "`/header` — branded header with your own background\n\n"
         "`/create checklist` — inline task boards with optional checklist logs\n\n"
         "Choose a category below to see what’s planned.",
     ),
@@ -26,8 +24,7 @@ PAGES = {
     ),
     "utilities": (
         "Utilities & games",
-        "Available: `/ping` to check responsiveness, `/footer` for branded footers, "
-        "and `/header` for menu and embed header graphics.\n\n"
+        "Available: `/ping` to check responsiveness.\n\n"
         "Planned: server utilities, interactive games, and reusable menus.",
     ),
     "admin": (

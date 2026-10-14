@@ -64,8 +64,6 @@ async def test_extensions_intents_and_sync_scope(mode, expected_calls):
             "help",
             "ping",
             "settings",
-            "footer",
-            "header",
             "Delete header/footer",
             "create",
         }
@@ -79,8 +77,6 @@ async def test_extensions_intents_and_sync_scope(mode, expected_calls):
             bot.tree.sync.assert_awaited_once_with()
         await bot.unload_extension("ky_bot.cogs.core")
         await bot.unload_extension("ky_bot.admin_functions.settings_command")
-        await bot.unload_extension("ky_bot.design.footer_command")
-        await bot.unload_extension("ky_bot.design.header_command")
         await bot.unload_extension("ky_bot.design.artwork_command")
         await bot.unload_extension("ky_bot.admin_functions.activity")
         await bot.unload_extension("ky_bot.checklists.command")

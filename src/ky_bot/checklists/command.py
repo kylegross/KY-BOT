@@ -7,21 +7,28 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ky_bot.checklists.artwork import board_artwork, png
+from ky_bot.checklists.artwork import board_artwork
 from ky_bot.checklists.categories import parse_categories
+from ky_bot.checklists.inline import InlineView
 from ky_bot.checklists.service import ChecklistService
 from ky_bot.checklists.store import ChecklistStore
-from ky_bot.design.footers import MAX_UPLOAD, FooterError, read_upload
+from ky_bot.design.footers import FooterError
 from ky_bot.errors import report_error
 
 
-class LogChannelPicker(discord.ui.View):
+class LogChannelPicker(InlineView):
     def __init__(self, cog, owner_id, channel_id, guild_id, values, categories):
         super().__init__(timeout=180)
         self.cog, self.owner_id = cog, owner_id
         self.channel_id, self.guild_id = channel_id, guild_id
         self.values, self.categories = values, categories
         self.completed = False
+        self.add_item(
+            discord.ui.TextDisplay(
+                "**CHECKLIST LOG**\nChoose a log channel. "
+                "The checklist will be created after selection."
+            )
+        )
         picker = discord.ui.ChannelSelect(
             placeholder="Choose a checklist log channel",
             channel_types=[discord.ChannelType.text],
@@ -46,7 +53,10 @@ class LogChannelPicker(discord.ui.View):
                 self.stop()
                 await interaction.edit_original_response(content=summary)
                 await interaction.message.edit(
-                    content="Checklist log selected. Setup complete.", view=None
+                    content=None,
+                    view=InlineView().add_item(
+                        discord.ui.TextDisplay("**SETUP COMPLETE**\nChecklist log selected.")
+                    ),
                 )
             except (ValueError, FooterError, discord.HTTPException) as exc:
                 await interaction.edit_original_response(content=str(exc)[:1500])
@@ -115,12 +125,7 @@ class Checklists(commands.Cog):
             existing = service.store.board(channel_id)
             candidate = existing or dict(
                 name="ADMIN CHECKLIST",
-                style="gold",
                 height=280,
-                footer_text=None,
-                header_background=None,
-                footer_background=None,
-                footer_icon=None,
             )
             candidate = {**candidate, **values}
             await asyncio.to_thread(board_artwork, candidate, [])
@@ -153,22 +158,11 @@ class Checklists(commands.Cog):
             app_commands.Choice(name="Yes", value="yes"),
             app_commands.Choice(name="No", value="no"),
         ],
-        style=[
-            app_commands.Choice(name="Gold", value="gold"),
-            app_commands.Choice(name="Dark silver", value="dark_silver"),
-            app_commands.Choice(name="Neon silver", value="silver_neon"),
-        ],
     )
     @app_commands.describe(
         checklist_log="Yes: pick a checklist log channel next. No: create without a log.",
         title="Custom VONCA checklist title; default ADMIN CHECKLIST.",
         categories="Comma-separated categories; adds categories without losing tasks.",
-        style="Gold by default. Headings, frame and artwork follow this finish.",
-        header_height="Header height, 240–800 pixels; compact 280 by default.",
-        header_background="Custom header background; the KY BOT corner logo is retained.",
-        footer_background="Optional custom footer background.",
-        footer_icon="Custom center icon or emoji image for the footer.",
-        footer_text="Optional VONCA footer text; replaces its icon.",
         authorized_role="Optional role allowed to manage tasks alongside administrators.",
     )
     async def checklist(
@@ -177,12 +171,6 @@ class Checklists(commands.Cog):
         checklist_log: str,
         title: app_commands.Range[str, 1, 64] | None = None,
         categories: str | None = None,
-        style: str | None = None,
-        header_height: app_commands.Range[int, 240, 800] | None = None,
-        header_background: discord.Attachment | None = None,
-        footer_background: discord.Attachment | None = None,
-        footer_icon: discord.Attachment | None = None,
-        footer_text: app_commands.Range[str, 1, 64] | None = None,
         authorized_role: discord.Role | None = None,
     ):
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -191,39 +179,19 @@ class Checklists(commands.Cog):
             names = parse_categories(categories)
             if checklist_log not in {"yes", "no"}:
                 raise ValueError("Choose Yes or No for the checklist log.")
-            if style is not None and style not in {"gold", "dark_silver", "silver_neon"}:
-                raise ValueError("Choose gold, dark silver or neon silver.")
             if authorized_role and authorized_role.guild.id != interaction.guild_id:
                 raise ValueError("Choose a role in this server.")
             values = {
                 key: value
                 for key, value in {
                     "name": title,
-                    "style": style,
-                    "height": header_height,
-                    "footer_text": footer_text,
                     "role_id": authorized_role.id if authorized_role else None,
                 }.items()
                 if value is not None
             }
-            for key, upload in (
-                ("header_background", header_background),
-                ("footer_background", footer_background),
-                ("footer_icon", footer_icon),
-            ):
-                if upload:
-                    if upload.size > MAX_UPLOAD:
-                        raise ValueError("Use still PNG, JPEG or WebP images under 8 MB.")
-                    data = await upload.read()
-                    values[key] = await asyncio.to_thread(
-                        lambda: png(read_upload(data, icon=key == "footer_icon"))
-                    )
-            if footer_icon and footer_text is None:
-                values["footer_text"] = None
             if checklist_log == "yes":
                 await interaction.followup.send(
-                    "Choose a checklist log channel. "
-                    "The checklist will be created after you select it.",
+                    None,
                     view=LogChannelPicker(
                         self,
                         interaction.user.id,

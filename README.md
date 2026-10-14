@@ -421,3 +421,23 @@ bot and database on the same private network. PostgreSQL-backed tests require a
 **disposable** `TEST_DATABASE_URL`; these tests truncate its KY BOT tables.
 
 No web dashboard, Discord OAuth flow or HTTP API is included in this storage change.
+
+
+## Branding controls
+
+Standalone `/header` and `/footer` commands are retired. `/create checklist` no
+longer exposes finish, header height/background or footer artwork controls; existing
+boards retain their saved artwork. Shared menu branding will be managed through
+`/settings` after the AutoDelete menu design is finished. The existing header/footer
+renderers and delete-export context action remain available internally.
+
+
+### Hidden context-menu styling
+
+Use `InlineView` for hidden task/category/rule context menus and edit dialogs.
+It supplies a card, inline button sections and a larger title with literal stars
+and botanical symbols through `views.private_style`. New context-menu headings
+can use `private_heading(title)` or an existing leading bold heading.
+Main menu panels keep their colored VONCA heading images and use their existing
+LayoutView composition; being ephemeral alone does not make a menu a context menu.
+Discord native modal input forms keep their plain titles.

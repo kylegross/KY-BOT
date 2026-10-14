@@ -15,8 +15,6 @@ log = logging.getLogger(__name__)
 EXTENSIONS = (
     "ky_bot.cogs.core",
     "ky_bot.admin_functions.settings_command",
-    "ky_bot.design.footer_command",
-    "ky_bot.design.header_command",
     "ky_bot.design.artwork_command",
     "ky_bot.admin_functions.activity",
     "ky_bot.checklists.command",

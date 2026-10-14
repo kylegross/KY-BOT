@@ -6,6 +6,7 @@ from ky_bot.checklists.categories import allowed, validate
 from ky_bot.checklists.inline import InlineView
 from ky_bot.checklists.notices import notice
 from ky_bot.design.collection import COLOURS
+from ky_bot.views.private_style import private_heading
 
 PRIORITIES = {"high": "🔴 High", "medium": "🟡 Medium", "low": "🟢 Low"}
 
@@ -146,7 +147,7 @@ class ManageCategories(InlineView):
         super().__init__(timeout=600, accent_colour=int(COLOURS[board["style"]][1:], 16))
         self.add_item(
             discord.ui.TextDisplay(
-                "## \\*ੈ𑁍  CATEGORIES  𑁍ੈ\\*\nChoose a category to rename or reorder."
+                private_heading("CATEGORIES") + "\nChoose a category to rename or reorder."
             )
         )
         categories = service.store.categories(channel)

@@ -7,6 +7,7 @@ from ky_bot.checklists.manage import ManageCategories
 from ky_bot.checklists.permissions import access
 from ky_bot.design.collection import COLOURS
 from ky_bot.errors import report_error
+from ky_bot.views.private_style import private_title
 
 PAGE_SIZE = 4  # Bound Components V2's 40-item budget, even with four separate categories.
 
@@ -21,7 +22,7 @@ def category_heading(store, task):
         if task.get("category_id") is not None
         else "Uncategorized"
     )
-    return f"\\*ੈ𑁍  {safe(category)}  𑁍ੈ\\*"
+    return private_title(category)
 
 
 def page_entries(board, tasks, categories):

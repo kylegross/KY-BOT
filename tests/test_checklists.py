@@ -200,7 +200,7 @@ async def test_yes_waits_for_channel_selection_and_no_skips_picker():
     menu = interaction.followup.send.call_args.kwargs["view"]
     assert isinstance(menu, LogChannelPicker)
     assert await menu.interaction_check(interaction)
-    picker = menu.children[0]
+    picker = next(i for i in menu.walk_children() if isinstance(i, discord.ui.ChannelSelect))
     picker._values = [log]
     await picker.callback(interaction)
     args = cog.apply_setup.call_args.args
@@ -227,8 +227,9 @@ async def test_picker_rejects_same_channel_and_other_users():
     interaction.user.id = 91
     assert not await menu.interaction_check(interaction)
     interaction.user.id = 90
-    menu.children[0]._values = [log]
-    await menu.children[0].callback(interaction)
+    picker = next(i for i in menu.walk_children() if isinstance(i, discord.ui.ChannelSelect))
+    picker._values = [log]
+    await picker.callback(interaction)
     cog.apply_setup.assert_not_awaited()
     assert "separate" in interaction.edit_original_response.call_args.kwargs["content"]
 
