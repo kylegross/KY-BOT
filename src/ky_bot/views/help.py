@@ -20,7 +20,7 @@ PAGES = {
         "Automation",
         "Available: `/autothread` for automatic public threads from new posts.\n"
         "Available: `/autoreact` for ordered emoji reactions to new posts.\n"
-        "Planned: configurable autodelete.\n\n"
+        "Available: `/autodelete` for reviewed cleanup rules and optional activity logs.\n\n"
         "Configured checklists preserve task messages and attachments before removing "
         "their originals, with private task discussion threads.",
     ),

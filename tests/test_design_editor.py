@@ -63,6 +63,7 @@ async def test_draft_preview_disabled_and_apply_only_on_approval(session):
             "settings:welcome",
             "settings:logging",
             "autoreact",
+            "autodelete",
             "autothread",
             "checklist",
         ]
@@ -89,7 +90,7 @@ async def test_draft_preview_disabled_and_apply_only_on_approval(session):
     assert await s.service.repository.get_designs(1) == (None, {})
     await s.apply(interaction)
     _, profiles = await s.service.repository.get_designs(1)
-    assert len(profiles) == 6
+    assert len(profiles) == 7
     assert all(p["height"] == 320 for p in profiles.values())
     assert store.boards() == []
 

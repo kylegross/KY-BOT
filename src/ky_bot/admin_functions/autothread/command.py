@@ -2,7 +2,6 @@
 
 import asyncio
 import copy
-from importlib.resources import files
 
 import discord
 from discord import app_commands
@@ -29,26 +28,15 @@ from ky_bot.views.private_style import private_heading
 
 
 def artwork(design=None):
-    if design is not None:
-        from ky_bot.design.menu_design import menu_files
+    # dark_silver_icon.png is an overlay, never a complete footer banner.
+    from ky_bot.design.menu_design import default_profile, menu_files
 
-        return menu_files(
-            design,
-            "AUTOTHREAD",
-            "CHANNEL AUTOMATION",
-            ("ky_header_autothread.png", "dark_silver_icon.png", "ky_autothread_title.png"),
-        )
-    return [
-        discord.File(
-            files("ky_bot.design").joinpath("assets", folder, filename).open("rb"),
-            filename=filename,
-        )
-        for folder, filename in (
-            ("header", "ky_header_autothread.png"),
-            ("header", "ky_autothread_title.png"),
-            ("footer", "dark_silver_icon.png"),
-        )
-    ]
+    return menu_files(
+        design or default_profile("autothread"),
+        "AUTOTHREAD",
+        "CHANNEL AUTOMATION",
+        ("ky_header_autothread.png", "dark_silver_icon.png", "ky_autothread_title.png"),
+    )
 
 
 class Session:

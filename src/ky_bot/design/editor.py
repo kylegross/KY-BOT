@@ -24,6 +24,7 @@ TARGETS = {
     "settings:logging": "Server activity",
     "autothread": "AutoThread",
     "autoreact": "AutoReact",
+    "autodelete": "AutoDelete",
     "checklist": "All checklists / default",
     "welcome_image": "Welcome image",
 }
@@ -130,15 +131,19 @@ class DesignSession:
             sample.guild, sample.design = self.guild, profile
             sample.show_section(section)
             uploads = await asyncio.to_thread(settings_files, section, profile)
-        elif key in ("autoreact", "autothread"):
+        elif key in ("autoreact", "autothread", "autodelete"):
             if key == "autoreact":
                 from ky_bot.admin_functions.autoreact.command import Menu, Session, artwork
 
                 cog = self.bot.get_cog("AutoReact")
-            else:
+            elif key == "autothread":
                 from ky_bot.admin_functions.autothread.command import Menu, Session, artwork
 
                 cog = self.bot.get_cog("AutoThread")
+            else:
+                from ky_bot.admin_functions.autodelete.command import Menu, Session, artwork
+
+                cog = self.bot.get_cog("AutoDelete")
             session = Session(cog, interaction)
             session.design = profile
             sample = Menu(session)
@@ -354,6 +359,16 @@ class Editor(discord.ui.LayoutView):
         self.session, self.generation = session, session.generation
         s = session
         if sample:
+            # Preview approval controls replace the sample's bottom navigation.
+            for container in sample.children:
+                if isinstance(container, discord.ui.Container):
+                    for child in list(container.children):
+                        if (
+                            isinstance(child, discord.ui.Section)
+                            and isinstance(child.accessory, discord.ui.Button)
+                            and child.accessory.label in ("Back", "Close")
+                        ):
+                            container.remove_item(child)
             for item in list(sample.children):
                 sample.remove_item(item)
                 self.add_item(item)
@@ -580,7 +595,15 @@ class Editor(discord.ui.LayoutView):
             self.stop()
 
         row("CANCEL", "Discard this draft and return to server settings.", "Cancel", cancel)
-        self.add_item(panel)
+        if sample and self.total_children_count + panel._total_count > 40:
+            destination = self.children[-1]
+            if not isinstance(destination, discord.ui.Container):
+                raise ValueError("Preview exceeds Discord's component limit.")
+            for item in list(panel.children):
+                panel.remove_item(item)
+                destination.add_item(item)
+        else:
+            self.add_item(panel)
 
     async def interaction_check(self, interaction):
         return await self.session.allowed(interaction, self.generation)

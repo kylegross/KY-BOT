@@ -20,6 +20,7 @@ EXTENSIONS = (
     "ky_bot.checklists.command",
     "ky_bot.admin_functions.autothread.command",
     "ky_bot.admin_functions.autoreact.command",
+    "ky_bot.admin_functions.autodelete.command",
 )
 
 
@@ -31,6 +32,7 @@ def build_intents() -> discord.Intents:
     intents.message_content = True
     intents.moderation = True
     intents.invites = True
+    intents.reactions = True
     intents.presences = False
     return intents
 

@@ -68,6 +68,7 @@ async def test_extensions_intents_and_sync_scope(mode, expected_calls):
             "create",
             "autothread",
             "autoreact",
+            "autodelete",
         }
         assert bot.intents.members and bot.intents.message_content
         assert bot.intents.invites and bot.intents.moderation
@@ -84,6 +85,7 @@ async def test_extensions_intents_and_sync_scope(mode, expected_calls):
         await bot.unload_extension("ky_bot.checklists.command")
         await bot.unload_extension("ky_bot.admin_functions.autothread.command")
         await bot.unload_extension("ky_bot.admin_functions.autoreact.command")
+        await bot.unload_extension("ky_bot.admin_functions.autodelete.command")
         assert not bot.tree.get_commands()
 
 
