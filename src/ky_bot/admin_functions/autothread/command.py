@@ -504,7 +504,9 @@ class Menu(discord.ui.LayoutView):
                 await session.show(interaction)
 
         close.callback = cancel
-        panel.add_item(discord.ui.ActionRow(back, close))
+        panel.add_item(
+            discord.ui.ActionRow(close) if page == "main" else discord.ui.ActionRow(back, close)
+        )
         self.add_item(panel)
 
     async def interaction_check(self, interaction):

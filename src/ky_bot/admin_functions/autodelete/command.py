@@ -618,8 +618,6 @@ class Menu(discord.ui.LayoutView):
                 else "configure",
             )
 
-        row("RETURN", "Keep the draft.", "Back", action=back)
-
         async def cancel(i):
             from ky_bot.checklists.inline import InlineView
 
@@ -630,7 +628,21 @@ class Menu(discord.ui.LayoutView):
                 view=InlineView().add_item(discord.ui.TextDisplay("AutoDelete menu closed.")),
             )
 
-        row("CANCEL", "Discard the draft.", "Close", action=cancel)
+        navigation = []
+        actions = (("Close", cancel),) if page == "main" else (("Back", back), ("Close", cancel))
+        for label, action in actions:
+            button = discord.ui.Button(label=label)
+
+            async def navigate(i, action=action):
+                async with s.lock:
+                    if not await s.allowed(i, self.generation):
+                        return
+                    await i.response.defer()
+                    await action(i)
+
+            button.callback = navigate
+            navigation.append(button)
+        panel.add_item(discord.ui.ActionRow(*navigation))
         self.add_item(panel)
 
     async def interaction_check(self, i):
