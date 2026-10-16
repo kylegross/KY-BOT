@@ -371,6 +371,13 @@ class Editor(discord.ui.LayoutView):
             for container in sample.children:
                 if isinstance(container, discord.ui.Container):
                     for child in list(container.children):
+                        # Drafts use this editor's approval controls and timeout,
+                        # rather than the live menu's autosave/session notice.
+                        if isinstance(child, discord.ui.TextDisplay) and child.content.startswith(
+                            "-# Private admin controls"
+                        ):
+                            container.remove_item(child)
+                            continue
                         if isinstance(child, discord.ui.ActionRow) and all(
                             isinstance(button, discord.ui.Button)
                             and button.label in ("Back", "Refresh", "Close", "Preview")

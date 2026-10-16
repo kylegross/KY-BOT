@@ -128,6 +128,11 @@ class SettingsView(discord.ui.LayoutView):
         def separator() -> None:
             panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
 
+        def space() -> None:
+            panel.add_item(discord.ui.Separator(
+                visible=False, spacing=discord.SeparatorSpacing.small
+            ))
+
         def channel(channel_id: int | None) -> str:
             if self.guild is None:
                 return f"<#{channel_id}>" if channel_id else "Not configured"
@@ -254,10 +259,19 @@ class SettingsView(discord.ui.LayoutView):
                 )
                 self.log_channel.callback = self.save_log_channel
                 panel.add_item(discord.ui.ActionRow(self.log_channel))
-            separator()
+            space()
             self.clear_channel = self.button("Clear channel", self.clear_log_channel)
             self.clear_channel.disabled = self.settings.log_channel_id is None
-            row("**DELIVERY**\n-# Clear the destination to disable logging.", self.clear_channel)
+            row(
+                "**SERVER LOG DELIVERY**\n-# Clear to disable server event logs.",
+                self.clear_channel,
+            )
+            space()
+            panel.add_item(discord.ui.TextDisplay(
+                "**TRACKED EVENTS**\n"
+                "-# ✧ Message edits & deletions\n"
+                "-# ✧ Role changes, bans & unbans"
+            ))
             separator()
             row(
                 f"**MEMBERS & INVITES**\n-# {channel(self.settings.member_log_channel_id)}",
@@ -271,26 +285,25 @@ class SettingsView(discord.ui.LayoutView):
                 )
                 self.member_log_channel.callback = self.save_member_log_channel
                 panel.add_item(discord.ui.ActionRow(self.member_log_channel))
+            space()
             clear_members = self.button("Clear channel", self.clear_member_log_channel)
             clear_members.disabled = self.settings.member_log_channel_id is None
             row("**MEMBER LOG DELIVERY**\n-# Clear to disable member & invite logs.", clear_members)
+            space()
             panel.add_item(
                 discord.ui.TextDisplay(
                     "**TRACKED EVENTS**\n"
-                    "-# ✧ Message edits & deletions\n"
-                    "-# ✧ Role changes, bans & unbans\n"
-                    "-# **Members & invites channel**\n"
                     "-# ✧ Member joins & departures\n"
                     "-# ✧ Who invited each member, shown on join & leave cards"
                 )
             )
-            panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
+            separator()
             panel.add_item(
                 discord.ui.TextDisplay(
-                    "**BEFORE YOU START**\n"
-                    "-# ✧ Manage Server → match invite uses to new members\n"
-                    "-# ✧ Manage Channels → track invite changes behind the scenes\n"
-                    "-# ✧ Message Content Intent → include message text\n"
+                    "**REQUIRED KY BOT PERMISSIONS**\n"
+                    "-# ✧ **Manage Server** → match invite uses to new members\n"
+                    "-# ✧ **Manage Channels** → track invite changes behind the scenes\n"
+                    "-# ✧ **Message Content Intent** → include message text\n"
                     "-# Some invites cannot be matched; older uncached text may be unavailable."
                 )
             )
