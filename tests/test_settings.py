@@ -287,7 +287,13 @@ async def test_overview_uses_buttons_and_channel_picker_is_on_demand():
     panel = view.children[0]
     assert isinstance(panel.children[0], discord.ui.MediaGallery)
     sections = [item for item in panel.children if isinstance(item, discord.ui.Section)]
-    assert len(sections) == 3
+    assert len(sections) == 4
+    assert [section.children[0].content.split("\n")[0] for section in sections] == [
+        "**WELCOME EXPERIENCE**",
+        "**GENERAL SETTINGS**",
+        "**SERVER ACTIVITY**",
+        "**EMBED DESIGN**",
+    ]
     assert all(isinstance(section.accessory, discord.ui.Button) for section in sections)
     assert not any(isinstance(item, discord.ui.ChannelSelect) for item in view.walk_children())
     assert view.to_components()[0]["type"] == 17
@@ -297,6 +303,99 @@ async def test_overview_uses_buttons_and_channel_picker_is_on_demand():
     assert not any(isinstance(item, discord.ui.ChannelSelect) for item in view.walk_children())
     view.show_section("welcome", picker=True)
     assert view.welcome_channel in list(view.walk_children())
+    view.stop()
+
+
+async def test_general_settings_navigation_retains_command_center_layout():
+    async with open_settings(Path(":memory:")) as repo:
+        view = SettingsView(1, 2, SettingsService(repo))
+        interaction = request()
+        general = next(
+            c
+            for c in view.walk_children()
+            if isinstance(c, discord.ui.Section)
+            and c.children[0].content.startswith("**GENERAL SETTINGS**")
+        )
+        await general.accessory.callback(interaction)
+        current = interaction.edit_original_response.call_args.kwargs["view"]
+        assert current.section == "general"
+        assert current.total_children_count <= 40
+        sections = [c for c in current.walk_children() if isinstance(c, discord.ui.Section)]
+        assert [c.children[0].content.split("\n")[0] for c in sections] == [
+            "**AUTODELETE**",
+            "**AUTOTHREAD**",
+            "**AUTOREACT**",
+        ]
+        back = next(
+            c
+            for c in current.walk_children()
+            if isinstance(c, discord.ui.Button) and c.label == "Back"
+        )
+        await back.callback(interaction)
+        assert interaction.edit_original_response.call_args.kwargs["view"].section == "overview"
+
+
+@pytest.mark.parametrize("cog_name", ["AutoDelete", "AutoThread", "AutoReact"])
+async def test_general_settings_opens_existing_private_menus(cog_name):
+    from ky_bot.admin_functions.autodelete.command import AutoDelete
+    from ky_bot.admin_functions.autoreact.command import AutoReact
+    from ky_bot.admin_functions.autothread.command import AutoThread
+
+    async with open_settings(Path(":memory:")) as repo:
+        service = SettingsService(repo)
+        bot = SimpleNamespace(server_settings=service)
+        classes = {"AutoDelete": AutoDelete, "AutoThread": AutoThread, "AutoReact": AutoReact}
+        # Use the real entry point and SQLite repository without starting workers or a bot login.
+        from ky_bot.admin_functions.autodelete.autodelete_store import RuleStore as DeleteStore
+        from ky_bot.admin_functions.autoreact.store import Store as ReactStore
+        from ky_bot.admin_functions.autothread.store import RuleStore as ThreadStore
+
+        stores = {"AutoDelete": DeleteStore, "AutoThread": ThreadStore, "AutoReact": ReactStore}
+        store = stores[cog_name](":memory:")
+        cog = classes[cog_name].__new__(classes[cog_name])
+        cog.bot, cog.store = bot, store
+        bot.get_cog = Mock(return_value=cog)
+        interaction = request()
+        interaction.client, interaction.channel, interaction.channel_id = bot, None, 10
+        view = SettingsView(1, 2, service)
+        view.show_section("general")
+        sections = [c for c in view.walk_children() if isinstance(c, discord.ui.Section)]
+        await sections[
+            ["AutoDelete", "AutoThread", "AutoReact"].index(cog_name)
+        ].accessory.callback(interaction)
+        bot.get_cog.assert_called_once_with(cog_name)
+        interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+        kwargs = interaction.edit_original_response.call_args.kwargs
+        assert kwargs["view"].session.cog is cog
+        assert kwargs["view"].session.owner == 1
+        assert kwargs["view"].total_children_count <= 40
+        assert len(kwargs["attachments"]) == 3
+        assert view.section == "general" and not view.is_finished()
+        assert store.list(2) == []
+        kwargs["view"].stop()
+        view.stop()
+        store.db.close()
+
+
+@pytest.mark.parametrize("admin,user,guild_id", [(False, 1, 2), (True, 9, 2), (True, 1, 9)])
+async def test_automation_navigation_rechecks_settings_access(admin, user, guild_id):
+    interaction = request(admin=admin, user=user, guild_id=guild_id)
+    interaction.client = SimpleNamespace(get_cog=Mock())
+    view = SettingsView(1, 2, Mock())
+    await view.automation_navigation("AutoReact").callback(interaction)
+    interaction.client.get_cog.assert_not_called()
+    interaction.response.send_message.assert_awaited_once()
+    view.stop()
+
+
+async def test_missing_automation_menu_has_private_error():
+    interaction = request()
+    interaction.client = SimpleNamespace(get_cog=Mock(return_value=None))
+    view = SettingsView(1, 2, Mock())
+    await view.automation_navigation("AutoDelete").callback(interaction)
+    interaction.response.send_message.assert_awaited_once()
+    assert interaction.response.send_message.call_args.kwargs["ephemeral"]
+    interaction.edit_original_response.assert_not_awaited()
     view.stop()
 
 
@@ -345,7 +444,7 @@ async def test_submenu_title_changes_keep_header_footer_and_caps_sections():
 
         interaction.edit_original_response.side_effect = accept_update
         view.message = SimpleNamespace(attachments=[])
-        for page in ("welcome", "logging", "welcome_design", "overview"):
+        for page in ("welcome", "general", "logging", "welcome_design", "overview"):
             view.show_section(page)
             await view.refresh(interaction)
             view = interaction.edit_original_response.call_args.kwargs["view"]

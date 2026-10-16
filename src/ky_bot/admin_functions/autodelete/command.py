@@ -706,6 +706,9 @@ class AutoDelete(commands.Cog):
     @app_commands.default_permissions(manage_guild=True)
     @app_commands.checks.has_permissions(manage_guild=True)
     async def autodelete(self, interaction):
+        await self.open_menu(interaction)
+
+    async def open_menu(self, interaction):
         await interaction.response.defer(ephemeral=True, thinking=True)
         await Session(self, interaction).show(interaction)
 

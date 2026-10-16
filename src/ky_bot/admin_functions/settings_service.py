@@ -9,6 +9,7 @@ from ky_bot.admin_functions.settings_repository import SettingsRepository
 
 SETTINGS_TITLES = {
     "overview": ("SERVER SETTINGS", "ky_settings_title.png"),
+    "general": ("GENERAL SETTINGS", "ky_settings_general_title.png"),
     "welcome": ("WELCOME SETTINGS", "ky_settings_welcome_title.png"),
     "logging": ("SERVER ACTIVITY", "ky_settings_logging_title.png"),
     "welcome_design": ("WELCOME IMAGE DESIGN", "ky_settings_design_title.png"),

@@ -81,6 +81,21 @@ class SettingsView(discord.ui.LayoutView):
 
         return self.button(label, callback)
 
+    def automation_navigation(self, cog_name: str) -> discord.ui.Button:
+        async def callback(interaction: discord.Interaction) -> None:
+            if not await self.interaction_check(interaction):
+                return
+            cog = interaction.client.get_cog(cog_name)
+            if cog is None:
+                await send_private(
+                    interaction, "This menu is unavailable right now. Please try again later."
+                )
+                return
+            # Each entry point creates its own ephemeral response. Leave this directory open.
+            await cog.open_menu(interaction)
+
+        return self.button("Manage", callback)
+
     def show_section(
         self, section: str, *, picker: bool = False, notice: str | None = None
     ) -> None:
@@ -126,6 +141,11 @@ class SettingsView(discord.ui.LayoutView):
             )
             separator()
             row(
+                "**GENERAL SETTINGS**\n-# Channel cleanup, threads and emoji reactions.",
+                self.navigation("Manage", "general"),
+            )
+            separator()
+            row(
                 "**SERVER ACTIVITY**\n-# Moderation logs · "
                 + ("Enabled" if self.settings.log_channel_id else "Disabled"),
                 self.navigation("Manage", "logging"),
@@ -135,6 +155,25 @@ class SettingsView(discord.ui.LayoutView):
                 "**EMBED DESIGN**\n-# Customize menus together, preview, then apply.",
                 self.button("Manage", self.open_embed_design),
             )
+        elif section == "general":
+            for index, (title, description, cog_name) in enumerate(
+                (
+                    (
+                        "AUTODELETE",
+                        "Timed channel cleanup rules and optional activity logs.",
+                        "AutoDelete",
+                    ),
+                    (
+                        "AUTOTHREAD",
+                        "Create discussion threads automatically from new posts.",
+                        "AutoThread",
+                    ),
+                    ("AUTOREACT", "Add selected emoji reactions to matching posts.", "AutoReact"),
+                )
+            ):
+                if index:
+                    separator()
+                row(f"**{title}**\n-# {description}", self.automation_navigation(cog_name))
         elif section == "welcome":
             row(
                 f"**DESTINATION**\n-# {channel(self.settings.welcome_channel_id)}",

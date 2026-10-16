@@ -20,6 +20,7 @@ from ky_bot.views.private_style import private_heading
 
 TARGETS = {
     "settings:overview": "Server settings",
+    "settings:general": "General settings",
     "settings:welcome": "Welcome settings",
     "settings:logging": "Server activity",
     "autothread": "AutoThread",
