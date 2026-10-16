@@ -29,3 +29,22 @@ def test_missing_private_font_has_clear_error(tmp_path, monkeypatch):
     monkeypatch.setenv("KY_BOT_FONT_DIR", str(tmp_path))
     with pytest.raises(TypographyError, match="VONCA Light"):
         text_mask(TAGLINE)
+
+
+def test_ornament_rotates_without_rotating_title(monkeypatch):
+    from PIL import Image
+
+    import ky_bot.design.typography as typography
+
+    lettering = Image.new("L", (3, 4), 80)
+    lettering.putpixel((0, 0), 255)
+    monkeypatch.setattr(typography, "text_mask", lambda *args, **kwargs: lettering)
+    divider = Image.new("L", (4, 4))
+    divider.putpixel((0, 0), 255)
+    result = typography.divided_title_mask(
+        "LEFT 𖥸 RIGHT", divider, size=10, min_size=10, max_width=100
+    )
+    gap = round(10 * 0.35)
+    assert result.crop((0, 0, 3, 4)).tobytes() == lettering.tobytes()
+    ornament = result.crop((3 + gap, 0, 7 + gap, 4))
+    assert ornament.tobytes() == divider.transpose(Image.Transpose.ROTATE_180).tobytes()

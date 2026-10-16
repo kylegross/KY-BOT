@@ -91,8 +91,8 @@ class SettingsView(discord.ui.LayoutView):
                     interaction, "This menu is unavailable right now. Please try again later."
                 )
                 return
-            # Each entry point creates its own ephemeral response. Leave this directory open.
-            await cog.open_menu(interaction)
+            await cog.open_menu(interaction, command_center=self)
+            self.stop()
 
         return self.button("Manage", callback)
 
@@ -103,7 +103,7 @@ class SettingsView(discord.ui.LayoutView):
         self.clear_items()
         from ky_bot.design.collection import COLOURS
 
-        colour = int(COLOURS[self.design["style"]][1:], 16) if self.design else 0xC9DDF0
+        colour = int(COLOURS[self.design["style"]][1:], 16) if self.design else 0xD6E2F3
         panel = discord.ui.Container(accent_colour=colour)
         panel.add_item(
             discord.ui.MediaGallery(

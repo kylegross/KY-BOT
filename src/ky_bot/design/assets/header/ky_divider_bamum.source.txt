@@ -1,0 +1,5 @@
+ky_divider_bamum.png is a rendered mask of U+16978 (𖥸), from Noto Sans Bamum
+Regular at 512 pixels. Runtime composition rotates this mask 180 degrees.
+Font source: https://notofonts.github.io/bamum/fonts/NotoSansBamum/hinted/ttf/NotoSansBamum-Regular.ttf
+License: SIL Open Font License 1.1, https://github.com/notofonts/bamum/blob/main/OFL.txt
+Only rendered artwork is distributed here, not the font software.

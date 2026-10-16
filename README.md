@@ -445,7 +445,7 @@ Discord native modal input forms keep their plain titles.
 
 ## AutoThread
 
-`/autothread` opens a private server-admin menu with compact dark silver artwork,
+`/autothread` opens a private server-admin menu with compact multicolor silver Command Center artwork,
 inline action buttons and decorated hidden context titles. No channel is enrolled
 on installation, startup, menu open, or preview. Configure a destination, choose
 content and settings, then Preview & Save -> Save to enable future-post handling.
@@ -482,7 +482,7 @@ src/ky_bot/admin_functions/autothread/. Do not repeat the earlier data migration
 
 ## AutoReact
 
-`/autoreact` opens a private Manage Server menu with dark silver artwork and inline controls. Choose channels, configure up to 20 ordered emojis, select content triggers and optional bot/webhook/thread-reply filters, then review and save. Opening the menu activates nothing. Existing paused rules stay paused on save. Rules can be paused, resumed or removed; removing a rule leaves existing reactions intact. The bot needs View Channel, Read Message History and Add Reactions in each destination. Only new messages are processed; delayed media embeds can qualify within five minutes. Delivery checkpoints and bounded retries survive restarts.
+`/autoreact` opens a private Manage Server Command Center menu with multicolor silver artwork and inline controls. Choose channels, configure up to 20 ordered emojis, select content triggers and optional bot/webhook/thread-reply filters, then review and save. Opening the menu activates nothing. Existing paused rules stay paused on save. Rules can be paused, resumed or removed; removing a rule leaves existing reactions intact. The bot needs View Channel, Read Message History and Add Reactions in each destination. Only new messages are processed; delayed media embeds can qualify within five minutes. Delivery checkpoints and bounded retries survive restarts.
 
 AutoReact uses the shared DATABASE_URL when configured, with isolated autoreact tables created automatically. Otherwise it uses ky-autoreact.sqlite3 beside the settings database. No migration rerun is needed for these new tables. The bundled Unicode emoji catalog and license are packaged with the bot.
 
@@ -494,8 +494,10 @@ Saved designs persist in SQLite or the shared PostgreSQL database. Existing chec
 
 ## AutoDelete
 
-`/autodelete` opens the approved compact dark silver menu with inline controls. Choose destinations, configure message/media/thread content and bot-media overrides, choose an age from one minute to one year, then review and save. Saved rules can be edited, paused, resumed or removed. The separate one-time cleanup supports Within the past or Older than age windows, scan limits and explicit confirmation. Opening the command activates nothing. AutoDelete requires Manage Server, with View Channel, Read Message History, Manage Messages and/or Manage Threads checked for each operation. Original start boundaries protect earlier channel history.
+`/autodelete` opens the compact multicolor silver Command Center menu with inline controls. Choose destinations, configure message/media/thread content and bot-media overrides, choose an age from one minute to one year, then review and save. Saved rules can be edited, paused, resumed or removed. The separate one-time cleanup supports Within the past or Older than age windows, scan limits and explicit confirmation. Opening the command activates nothing. AutoDelete requires Manage Server, with View Channel, Read Message History, Manage Messages and/or Manage Threads checked for each operation. Original start boundaries protect earlier channel history.
 
 Activity Logs is opt-in for enabled AutoDelete sources, with a separate destination and selectable event types. It retains no image/video contents or URLs, groups linked replies and member activity, and expires its own log messages after 15 days. No VICE guild IDs or roles are seeded. Database storage uses shared PostgreSQL when DATABASE_URL is set, otherwise ky-autodelete.sqlite3. Global command sync must run after deploying this new extension; a deployment with COMMAND_SYNC=none will not register the command. Header/footer styles are edited solely in /settings > Embed Design.
 
-General Settings in the /settings Command Center opens a directory for AutoDelete, AutoThread and AutoReact. Each inline Manage button opens the existing private automation menu, keeping the directory available behind it. The General Settings panel uses the Command Center artwork and can be customized under Embed Design.
+General Settings in the /settings Command Center opens a directory for AutoDelete, AutoThread and AutoReact. Each inline Manage button navigates within the same Command Center panel. Back returns to General Settings; Close exits the Command Center. The General Settings panel uses the Command Center artwork and can be customized under Embed Design.
+
+Automation headers use GENERAL SETTINGS | AUTODELETE, GENERAL SETTINGS | AUTOTHREAD, and GENERAL SETTINGS | AUTOREACT. They inherit the General Settings artwork and use the multicolor silver finish by default. Per-menu customizations remain available in Embed Design under settings-scoped profiles; existing custom images and dimensions are retained. Slash commands remain shortcuts to the same styled controls.

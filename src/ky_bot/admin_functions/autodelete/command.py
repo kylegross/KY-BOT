@@ -7,7 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ky_bot.checklists.board import safe
-from ky_bot.design.menu_design import default_profile, menu_files, profile_for
+from ky_bot.design.menu_design import automation_files, automation_profile, default_profile
 from ky_bot.errors import report_error
 from ky_bot.views.private_style import private_heading
 
@@ -17,10 +17,9 @@ from .autodelete_store import LABELS, PRESETS, RuleStore, normalize
 
 
 def artwork(design=None):
-    return menu_files(
-        design or default_profile("autodelete"),
-        "AUTODELETE",
-        "CHANNEL AUTOMATION",
+    return automation_files(
+        "autodelete",
+        design,
         ("autodelete_header.png", "autodelete_footer.png", "autodelete_title.png"),
     )
 
@@ -37,6 +36,7 @@ class Session:
         self.log_title = "CHANNEL ACTIVITY LOG"
         self.design, self.generation, self.page = None, 0, 0
         self.lock = asyncio.Lock()
+        self.command_center = None
 
     async def allowed(self, i, generation):
         p = i.user.guild_permissions
@@ -45,6 +45,7 @@ class Session:
             and i.guild_id == self.guild.id
             and (p.manage_guild or p.administrator)
             and generation == self.generation
+            and (self.command_center is None or i.permissions.administrator)
         ):
             return True
         await i.response.send_message(
@@ -67,7 +68,7 @@ class Session:
 
     async def show(self, i, page="main"):
         _, profiles = await self.cog.bot.server_settings.repository.get_designs(self.guild.id)
-        self.design = profile_for(profiles, "autodelete")
+        self.design = automation_profile(profiles, "autodelete")
         self.generation += 1
         view = Menu(self, page)
         uploads = (
@@ -607,6 +608,11 @@ class Menu(discord.ui.LayoutView):
             )
 
         async def back(i):
+            if page == "main" and s.command_center is not None:
+                s.command_center.section = "general"
+                await s.command_center.refresh(i)
+                s.generation += 1
+                return
             await s.show(
                 i,
                 "main"
@@ -625,11 +631,21 @@ class Menu(discord.ui.LayoutView):
             await i.edit_original_response(
                 content=None,
                 attachments=[],
-                view=InlineView().add_item(discord.ui.TextDisplay("AutoDelete menu closed.")),
+                view=InlineView().add_item(
+                    discord.ui.TextDisplay(
+                        "Command Center closed. Use /settings to reopen."
+                        if s.command_center is not None
+                        else "AutoDelete menu closed."
+                    )
+                ),
             )
 
         navigation = []
-        actions = (("Close", cancel),) if page == "main" else (("Back", back), ("Close", cancel))
+        actions = (
+            (("Close", cancel),)
+            if page == "main" and s.command_center is None
+            else (("Back", back), ("Close", cancel))
+        )
         for label, action in actions:
             button = discord.ui.Button(label=label)
 
@@ -708,9 +724,11 @@ class AutoDelete(commands.Cog):
     async def autodelete(self, interaction):
         await self.open_menu(interaction)
 
-    async def open_menu(self, interaction):
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        await Session(self, interaction).show(interaction)
+    async def open_menu(self, interaction, *, command_center=None):
+        await interaction.response.defer(ephemeral=True, thinking=command_center is None)
+        session = Session(self, interaction)
+        session.command_center = command_center
+        await session.show(interaction)
 
 
 async def setup(bot):

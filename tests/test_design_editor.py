@@ -63,9 +63,9 @@ async def test_draft_preview_disabled_and_apply_only_on_approval(session):
             "settings:general",
             "settings:welcome",
             "settings:logging",
-            "autoreact",
-            "autodelete",
-            "autothread",
+            "settings:autoreact",
+            "settings:autodelete",
+            "settings:autothread",
             "checklist",
         ]
     )
@@ -104,7 +104,7 @@ async def test_welcome_image_preview_and_draft_cancel(session):
     assert i.edit_original_response.call_args.kwargs["view"].total_children_count <= 40
     assert await s.service.repository.get_designs(1) == (None, {})
     with pytest.raises(ValueError):
-        await s.select(["welcome_image", "autoreact"])
+        await s.select(["welcome_image", "settings:autoreact"])
 
 
 async def test_existing_checklist_draft_retains_custom_title(session):
@@ -135,8 +135,55 @@ async def test_editor_owner_permissions_and_expired_generation(session):
 
 
 def test_render_menu_keeps_exact_header_height_and_matching_finish():
-    profile = default_profile("autoreact")
+    profile = default_profile("settings:autoreact")
     profile.update(style="gold", height=400, footer_text="FINISHED")
     header, footer = render_menu(profile, "AUTOREACT")
     assert Image.open(io.BytesIO(header)).size == (1600, 400)
     assert Image.open(io.BytesIO(footer)).size == (1600, 150)
+
+
+def test_command_center_automation_profiles_inherit_general_design_and_upgrade_legacy():
+    from ky_bot.design.menu_design import AUTOMATION_KEYS, automation_profile
+
+    for key in AUTOMATION_KEYS:
+        assert default_profile(key)["style"] == "silver_neon"
+        profile = automation_profile(
+            {
+                key: dict(style="dark_silver", height=400, footer_text="Hello"),
+            },
+            key,
+        )
+        assert profile["style"] == "silver_neon" and profile["height"] == 400
+        assert profile["footer_text"] == "Hello"
+        profile = automation_profile(
+            {
+                "settings:general": dict(style="gold", footer_text="Team", title="GENERAL"),
+            },
+            key,
+        )
+        assert profile["style"] == "gold" and profile["footer_text"] == "Team"
+        assert profile["title"] is None
+        profile = automation_profile(
+            {
+                key: dict(style="dark_silver", height=400),
+                "settings:general": dict(style="silver_neon", height=320),
+            },
+            key,
+        )
+        assert profile["height"] == 320
+        profile = automation_profile({"settings:" + key: dict(style="dark_silver")}, key)
+        assert profile["style"] == "dark_silver"
+
+
+@pytest.mark.parametrize("key", ["autothread", "autoreact", "autodelete"])
+def test_automation_header_has_command_center_context(key, monkeypatch):
+    import ky_bot.design.menu_design as design
+
+    calls = []
+    monkeypatch.setattr(design, "menu_files", lambda *args: calls.append(args))
+    design.automation_files(key, None, ("header.png", "footer.png", "title.png"))
+    profile, title, heading, names = calls[0]
+    assert profile["style"] == "silver_neon"
+    assert title == profile["title"] == "GENERAL SETTINGS 𖥸 " + key.upper()
+    assert profile["_rotated_divider"] is True
+    assert heading == key.upper() + " SETTINGS"

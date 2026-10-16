@@ -29,12 +29,11 @@ from ky_bot.views.private_style import private_heading
 
 def artwork(design=None):
     # dark_silver_icon.png is an overlay, never a complete footer banner.
-    from ky_bot.design.menu_design import default_profile, menu_files
+    from ky_bot.design.menu_design import automation_files
 
-    return menu_files(
-        design or default_profile("autothread"),
-        "AUTOTHREAD",
-        "CHANNEL AUTOMATION",
+    return automation_files(
+        "autothread",
+        design,
         ("ky_header_autothread.png", "dark_silver_icon.png", "ky_autothread_title.png"),
     )
 
@@ -50,6 +49,7 @@ class Session:
         self.generation = 0
         self.lock = asyncio.Lock()
         self.design = None
+        self.command_center = None
 
     async def allowed(self, interaction, generation):
         p = interaction.user.guild_permissions
@@ -58,6 +58,7 @@ class Session:
             and interaction.user.id == self.owner
             and (p.administrator or p.manage_guild)
             and generation == self.generation
+            and (self.command_center is None or interaction.permissions.administrator)
         ):
             return True
         await interaction.response.send_message(
@@ -67,9 +68,9 @@ class Session:
 
     async def show(self, interaction, page="main", rules_page=0):
         _, profiles = await self.cog.bot.server_settings.repository.get_designs(self.guild.id)
-        from ky_bot.design.menu_design import profile_for
+        from ky_bot.design.menu_design import automation_profile
 
-        self.design = profile_for(profiles, "autothread") if "autothread" in profiles else None
+        self.design = automation_profile(profiles, "autothread")
         self.generation += 1
         view = Menu(self, page, rules_page)
         uploads = (
@@ -135,7 +136,7 @@ class Menu(discord.ui.LayoutView):
         self.session, self.page, self.generation = session, page, session.generation
         from ky_bot.design.collection import COLOURS
 
-        colour = int(COLOURS[session.design["style"]][1:], 16) if session.design else 0xBDC3CA
+        colour = int(COLOURS[session.design["style"]][1:], 16) if session.design else 0xD6E2F3
         panel = discord.ui.Container(accent_colour=colour)
         main = page in ("main", "configure", "rules", "all")
         if main:
@@ -483,6 +484,11 @@ class Menu(discord.ui.LayoutView):
 
         async def go_back(interaction):
             await interaction.response.defer()
+            if page == "main" and session.command_center is not None:
+                session.command_center.section = "general"
+                await session.command_center.refresh(interaction)
+                session.generation += 1
+                return
             await session.show(
                 interaction,
                 "main" if page in ("main", "configure", "rules", "all") else "configure",
@@ -495,17 +501,26 @@ class Menu(discord.ui.LayoutView):
             await interaction.response.defer()
             session.draft, session.original = defaults(), None
             if page == "main":
+                session.generation += 1
                 await interaction.edit_original_response(
                     content=None,
                     attachments=[],
-                    view=InlineView().add_item(discord.ui.TextDisplay("AutoThread menu closed.")),
+                    view=InlineView().add_item(
+                        discord.ui.TextDisplay(
+                            "Command Center closed. Use /settings to reopen."
+                            if session.command_center is not None
+                            else "AutoThread menu closed."
+                        )
+                    ),
                 )
             else:
                 await session.show(interaction)
 
         close.callback = cancel
         panel.add_item(
-            discord.ui.ActionRow(close) if page == "main" else discord.ui.ActionRow(back, close)
+            discord.ui.ActionRow(close)
+            if page == "main" and session.command_center is None
+            else discord.ui.ActionRow(back, close)
         )
         self.add_item(panel)
 
@@ -560,19 +575,11 @@ class AutoThread(commands.Cog):
     async def autothread(self, interaction):
         await self.open_menu(interaction)
 
-    async def open_menu(self, interaction):
-        await interaction.response.defer(ephemeral=True, thinking=True)
+    async def open_menu(self, interaction, *, command_center=None):
+        await interaction.response.defer(ephemeral=True, thinking=command_center is None)
         session = Session(self, interaction)
-        _, profiles = await self.bot.server_settings.repository.get_designs(interaction.guild_id)
-        from ky_bot.design.menu_design import profile_for
-
-        session.design = profile_for(profiles, "autothread") if "autothread" in profiles else None
-        uploads = await asyncio.to_thread(artwork, session.design)
-        try:
-            await interaction.edit_original_response(view=Menu(session), attachments=uploads)
-        finally:
-            for upload in uploads:
-                upload.close()
+        session.command_center = command_center
+        await session.show(interaction)
 
 
 async def setup(bot):

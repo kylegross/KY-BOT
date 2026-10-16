@@ -9,7 +9,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ky_bot.admin_functions.autothread.command import artwork as thread_artwork
 from ky_bot.checklists.board import safe
 from ky_bot.checklists.inline import InlineView
 from ky_bot.errors import report_error
@@ -24,22 +23,13 @@ CATALOG = json.loads(files(__package__).joinpath("emoji_catalog.json").read_text
 
 
 def artwork(design=None):
-    if design is not None:
-        from ky_bot.design.menu_design import menu_files
+    from ky_bot.design.menu_design import automation_files
 
-        return menu_files(
-            design,
-            "AUTOREACT",
-            "CHANNEL AUTOMATION",
-            ("ky_header_autoreact.png", "dark_silver_icon.png", "ky_autothread_title.png"),
-        )
-    uploads = thread_artwork()
-    uploads[0].close()
-    uploads[0] = discord.File(
-        files("ky_bot.design").joinpath("assets/header/ky_header_autoreact.png").open("rb"),
-        filename="ky_header_autoreact.png",
+    return automation_files(
+        "autoreact",
+        design,
+        ("ky_header_autoreact.png", "dark_silver_icon.png", "ky_autothread_title.png"),
     )
-    return uploads
 
 
 class Session:
@@ -53,6 +43,7 @@ class Session:
         self.emoji_index = 0
         self.lock = asyncio.Lock()
         self.design = None
+        self.command_center = None
 
     async def allowed(self, interaction, generation):
         p = interaction.user.guild_permissions
@@ -61,6 +52,7 @@ class Session:
             and interaction.user.id == self.owner
             and (p.manage_guild or p.administrator)
             and generation == self.generation
+            and (self.command_center is None or interaction.permissions.administrator)
         ):
             return True
         await interaction.response.send_message(
@@ -97,9 +89,9 @@ class Session:
 
     async def show(self, interaction, page="main"):
         _, profiles = await self.cog.bot.server_settings.repository.get_designs(self.guild.id)
-        from ky_bot.design.menu_design import profile_for
+        from ky_bot.design.menu_design import automation_profile
 
-        self.design = profile_for(profiles, "autoreact") if "autoreact" in profiles else None
+        self.design = automation_profile(profiles, "autoreact")
         self.generation += 1
         view = Menu(self, page)
         uploads = (
@@ -158,7 +150,7 @@ class Menu(discord.ui.LayoutView):
         self.session, self.generation = s, s.generation
         from ky_bot.design.collection import COLOURS
 
-        colour = int(COLOURS[s.design["style"]][1:], 16) if s.design else 0xBDC3CA
+        colour = int(COLOURS[s.design["style"]][1:], 16) if s.design else 0xD6E2F3
         panel = discord.ui.Container(accent_colour=colour)
         main = page in ("main", "configure", "rules", "all")
         if main:
@@ -538,6 +530,11 @@ class Menu(discord.ui.LayoutView):
 
         async def go_back(i):
             await i.response.defer()
+            if page == "main" and s.command_center is not None:
+                s.command_center.section = "general"
+                await s.command_center.refresh(i)
+                s.generation += 1
+                return
             await s.show(
                 i,
                 "main"
@@ -558,14 +555,22 @@ class Menu(discord.ui.LayoutView):
                 await i.edit_original_response(
                     content=None,
                     attachments=[],
-                    view=InlineView().add_item(discord.ui.TextDisplay("AutoReact menu closed.")),
+                    view=InlineView().add_item(
+                        discord.ui.TextDisplay(
+                            "Command Center closed. Use /settings to reopen."
+                            if s.command_center is not None
+                            else "AutoReact menu closed."
+                        )
+                    ),
                 )
             else:
                 await s.show(i)
 
         close.callback = cancel
         panel.add_item(
-            discord.ui.ActionRow(close) if page == "main" else discord.ui.ActionRow(back, close)
+            discord.ui.ActionRow(close)
+            if page == "main" and s.command_center is None
+            else discord.ui.ActionRow(back, close)
         )
         self.add_item(panel)
 
@@ -619,19 +624,11 @@ class AutoReact(commands.Cog):
     async def autoreact(self, interaction):
         await self.open_menu(interaction)
 
-    async def open_menu(self, interaction):
-        await interaction.response.defer(ephemeral=True, thinking=True)
+    async def open_menu(self, interaction, *, command_center=None):
+        await interaction.response.defer(ephemeral=True, thinking=command_center is None)
         session = Session(self, interaction)
-        _, profiles = await self.bot.server_settings.repository.get_designs(interaction.guild_id)
-        from ky_bot.design.menu_design import profile_for
-
-        session.design = profile_for(profiles, "autoreact") if "autoreact" in profiles else None
-        uploads = await asyncio.to_thread(artwork, session.design)
-        try:
-            await interaction.edit_original_response(view=Menu(session), attachments=uploads)
-        finally:
-            for upload in uploads:
-                upload.close()
+        session.command_center = command_center
+        await session.show(interaction)
 
 
 async def setup(bot):

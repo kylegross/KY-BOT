@@ -8,7 +8,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
 from ky_bot.design.collection import COLOURS
 from ky_bot.design.footers import FooterError, read_upload, rectangular_frame
-from ky_bot.design.typography import TypographyError, text_mask
+from ky_bot.design.typography import TypographyError, divided_title_mask, text_mask
 
 SIZE = (1600, 520)
 STYLES = ("gold", "silver_neon", "dark_silver")
@@ -55,6 +55,7 @@ def render_header(
     title: str | None = None,
     font_path: Path | None = None,
     height: int = SIZE[1],
+    rotated_divider: bool = False,
 ) -> bytes:
     if not isinstance(height, int) or isinstance(height, bool) or not 240 <= height <= 800:
         raise FooterError("Header height must be between 240 and 800 pixels.")
@@ -74,9 +75,14 @@ def render_header(
     image.alpha_composite(overlay(style, framed=framed, height=height))
     if title is not None:
         try:
-            mask = text_mask(
+            renderer = text_mask
+            options = {"role": "display"}
+            if rotated_divider:
+                renderer = divided_title_mask
+                options = {"divider": asset("ky_divider_bamum.png").getchannel("A")}
+            mask = renderer(
                 title,
-                role="display",
+                **options,
                 font_path=font_path,
                 size=min(108, round(height * 108 / 520)),
                 min_size=40,

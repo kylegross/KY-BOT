@@ -336,7 +336,7 @@ async def test_general_settings_navigation_retains_command_center_layout():
 
 
 @pytest.mark.parametrize("cog_name", ["AutoDelete", "AutoThread", "AutoReact"])
-async def test_general_settings_opens_existing_private_menus(cog_name):
+async def test_general_settings_opens_same_panel_and_returns_to_directory(cog_name):
     from ky_bot.admin_functions.autodelete.command import AutoDelete
     from ky_bot.admin_functions.autoreact.command import AutoReact
     from ky_bot.admin_functions.autothread.command import AutoThread
@@ -356,6 +356,7 @@ async def test_general_settings_opens_existing_private_menus(cog_name):
         cog.bot, cog.store = bot, store
         bot.get_cog = Mock(return_value=cog)
         interaction = request()
+        interaction.user.guild_permissions = discord.Permissions.all()
         interaction.client, interaction.channel, interaction.channel_id = bot, None, 10
         view = SettingsView(1, 2, service)
         view.show_section("general")
@@ -364,15 +365,47 @@ async def test_general_settings_opens_existing_private_menus(cog_name):
             ["AutoDelete", "AutoThread", "AutoReact"].index(cog_name)
         ].accessory.callback(interaction)
         bot.get_cog.assert_called_once_with(cog_name)
-        interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+        interaction.response.defer.assert_awaited_once_with(ephemeral=True, thinking=False)
         kwargs = interaction.edit_original_response.call_args.kwargs
         assert kwargs["view"].session.cog is cog
         assert kwargs["view"].session.owner == 1
         assert kwargs["view"].total_children_count <= 40
         assert len(kwargs["attachments"]) == 3
-        assert view.section == "general" and not view.is_finished()
+        assert view.section == "general" and view.is_finished()
+        menu = kwargs["view"]
+        assert menu.session.command_center is view
+        assert menu.session.design["style"] == "silver_neon"
         assert store.list(2) == []
-        kwargs["view"].stop()
+        interaction.permissions = discord.Permissions(administrator=False)
+        assert not await menu.interaction_check(interaction)
+        interaction.permissions = discord.Permissions(administrator=True)
+        back = next(
+            c
+            for c in menu.walk_children()
+            if isinstance(c, discord.ui.Button) and c.label == "Back"
+        )
+        generation = menu.session.generation
+        interaction.response.defer.reset_mock()
+        await back.callback(interaction)
+        interaction.response.defer.assert_awaited_once()
+        restored = interaction.edit_original_response.call_args.kwargs["view"]
+        assert isinstance(restored, SettingsView) and restored.section == "general"
+        assert menu.session.generation > generation
+        assert store.list(2) == []
+        shortcut = request()
+        shortcut.channel, shortcut.channel_id = None, 10
+        await cog.open_menu(shortcut)
+        shortcut.response.defer.assert_awaited_once_with(ephemeral=True, thinking=True)
+        shortcut_view = shortcut.edit_original_response.call_args.kwargs["view"]
+        assert shortcut_view.session.command_center is None
+        assert shortcut_view.session.design["style"] == "silver_neon"
+        assert not any(
+            isinstance(c, discord.ui.Button) and c.label == "Back"
+            for c in shortcut_view.walk_children()
+        )
+        shortcut_view.stop()
+        menu.stop()
+        restored.stop()
         view.stop()
         store.db.close()
 

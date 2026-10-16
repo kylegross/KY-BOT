@@ -45,6 +45,30 @@ def font_file(role: str) -> Path:
     raise TypographyError(f"Install the licensed VONCA {style} font for this graphic.")
 
 
+def divided_title_mask(text, divider, *, size, min_size, max_width, font_path=None):
+    """Set upright VONCA text around an independently rotated ornamental divider."""
+    left, right = text.split(" 𖥸 ", 1)
+    for pixels in range(size, min_size - 1, -1):
+        parts = [text_mask(part, role="display", font_path=font_path, size=pixels,
+                           min_size=pixels, max_width=10000) for part in (left, right)]
+        height = max(part.height for part in parts)
+        ornament = divider.convert("L").transpose(Image.Transpose.ROTATE_180)
+        ornament = ornament.resize(
+            (max(1, round(ornament.width * height / ornament.height)), height),
+            Image.Resampling.LANCZOS,
+        )
+        gap = round(pixels * 0.35)
+        width = sum(part.width for part in parts) + ornament.width + gap * 2
+        if width <= max_width:
+            result = Image.new("L", (width, height))
+            x = 0
+            for part in (parts[0], ornament, parts[1]):
+                result.paste(part, (x, (height - part.height) // 2))
+                x += part.width + gap
+            return result
+    raise TypographyError("That slogan is too wide. Please shorten it.")
+
+
 def text_mask(
     text: str,
     *,

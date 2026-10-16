@@ -13,6 +13,7 @@ from ky_bot.design.headers import render_header
 from ky_bot.design.typography import text_mask
 
 FINISHES = {"gold": "Gold", "dark_silver": "Dark silver", "silver_neon": "Multicolor silver"}
+AUTOMATION_KEYS = ("autodelete", "autothread", "autoreact")
 
 
 def default_profile(key):
@@ -20,7 +21,7 @@ def default_profile(key):
         style="gold"
         if key.startswith("checklist")
         else "silver_neon"
-        if key.startswith("settings") or key == "welcome_image"
+        if key.startswith("settings") or key == "welcome_image" or key in AUTOMATION_KEYS
         else "dark_silver",
         height=280,
         title=None,
@@ -41,6 +42,23 @@ def profile_for(profiles, key):
     return result
 
 
+def automation_profile(profiles, key):
+    """Command Center defaults, preserving artwork without reviving the old dark theme."""
+    result = default_profile("settings:" + key)
+    result["title"] = None
+    result.update({k: v for k, v in profiles.get(key, {}).items() if k != "style"})
+    result.update({k: v for k, v in profiles.get("settings:general", {}).items() if k != "title"})
+    result.update(profiles.get("settings:" + key, {}))
+    return result
+
+
+def automation_files(key, profile, names):
+    profile = dict(profile or automation_profile({}, key))
+    profile["title"] = "GENERAL SETTINGS 𖥸 " + (profile["title"] or key.upper())
+    profile["_rotated_divider"] = True
+    return menu_files(profile, profile["title"], key.upper() + " SETTINGS", names)
+
+
 def decode(value):
     return base64.b64decode(value) if value else None
 
@@ -59,6 +77,7 @@ def render_menu(profile, title):
         framed=profile["framed"],
         height=height,
         title=profile["title"] or title,
+        rotated_divider=profile.get("_rotated_divider", False),
     )
     size = (1600, 150)
     background = decode(profile["footer_background"])

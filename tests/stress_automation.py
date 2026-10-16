@@ -40,8 +40,8 @@ TARGETS = [
     "settings:overview",
     "settings:welcome",
     "settings:logging",
-    "autoreact",
-    "autothread",
+    "settings:autoreact",
+    "settings:autothread",
     "checklist",
 ]
 

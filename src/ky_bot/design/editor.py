@@ -9,7 +9,9 @@ import discord
 
 from ky_bot.checklists.board import BoardView, safe
 from ky_bot.design.menu_design import (
+    AUTOMATION_KEYS,
     FINISHES,
+    automation_profile,
     board_with_profile,
     default_profile,
     normalized_upload,
@@ -23,9 +25,9 @@ TARGETS = {
     "settings:general": "General settings",
     "settings:welcome": "Welcome settings",
     "settings:logging": "Server activity",
-    "autothread": "AutoThread",
-    "autoreact": "AutoReact",
-    "autodelete": "AutoDelete",
+    "settings:autothread": "AutoThread",
+    "settings:autoreact": "AutoReact",
+    "settings:autodelete": "AutoDelete",
     "checklist": "All checklists / default",
     "welcome_image": "Welcome image",
 }
@@ -78,7 +80,11 @@ class DesignSession:
         self.selected = list(values)
         for key in values:
             if key not in self.drafts:
-                profile = profile_for(self.profiles, key)
+                profile = (
+                    automation_profile(self.profiles, key.removeprefix("settings:"))
+                    if key.removeprefix("settings:") in AUTOMATION_KEYS
+                    else profile_for(self.profiles, key)
+                )
                 if key.startswith("checklist:") and key not in self.profiles:
                     board = self.bot.checklists.store.board(int(key.split(":")[1]))
                     if board and "checklist" not in self.profiles:
@@ -123,7 +129,7 @@ class DesignSession:
         self.preview_key = key
         profile = self.drafts[key]
         uploads = []
-        if key.startswith("settings:"):
+        if key.startswith("settings:") and key.removeprefix("settings:") not in AUTOMATION_KEYS:
             from ky_bot.admin_functions.settings_view import SettingsView, settings_files
 
             section = key.split(":")[1]
@@ -132,12 +138,13 @@ class DesignSession:
             sample.guild, sample.design = self.guild, profile
             sample.show_section(section)
             uploads = await asyncio.to_thread(settings_files, section, profile)
-        elif key in ("autoreact", "autothread", "autodelete"):
-            if key == "autoreact":
+        elif key.removeprefix("settings:") in AUTOMATION_KEYS:
+            automation = key.removeprefix("settings:")
+            if automation == "autoreact":
                 from ky_bot.admin_functions.autoreact.command import Menu, Session, artwork
 
                 cog = self.bot.get_cog("AutoReact")
-            elif key == "autothread":
+            elif automation == "autothread":
                 from ky_bot.admin_functions.autothread.command import Menu, Session, artwork
 
                 cog = self.bot.get_cog("AutoThread")
