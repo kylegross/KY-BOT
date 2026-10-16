@@ -117,7 +117,6 @@ src/ky_bot/
   views/           Reusable owner-checked menus and component error handling
   services/        Future domain logic (moderation, automation, games)
   database/        Async SQLite settings repository and schema migration
-tests/             Offline foundation tests
 ```
 
 Add one cog extension per feature, expose `async def setup(bot)`, and list its import path in
@@ -177,12 +176,11 @@ include the updated artwork and manifests. The old photographic collection has b
 ## Checks
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest
 .\.venv\Scripts\python.exe -m ruff check .
 .\.venv\Scripts\python.exe -m ruff format --check .
 ```
 
-Tests do not need a Discord token or a network connection. A live smoke test still requires
+A live smoke test requires
 your application token and installation in a test server. Check `/help`, each category, Close menu,
 timeout, `/ping`, restart with sync disabled, and confirm the token does not appear in logs.
 
@@ -328,7 +326,6 @@ are excluded to prevent logging its own messages. The bot never pings people thr
 - `src/ky_bot/design/`: installed design commands, renderers and runtime images.
 - `src/ky_bot/admin_functions/`: settings menus, validation, persistence, welcomes and event logs.
 - `src/ky_bot/cogs/` and `src/ky_bot/views/`: general help/ping commands and shared UI.
-- `tests/`: verification for all features.
 
 Private licensed fonts now live at `design/assets/branding/fonts/private/`; they remain
 excluded from Git. Railway's persistent `/data/fonts` installation is unchanged.
