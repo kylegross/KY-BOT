@@ -190,19 +190,15 @@ def overlay(
 def centered_overlay(
     style: str, size: tuple[int, int], *, framed: bool = False, icon_scale: int = 100
 ) -> Image.Image:
-    """Small fixed botanical icon for the new minimal footer template."""
-    from ky_bot.design.collection import COLOURS
-
+    """Center the approved finish-specific icon, preserving its metallic artwork."""
     if style not in STYLES or not 60 <= icon_scale <= 120:
         raise FooterError("Choose a finish and an icon size from 60 to 120 percent.")
     result = rectangular_frame(style, size) if framed else Image.new("RGBA", size)
     icon = asset(f"{style}_icon.png").convert("RGBA")
     icon = icon.crop(icon.getchannel("A").getbbox())
     limit = round(size[1] * 0.58 * icon_scale / 100)
-    mask = ImageOps.contain(icon.getchannel("A"), (limit, limit), Image.Resampling.LANCZOS)
-    tinted = Image.new("RGBA", mask.size, COLOURS[style])
-    tinted.putalpha(mask)
-    result.alpha_composite(tinted, ((size[0] - mask.width) // 2, (size[1] - mask.height) // 2))
+    icon = ImageOps.contain(icon, (limit, limit), Image.Resampling.LANCZOS)
+    result.alpha_composite(icon, ((size[0] - icon.width) // 2, (size[1] - icon.height) // 2))
     return result
 
 

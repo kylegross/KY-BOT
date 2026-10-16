@@ -1,6 +1,8 @@
 """Guild-scoped event logs; raw message events also cover uncached messages."""
 
+import asyncio
 import logging
+from importlib.resources import files
 from typing import TYPE_CHECKING
 
 import discord
@@ -10,6 +12,14 @@ if TYPE_CHECKING:
     from ky_bot.bot import KYBot
 
 log = logging.getLogger(__name__)
+MEMBER_EVENTS = {"MEMBER JOINED", "MEMBER LEFT"}
+MEMBER_COLOURS = {
+    "MEMBER JOINED": 0xC9DDF0, "MEMBER LEFT": 0xC9DDF0,
+}
+MEMBER_DESCRIPTIONS = {
+    "MEMBER JOINED": "A new member joined the server.",
+    "MEMBER LEFT": "A member left the server.",
+}
 
 
 def text(value: str, limit: int = 1000) -> str:
@@ -21,9 +31,74 @@ def person(user) -> str:
     return f"{text(str(user), 200)} · `{user.id}`"
 
 
+def member_person(user) -> str:
+    return member_reference(user.id)
+
+
+def member_reference(user_id) -> str:
+    return f"<@{user_id}> · User ID: `{user_id}`" if user_id is not None else "Unknown"
+
+
 class Activity(commands.Cog):
     def __init__(self, bot: "KYBot") -> None:
         self.bot = bot
+        self.invite_snapshots = {}
+        self.invite_locks = {}
+
+    def invite_lock(self, guild_id):
+        return self.invite_locks.setdefault(guild_id, asyncio.Lock())
+
+    async def read_invites(self, guild):
+        if not guild.me or not guild.me.guild_permissions.manage_guild:
+            return None
+        try:
+            return {i.code: (i.uses or 0, i.inviter) for i in await guild.invites()}
+        except discord.HTTPException:
+            log.warning("Invite attribution unavailable in guild %s", guild.id)
+            return None
+
+    async def prime_invites(self, guild):
+        async with self.invite_lock(guild.id):
+            snapshot = await self.read_invites(guild)
+            if snapshot is None:
+                self.invite_snapshots.pop(guild.id, None)
+            else:
+                self.invite_snapshots[guild.id] = snapshot
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        # Reconnects establish a fresh baseline; offline joins cannot be attributed.
+        for guild in self.bot.guilds:
+            await self.prime_invites(guild)
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild):
+        await self.prime_invites(guild)
+
+    @commands.Cog.listener()
+    async def on_guild_remove(self, guild):
+        self.invite_snapshots.pop(guild.id, None)
+        self.invite_locks.pop(guild.id, None)
+
+    async def join_invite(self, guild):
+        async with self.invite_lock(guild.id):
+            before = self.invite_snapshots.get(guild.id)
+            after = await self.read_invites(guild)
+            if after is None:
+                self.invite_snapshots.pop(guild.id, None)
+                return None
+            self.invite_snapshots[guild.id] = after
+            if before is None:
+                return None
+            changes = [(code, uses - before[code][0], inviter)
+                       for code, (uses, inviter) in after.items()
+                       if code in before and uses > before[code][0]]
+            # Concurrent/batched joins, expired single-use links and vanity links
+            # cannot be assigned safely to a particular member.
+            if len(changes) != 1 or changes[0][1] != 1:
+                return None
+            _, _, inviter = changes[0]
+            return inviter.id if inviter else None
 
     async def emit(
         self,
@@ -32,8 +107,9 @@ class Activity(commands.Cog):
         fields: dict[str, str],
         *,
         source_channel_id: int | None = None,
+        subject=None,
     ) -> None:
-        if guild_id is None:
+        if guild_id is None or title in {"INVITE CREATED", "INVITE DELETED"}:
             return
         checklists = getattr(self.bot, "checklists", None)
         if (
@@ -43,24 +119,48 @@ class Activity(commands.Cog):
         ):
             return
         settings = await self.bot.server_settings.repository.get(guild_id)
-        if settings.log_channel_id is None or settings.log_channel_id == source_channel_id:
+        member_event = title in MEMBER_EVENTS
+        destination = settings.member_log_channel_id if member_event else settings.log_channel_id
+        if destination is None or source_channel_id in {
+            settings.log_channel_id, settings.member_log_channel_id
+        } - {None}:
             return
         guild = self.bot.get_guild(guild_id)
         if guild is None:
             return
         try:
             channel = await self.bot.server_settings.validate_channel(
-                guild, settings.log_channel_id
+                guild, destination, **({"require_images": True} if member_event else {})
             )
             embed = discord.Embed(
                 title=f"\\*ੈ𑁍  {title}  𑁍ੈ\\*",
-                colour=0xC9DDF0,
+                colour=MEMBER_COLOURS.get(title, 0xC9DDF0),
+                description=MEMBER_DESCRIPTIONS.get(title),
                 timestamp=discord.utils.utcnow(),
             )
             for name, value in fields.items():
                 embed.add_field(name=name, value=value[:1024] or "(Unavailable)", inline=False)
-            embed.set_footer(text="KY BOT · SERVER ACTIVITY")
-            await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+            if member_event and subject is not None:
+                avatar = getattr(subject, "display_avatar", None)
+                if avatar:
+                    embed.set_thumbnail(url=str(avatar.url))
+            if member_event:
+                embed.set_footer(text="KY BOT", icon_url="attachment://ky_bot_logo.png")
+                logo = discord.File(
+                    files("ky_bot.design").joinpath(
+                        "assets", "footer", "ky_member_log_logo.png"
+                    ).open("rb"),
+                    filename="ky_bot_logo.png",
+                )
+                try:
+                    await channel.send(
+                        embed=embed, file=logo, allowed_mentions=discord.AllowedMentions.none()
+                    )
+                finally:
+                    logo.close()
+            else:
+                embed.set_footer(text="KY BOT · SERVER ACTIVITY")
+                await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
         except (ValueError, discord.HTTPException):
             log.warning("Activity log delivery failed in guild %s", guild_id)
 
@@ -155,18 +255,31 @@ class Activity(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
+        inviter_id = await self.join_invite(member.guild)
+        await self.bot.server_settings.repository.save_member_inviter(
+            member.guild.id, member.id, inviter_id
+        )
         await self.emit(
             member.guild.id,
             "MEMBER JOINED",
             {
-                "Member": person(member),
+                "Member": member_person(member),
                 "Account created": discord.utils.format_dt(member.created_at, "F"),
+                "Invited by": member_reference(inviter_id),
             },
+            subject=member,
         )
 
     @commands.Cog.listener()
     async def on_raw_member_remove(self, payload: discord.RawMemberRemoveEvent) -> None:
-        await self.emit(payload.guild_id, "MEMBER LEFT", {"Member": person(payload.user)})
+        inviter_id = await self.bot.server_settings.repository.get_member_inviter(
+            payload.guild_id, payload.user.id
+        )
+        await self.emit(
+            payload.guild_id, "MEMBER LEFT",
+            {"Member": member_person(payload.user), "Invited by": member_reference(inviter_id)},
+            subject=payload.user,
+        )
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
@@ -219,19 +332,18 @@ class Activity(commands.Cog):
     @commands.Cog.listener()
     async def on_invite_create(self, invite: discord.Invite) -> None:
         if invite.guild:
-            fields = {"Code": text(invite.code), "Channel": f"<#{invite.channel.id}>"}
-            if invite.inviter:
-                fields["Created by"] = person(invite.inviter)
-            await self.emit(invite.guild.id, "INVITE CREATED", fields)
+            async with self.invite_lock(invite.guild.id):
+                snapshot = self.invite_snapshots.get(invite.guild.id)
+                if snapshot is not None:
+                    snapshot.setdefault(
+                        invite.code, (getattr(invite, "uses", 0) or 0, invite.inviter)
+                    )
 
     @commands.Cog.listener()
     async def on_invite_delete(self, invite: discord.Invite) -> None:
         if invite.guild:
-            await self.emit(
-                invite.guild.id,
-                "INVITE DELETED",
-                {"Code": text(invite.code), "Channel": f"<#{invite.channel.id}>"},
-            )
+            async with self.invite_lock(invite.guild.id):
+                self.invite_snapshots.get(invite.guild.id, {}).pop(invite.code, None)
 
 
 async def setup(bot: "KYBot") -> None:

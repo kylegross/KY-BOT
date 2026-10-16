@@ -295,10 +295,21 @@ return `COMMAND_SYNC` to `none`.
 
 ## Server activity logging
 
-Open `/settings`, choose Server Activity, and select a log channel. Clearing the channel
-turns logging off for that server. The bot logs message edits, single/bulk deletions,
+Open `/settings` and choose Server Activity. Set Server Events for message, role and
+moderation logs, and Members & Invites for joins and departures with inviter details. Each
+destination is independent: clearing one disables only that stream. Members & Invites
+starts disabled and never falls back to the existing server-event destination. Its compact
+cards use decorative titles, key details and a member avatar when available. The bot logs message edits, single/bulk deletions,
 member joins/leaves, member role assignments/removals, role creation/update/deletion,
-bans/unbans, and invite creation/deletion. It does not attribute joins to particular invites.
+and bans/unbans. Invite creation/deletion updates internal tracking without posting cards.
+Member-join logs include the inferred inviter
+when exactly one known invite increases by one use. Invite codes are not displayed. Attribution requires
+Manage Server permission and a baseline collected while the bot is online. Concurrent joins,
+expired/single-use or vanity links, and unavailable invite data may show Unknown; the bot
+does not guess. Reconnects establish a fresh baseline. The captured inviter ID is stored
+per server and member, survives restarts, and appears on the member-left card. An unknown
+rejoin replaces any previous inviter. Member and inviter fields use silent clickable mentions
+with User ID labels; no invite codes or inference qualifiers appear in cards.
 
 The destination requires View Channel, Send Messages, and Embed Links. Discord's
 Server Members and Message Content privileged intents must be enabled in the Developer

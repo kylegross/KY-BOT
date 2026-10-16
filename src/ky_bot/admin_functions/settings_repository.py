@@ -21,6 +21,7 @@ class GuildSettings:
     welcome_accent: str = "C9DDF0"
     welcome_dim: int = 35
     welcome_custom_background: bool = False
+    member_log_channel_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +35,21 @@ class WelcomeArtwork:
 class SettingsRepository:
     def __init__(self, connection: aiosqlite.Connection) -> None:
         self.connection = connection
+
+    async def save_member_inviter(self, guild_id, member_id, inviter_id):
+        await self.connection.execute(
+            "INSERT INTO member_inviters (guild_id, member_id, inviter_id) VALUES (?, ?, ?) "
+            "ON CONFLICT(guild_id, member_id) DO UPDATE SET inviter_id = excluded.inviter_id",
+            (str(guild_id), str(member_id), str(inviter_id) if inviter_id is not None else None),
+        )
+
+    async def get_member_inviter(self, guild_id, member_id):
+        async with self.connection.execute(
+            "SELECT inviter_id FROM member_inviters WHERE guild_id = ? AND member_id = ?",
+            (str(guild_id), str(member_id)),
+        ) as cursor:
+            row = await cursor.fetchone()
+        return int(row[0]) if row and row[0] is not None else None
 
     async def get_designs(self, guild_id):
         async with self.connection.execute(
@@ -64,6 +80,10 @@ class SettingsRepository:
 
     async def get(self, guild_id: int) -> GuildSettings:
         async with self.connection.execute(
+            "SELECT channel_id FROM member_log_settings WHERE guild_id = ?", (str(guild_id),)
+        ) as cursor:
+            member_log = await cursor.fetchone()
+        async with self.connection.execute(
             "SELECT log_channel_id FROM guild_settings WHERE guild_id = ?", (str(guild_id),)
         ) as cursor:
             row = await cursor.fetchone()
@@ -86,6 +106,7 @@ class SettingsRepository:
             art[1] if art else "C9DDF0",
             art[2] if art else 35,
             bool(art[3]) if art else False,
+            int(member_log[0]) if member_log else None,
         )
 
     async def get_welcome_artwork(self, guild_id: int) -> WelcomeArtwork:
@@ -142,6 +163,18 @@ class SettingsRepository:
         ):
             pass
 
+    async def set_member_log_channel(self, guild_id: int, channel_id: int) -> None:
+        await self.connection.execute(
+            "INSERT INTO member_log_settings (guild_id, channel_id) VALUES (?, ?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET channel_id = excluded.channel_id",
+            (str(guild_id), str(channel_id)),
+        )
+
+    async def clear_member_log_channel(self, guild_id: int) -> None:
+        await self.connection.execute(
+            "DELETE FROM member_log_settings WHERE guild_id = ?", (str(guild_id),)
+        )
+
 
 @asynccontextmanager
 async def open_settings(path: Path, *, database_url: str | None = None):
@@ -185,5 +218,14 @@ async def open_settings(path: Path, *, database_url: str | None = None):
         await connection.execute(
             "CREATE TABLE IF NOT EXISTS embed_designs "
             "(guild_id TEXT PRIMARY KEY, revision TEXT NOT NULL, profiles TEXT NOT NULL)"
+        )
+        await connection.execute(
+            "CREATE TABLE IF NOT EXISTS member_log_settings "
+            "(guild_id TEXT PRIMARY KEY, channel_id TEXT NOT NULL)"
+        )
+        await connection.execute(
+            "CREATE TABLE IF NOT EXISTS member_inviters "
+            "(guild_id TEXT NOT NULL, member_id TEXT NOT NULL, inviter_id TEXT, "
+            "PRIMARY KEY(guild_id, member_id))"
         )
         yield SettingsRepository(connection)

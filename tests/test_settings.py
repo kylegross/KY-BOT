@@ -41,6 +41,57 @@ async def test_newer_schema_rejected(tmp_path):
             pytest.fail("A newer schema must not open")
 
 
+async def test_member_log_destination_is_persistent_isolated_and_independent(tmp_path):
+    path = tmp_path / "member-logs.sqlite3"
+    async with open_settings(path) as repo:
+        await repo.set_log_channel(1, 10)
+        await repo.set_member_log_channel(1, 20)
+        await repo.set_member_log_channel(2, 30)
+    async with open_settings(path) as repo:
+        assert (await repo.get(1)).member_log_channel_id == 20
+        assert (await repo.get(2)).member_log_channel_id == 30
+        await repo.clear_log_channel(1)
+        assert (await repo.get(1)).member_log_channel_id == 20
+        await repo.set_log_channel(1, 10)
+        await repo.clear_member_log_channel(1)
+        assert (await repo.get(1)).member_log_channel_id is None
+        assert (await repo.get(1)).log_channel_id == 10
+
+
+async def test_member_inviter_survives_restart_and_unknown_rejoin_replaces_old_inviter(tmp_path):
+    path = tmp_path / "member-inviters.sqlite3"
+    async with open_settings(path) as repo:
+        await repo.save_member_inviter(1, 99, 42)
+        await repo.save_member_inviter(2, 99, 43)
+    async with open_settings(path) as repo:
+        assert await repo.get_member_inviter(1, 99) == 42
+        assert await repo.get_member_inviter(2, 99) == 43
+        assert await repo.get_member_inviter(1, 100) is None
+        await repo.save_member_inviter(1, 99, None)
+        assert await repo.get_member_inviter(1, 99) is None
+        assert await repo.get_member_inviter(2, 99) == 43
+
+
+async def test_member_log_picker_saves_and_clears_separately():
+    async with open_settings(Path(":memory:")) as repo:
+        service = SettingsService(repo)
+        interaction = request()
+        target = Mock(spec=discord.TextChannel, id=10, guild=interaction.guild)
+        target.permissions_for.return_value = discord.Permissions.all()
+        interaction.guild.me = Mock()
+        interaction.guild.get_channel.return_value = target
+        view = SettingsView(1, 2, service)
+        view.show_section("logging", picker="members")
+        assert view.total_children_count <= 40
+        view.member_log_channel._values = [SimpleNamespace(id=10)]
+        await view.save_member_log_channel(interaction)
+        assert (await repo.get(2)).member_log_channel_id == 10
+        assert (await repo.get(2)).log_channel_id is None
+        await view.clear_member_log_channel(interaction)
+        assert (await repo.get(2)).member_log_channel_id is None
+        view.stop()
+
+
 def request(*, admin=True, user=1, guild_id=2):
     return SimpleNamespace(
         id=5,
@@ -130,6 +181,13 @@ async def test_menu_saves_clears_and_disables_selector():
         interaction.guild.get_channel.return_value = channel
         view = SettingsView(1, 2, service)
         view.show_section("logging", picker=True)
+        items = list(view.walk_children())
+        displays = [item.content for item in items if isinstance(item, discord.ui.TextDisplay)]
+        assert any("✧ Who invited each member, shown on join & leave cards" in s for s in displays)
+        assert any("**BEFORE YOU START**" in s and "Manage Server" in s for s in displays)
+        assert any(isinstance(item, discord.ui.Separator)
+                   and item.spacing == discord.SeparatorSpacing.small for item in items)
+        assert view.total_children_count <= 40
         select = view.log_channel
         select._values = [SimpleNamespace(id=10)]
         await select.callback(interaction)

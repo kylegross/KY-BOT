@@ -147,7 +147,8 @@ class SettingsView(discord.ui.LayoutView):
             separator()
             row(
                 "**SERVER ACTIVITY**\n-# Moderation logs · "
-                + ("Enabled" if self.settings.log_channel_id else "Disabled"),
+                + ("Enabled" if self.settings.log_channel_id
+                   or self.settings.member_log_channel_id else "Disabled"),
                 self.navigation("Manage", "logging"),
             )
             separator()
@@ -241,10 +242,10 @@ class SettingsView(discord.ui.LayoutView):
             )
             separator()
             row(
-                f"**DESTINATION**\n-# {channel(self.settings.log_channel_id)}",
+                f"**SERVER EVENTS**\n-# {channel(self.settings.log_channel_id)}",
                 self.navigation("Choose channel", section, picker=True),
             )
-            if picker:
+            if picker and picker != "members":
                 self.log_channel = discord.ui.ChannelSelect(
                     channel_types=[discord.ChannelType.text],
                     placeholder="Choose a log channel…",
@@ -257,13 +258,40 @@ class SettingsView(discord.ui.LayoutView):
             self.clear_channel = self.button("Clear channel", self.clear_log_channel)
             self.clear_channel.disabled = self.settings.log_channel_id is None
             row("**DELIVERY**\n-# Clear the destination to disable logging.", self.clear_channel)
+            separator()
+            row(
+                f"**MEMBERS & INVITES**\n-# {channel(self.settings.member_log_channel_id)}",
+                self.navigation("Choose channel", section, picker="members"),
+            )
+            if picker == "members":
+                self.member_log_channel = discord.ui.ChannelSelect(
+                    channel_types=[discord.ChannelType.text],
+                    placeholder="Choose a member & invite log channel…",
+                    min_values=1, max_values=1,
+                )
+                self.member_log_channel.callback = self.save_member_log_channel
+                panel.add_item(discord.ui.ActionRow(self.member_log_channel))
+            clear_members = self.button("Clear channel", self.clear_member_log_channel)
+            clear_members.disabled = self.settings.member_log_channel_id is None
+            row("**MEMBER LOG DELIVERY**\n-# Clear to disable member & invite logs.", clear_members)
             panel.add_item(
                 discord.ui.TextDisplay(
-                    "**TRACKED EVENTS**\n-# Message edits/deletions · Joins/leaves · "
-                    "Role changes · "
-                    "Bans/unbans · Invite creation/deletion\n"
-                    "-# Invite events require Manage Channels. Message text requires Message "
-                    "Content Intent; older uncached text may be unavailable."
+                    "**TRACKED EVENTS**\n"
+                    "-# ✧ Message edits & deletions\n"
+                    "-# ✧ Role changes, bans & unbans\n"
+                    "-# **Members & invites channel**\n"
+                    "-# ✧ Member joins & departures\n"
+                    "-# ✧ Who invited each member, shown on join & leave cards"
+                )
+            )
+            panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    "**BEFORE YOU START**\n"
+                    "-# ✧ Manage Server → match invite uses to new members\n"
+                    "-# ✧ Manage Channels → track invite changes behind the scenes\n"
+                    "-# ✧ Message Content Intent → include message text\n"
+                    "-# Some invites cannot be matched; older uncached text may be unavailable."
                 )
             )
 
@@ -343,6 +371,23 @@ class SettingsView(discord.ui.LayoutView):
 
     async def save_log_channel(self, interaction: discord.Interaction) -> None:
         await self.save_channel(interaction, welcome=False)
+
+    async def save_member_log_channel(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer()
+        try:
+            await self.service.set_member_log_channel(
+                interaction.guild, self.member_log_channel.values[0].id
+            )
+        except ValueError as error:
+            await send_private(interaction, str(error))
+            return
+        self.picker = False
+        await self.refresh(interaction, "Member & invite log channel saved.")
+
+    async def clear_member_log_channel(self, interaction: discord.Interaction) -> None:
+        await interaction.response.defer()
+        await self.service.repository.clear_member_log_channel(self.guild_id)
+        await self.refresh(interaction, "Member & invite logs disabled.")
 
     async def save_welcome_channel(self, interaction: discord.Interaction) -> None:
         await self.save_channel(interaction, welcome=True)

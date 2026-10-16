@@ -51,6 +51,10 @@ class SettingsService:
         channel = await self.validate_channel(guild, channel_id, require_images=True)
         await self.repository.set_welcome_channel(guild.id, channel.id)
 
+    async def set_member_log_channel(self, guild: discord.Guild, channel_id: int) -> None:
+        channel = await self.validate_channel(guild, channel_id, require_images=True)
+        await self.repository.set_member_log_channel(guild.id, channel.id)
+
     async def validate_channel(
         self, guild: discord.Guild, channel_id: int, *, require_images: bool = False
     ) -> discord.TextChannel:

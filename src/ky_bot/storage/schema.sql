@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS logs (
                 created DOUBLE PRECISION NOT NULL, sent BIGINT NOT NULL DEFAULT 0, log_channel BIGINT NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS categories (id BIGSERIAL PRIMARY KEY, channel BIGINT NOT NULL, name TEXT NOT NULL, name_key TEXT NOT NULL, position BIGINT NOT NULL DEFAULT 0, revision BIGINT NOT NULL DEFAULT 0, UNIQUE(channel,name_key));
 CREATE TABLE IF NOT EXISTS guild_settings (guild_id TEXT PRIMARY KEY, log_channel_id TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS member_log_settings (guild_id TEXT PRIMARY KEY, channel_id TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS member_inviters (guild_id TEXT NOT NULL, member_id TEXT NOT NULL, inviter_id TEXT, PRIMARY KEY(guild_id, member_id));
 CREATE TABLE IF NOT EXISTS welcome_settings (guild_id TEXT PRIMARY KEY, channel_id TEXT, message TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS welcome_artwork (guild_id TEXT PRIMARY KEY, background BYTEA, title TEXT NOT NULL DEFAULT 'WELCOME', accent TEXT NOT NULL DEFAULT 'C9DDF0', dim BIGINT NOT NULL DEFAULT 35);
 CREATE INDEX IF NOT EXISTS tasks_channel_idx ON tasks(channel);

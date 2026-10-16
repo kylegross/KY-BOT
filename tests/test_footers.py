@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-from PIL import Image
+from PIL import Image, ImageOps
 
 from ky_bot.design.footer_command import Footers
 from ky_bot.design.footers import (
@@ -12,6 +12,8 @@ from ky_bot.design.footers import (
     SIZE,
     STYLES,
     FooterError,
+    asset,
+    centered_overlay,
     overlay,
     read_upload,
     render_footer,
@@ -23,6 +25,37 @@ def png(image):
     out = io.BytesIO()
     image.save(out, format="PNG")
     return out.getvalue()
+
+
+@pytest.mark.parametrize("style", STYLES)
+@pytest.mark.parametrize("height", [150, 210, SIZE[1]])
+def test_centered_logo_preserves_colored_metallic_artwork(style, height):
+    size = (1600, height)
+    original = asset(f"{style}_icon.png").convert("RGBA")
+    original = original.crop(original.getchannel("A").getbbox())
+    limit = round(height * 0.58)
+    expected = ImageOps.contain(original, (limit, limit), Image.Resampling.LANCZOS)
+    overlay = centered_overlay(style, size)
+    x, y = (size[0] - expected.width) // 2, (height - expected.height) // 2
+    actual = overlay.crop((x, y, x + expected.width, y + expected.height))
+    assert actual.getchannel("A").tobytes() == expected.getchannel("A").tobytes()
+    opaque = Image.new("RGBA", expected.size, "black")
+    assert Image.alpha_composite(opaque, actual).tobytes() == Image.alpha_composite(
+        opaque, expected
+    ).tobytes()
+    # Shading and finish colors must survive instead of becoming a flat silhouette.
+    assert len({pixel[:3] for _, pixel in actual.getcolors(actual.width * actual.height)
+                if pixel[3] > 200}) > 30
+
+
+def test_packaged_command_center_footer_uses_the_detailed_icon():
+    from ky_bot.design.collection import floral_background
+    from ky_bot.design.footers import rectangular_frame
+
+    expected = floral_background("silver_neon", (1600, 150))
+    expected.alpha_composite(centered_overlay("silver_neon", expected.size))
+    expected.alpha_composite(rectangular_frame("silver_neon", expected.size, radius=24, inset=10))
+    assert asset("ky_footer_command_center.png").convert("RGBA").tobytes() == expected.tobytes()
 
 
 @pytest.mark.parametrize("style", STYLES)

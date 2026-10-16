@@ -129,10 +129,17 @@ async def test_postgres_settings_are_shared_and_keep_artwork(pg_store):
         await first.set_welcome_message(1, "Hello {member}")
         await first.set_welcome_background(1, b"example-image")
         await first.set_log_channel(1, 20)
+        await first.set_member_log_channel(1, 30)
+        await first.save_member_inviter(1, 99, 42)
         async with open_settings(Path(":memory:"), database_url=url) as second:
             assert (await second.get(1)).welcome_message == "Hello {member}"
             assert (await second.get_welcome_artwork(1)).background == b"example-image"
             assert (await second.get(2)).log_channel_id is None
+            assert (await second.get(1)).member_log_channel_id == 30
+            assert await second.get_member_inviter(1, 99) == 42
+            assert await second.get_member_inviter(2, 99) is None
+            await second.save_member_inviter(1, 99, None)
+            assert await first.get_member_inviter(1, 99) is None
 
 
 def test_postgres_subtasks_block_parent_and_survive_other_connections(pg_store):

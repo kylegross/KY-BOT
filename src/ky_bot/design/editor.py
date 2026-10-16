@@ -371,6 +371,13 @@ class Editor(discord.ui.LayoutView):
             for container in sample.children:
                 if isinstance(container, discord.ui.Container):
                     for child in list(container.children):
+                        if isinstance(child, discord.ui.ActionRow) and all(
+                            isinstance(button, discord.ui.Button)
+                            and button.label in ("Back", "Refresh", "Close", "Preview")
+                            for button in child.children
+                        ):
+                            container.remove_item(child)
+                            continue
                         if (
                             isinstance(child, discord.ui.Section)
                             and isinstance(child.accessory, discord.ui.Button)
