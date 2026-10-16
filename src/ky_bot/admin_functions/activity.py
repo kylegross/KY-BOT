@@ -45,6 +45,10 @@ class Activity(commands.Cog):
         self.invite_snapshots = {}
         self.invite_locks = {}
 
+    def is_command_center(self, guild_id, message_id):
+        panels = getattr(self.bot.server_settings, "command_center_panels", None)
+        return panels is not None and panels.owns_message(guild_id, message_id)
+
     def invite_lock(self, guild_id):
         return self.invite_locks.setdefault(guild_id, asyncio.Lock())
 
@@ -166,6 +170,8 @@ class Activity(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent) -> None:
+        if self.is_command_center(payload.guild_id, payload.message_id):
+            return
         message = payload.cached_message
         fields = {"Channel": f"<#{payload.channel_id}>", "Message ID": str(payload.message_id)}
         if message:
@@ -181,26 +187,35 @@ class Activity(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_bulk_message_delete(self, payload: discord.RawBulkMessageDeleteEvent) -> None:
+        message_ids = {
+            mid for mid in payload.message_ids if not self.is_command_center(payload.guild_id, mid)
+        }
+        if not message_ids:
+            return
         lines = [
             f"{person(m.author)}: {text(m.content, 160)}"
-            for m in sorted(payload.cached_messages, key=lambda m: m.id)[:5]
+            for m in sorted(
+                (m for m in payload.cached_messages if m.id in message_ids), key=lambda m: m.id
+            )[:5]
         ]
         await self.emit(
             payload.guild_id,
             "MESSAGES BULK DELETED",
             {
                 "Channel": f"<#{payload.channel_id}>",
-                "Deleted messages": str(len(payload.message_ids)),
+                "Deleted messages": str(len(message_ids)),
                 "Cached text (up to 5 messages)": text("\n".join(lines))
                 if lines
                 else "Unavailable",
-                "Message IDs": text(", ".join(str(i) for i in sorted(payload.message_ids))),
+                "Message IDs": text(", ".join(str(i) for i in sorted(message_ids))),
             },
             source_channel_id=payload.channel_id,
         )
 
     @commands.Cog.listener()
     async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent) -> None:
+        if self.is_command_center(payload.guild_id, payload.message_id):
+            return
         # Embed loading and pin changes do not count as edits to a message's text/files.
         if "content" not in payload.data and "attachments" not in payload.data:
             return

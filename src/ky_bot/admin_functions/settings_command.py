@@ -15,6 +15,16 @@ if TYPE_CHECKING:
 class ServerSettings(commands.Cog):
     def __init__(self, bot: "KYBot") -> None:
         self.bot = bot
+        from ky_bot.admin_functions.command_center import CommandCenterPanels
+
+        self.panels = CommandCenterPanels(bot)
+        bot.server_settings.command_center_panels = self.panels
+
+    async def cog_load(self):
+        self.panels.start()
+
+    async def cog_unload(self):
+        self.panels.close()
 
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
@@ -65,6 +75,15 @@ class ServerSettings(commands.Cog):
     async def settings_command(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
         settings = await self.bot.server_settings.repository.get(interaction.guild_id)
+        existing = self.panels.entries.get(interaction.guild_id)
+        if existing:
+            from ky_bot.admin_functions.command_center import command_center_link
+
+            await interaction.edit_original_response(
+                view=command_center_link(existing.message),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
         view = SettingsView(interaction.user.id, interaction.guild_id, self.bot.server_settings)
         view.settings = settings
         view.guild = interaction.guild

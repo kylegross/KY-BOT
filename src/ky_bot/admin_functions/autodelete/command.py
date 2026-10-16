@@ -47,6 +47,8 @@ class Session:
             and generation == self.generation
             and (self.command_center is None or i.permissions.administrator)
         ):
+            if self.command_center and self.command_center.panel_manager:
+                return await self.command_center.interaction_check(i)
             return True
         await i.response.send_message(
             "Reopen /autodelete with Manage Server permission.", ephemeral=True
@@ -77,13 +79,16 @@ class Session:
             else []
         )
         try:
-            await i.edit_original_response(
-                content=None,
-                embeds=[],
-                view=view,
-                attachments=uploads,
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            if self.command_center and self.command_center.panel_manager:
+                await self.command_center.panel_manager.edit(self.command_center, i, view, uploads)
+            else:
+                await i.edit_original_response(
+                    content=None,
+                    embeds=[],
+                    view=view,
+                    attachments=uploads,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
         finally:
             for upload in uploads:
                 upload.close()
@@ -628,6 +633,9 @@ class Menu(discord.ui.LayoutView):
             from ky_bot.checklists.inline import InlineView
 
             s.generation += 1
+            if s.command_center and s.command_center.panel_manager:
+                await s.command_center.panel_manager.reset(s.guild.id)
+                return
             await i.edit_original_response(
                 content=None,
                 attachments=[],
@@ -644,7 +652,9 @@ class Menu(discord.ui.LayoutView):
         actions = (
             (("Close", cancel),)
             if page == "main" and s.command_center is None
-            else (("Back", back), ("Close", cancel))
+            else (("Back", back), (
+                "Home" if s.command_center and s.command_center.panel_manager else "Close", cancel
+            ))
         )
         for label, action in actions:
             button = discord.ui.Button(label=label)

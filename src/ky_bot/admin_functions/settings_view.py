@@ -55,8 +55,12 @@ def channel_label(channel_id: int | None, guild: discord.Guild) -> str:
 
 
 class SettingsView(discord.ui.LayoutView):
-    def __init__(self, owner_id: int, guild_id: int, service: SettingsService) -> None:
-        super().__init__(timeout=180)
+    def __init__(
+        self, owner_id: int | None, guild_id: int, service: SettingsService,
+        *, panel_manager=None, panel_token=None,
+    ) -> None:
+        super().__init__(timeout=None if panel_manager else 180)
+        self.panel_manager, self.panel_token = panel_manager, panel_token
         self.owner_id = owner_id
         self.guild_id = guild_id
         self.service = service
@@ -76,6 +80,9 @@ class SettingsView(discord.ui.LayoutView):
     def navigation(self, label: str, target: str, *, picker: bool = False) -> discord.ui.Button:
         async def callback(interaction: discord.Interaction) -> None:
             await interaction.response.defer()
+            if self.panel_manager and target == "overview" and not picker:
+                await self.panel_manager.reset(self.guild_id)
+                return
             self.section, self.picker = target, picker
             await self.refresh(interaction)
 
@@ -139,6 +146,21 @@ class SettingsView(discord.ui.LayoutView):
             return channel_label(channel_id, self.guild)
 
         if section == "overview":
+            row(
+                "**COMMAND CENTER CHANNEL**\n-# "
+                + channel(self.settings.command_center_channel_id)
+                + " · Keep this panel in a server channel.",
+                self.navigation("Set channel", "overview", picker="command_center"),
+            )
+            if picker == "command_center":
+                self.command_center_channel = discord.ui.ChannelSelect(
+                    channel_types=[discord.ChannelType.text],
+                    placeholder="Choose the permanent Command Center channel…",
+                    min_values=1, max_values=1,
+                )
+                self.command_center_channel.callback = self.publish_command_center
+                panel.add_item(discord.ui.ActionRow(self.command_center_channel))
+            separator()
             status = "Enabled" if self.settings.welcome_channel_id else "Disabled"
             row(
                 f"**WELCOME EXPERIENCE**\n-# Personal greetings for new members · {status}",
@@ -317,9 +339,14 @@ class SettingsView(discord.ui.LayoutView):
         if section in {"welcome", "welcome_design"}:
             controls.add_item(self.button("Preview", self.preview_welcome))
         controls.add_item(self.button("Refresh", self.reload_settings))
-        controls.add_item(self.button("Close", self.close_menu))
+        if not self.panel_manager or section != "overview":
+            controls.add_item(
+                self.button("Home" if self.panel_manager else "Close", self.close_menu)
+            )
         panel.add_item(
             discord.ui.TextDisplay(
+                "-# Admin controls · Saved automatically · Returns Home after 10 minutes idle"
+                if self.panel_manager else
                 "-# Private admin controls · Saved automatically · 3-minute session"
             )
         )
@@ -334,6 +361,8 @@ class SettingsView(discord.ui.LayoutView):
         self.add_item(panel)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if self.panel_manager:
+            return await self.panel_manager.allowed(self, interaction)
         if (
             interaction.user.id != self.owner_id
             or interaction.guild_id != self.guild_id
@@ -349,7 +378,10 @@ class SettingsView(discord.ui.LayoutView):
         return True
 
     async def refresh(self, interaction: discord.Interaction, notice: str | None = None) -> None:
-        replacement = SettingsView(self.owner_id, self.guild_id, self.service)
+        replacement = SettingsView(
+            self.owner_id, self.guild_id, self.service,
+            panel_manager=self.panel_manager, panel_token=self.panel_token,
+        )
         replacement.settings = await self.service.repository.get(self.guild_id)
         replacement.guild = interaction.guild
         _, profiles = await self.service.repository.get_designs(self.guild_id)
@@ -360,11 +392,16 @@ class SettingsView(discord.ui.LayoutView):
         replacement.show_section(self.section, picker=self.picker, notice=notice)
         attachments = settings_files(self.section, replacement.design)
         try:
-            replacement.message = await interaction.edit_original_response(
-                view=replacement,
-                allowed_mentions=discord.AllowedMentions.none(),
-                attachments=attachments,
-            )
+            if self.panel_manager:
+                replacement.message = await self.panel_manager.edit(
+                    self, interaction, replacement, attachments
+                )
+            else:
+                replacement.message = await interaction.edit_original_response(
+                    view=replacement,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                    attachments=attachments,
+                )
         except Exception:
             replacement.stop()
             raise
@@ -377,10 +414,37 @@ class SettingsView(discord.ui.LayoutView):
     async def open_embed_design(self, interaction):
         from ky_bot.design.editor import DesignSession
 
-        await interaction.response.defer()
+        await interaction.response.defer(
+            ephemeral=bool(self.panel_manager), thinking=bool(self.panel_manager)
+        )
+        if self.panel_manager:
+            await self.panel_manager.reset(self.guild_id)
         session = await DesignSession.create(interaction, self.service)
         await session.show(interaction)
         self.stop()
+
+    async def publish_command_center(self, interaction):
+        await interaction.response.defer()
+        manager = self.service.command_center_panels
+        try:
+            message = await manager.publish(
+                interaction.guild, self.command_center_channel.values[0].id
+            )
+        except ValueError as error:
+            await send_private(interaction, str(error))
+            return
+        self.picker = False
+        notice = f"Command Center posted in <#{message.channel.id}>."
+        if self.panel_manager:
+            await send_private(interaction, notice)
+        else:
+            from ky_bot.admin_functions.command_center import command_center_link
+
+            await interaction.edit_original_response(
+                view=command_center_link(message), attachments=[],
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            self.stop()
 
     async def save_log_channel(self, interaction: discord.Interaction) -> None:
         await self.save_channel(interaction, welcome=False)
@@ -432,6 +496,10 @@ class SettingsView(discord.ui.LayoutView):
         await self.refresh(interaction)
 
     async def close_menu(self, interaction: discord.Interaction) -> None:
+        if self.panel_manager:
+            await interaction.response.defer()
+            await self.panel_manager.reset(self.guild_id)
+            return
         self.clear_items()
         self.add_item(discord.ui.TextDisplay("Settings closed. Use `/settings` to reopen."))
         await interaction.response.edit_message(view=self, attachments=[])

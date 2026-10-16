@@ -60,6 +60,8 @@ class Session:
             and generation == self.generation
             and (self.command_center is None or interaction.permissions.administrator)
         ):
+            if self.command_center and self.command_center.panel_manager:
+                return await self.command_center.interaction_check(interaction)
             return True
         await interaction.response.send_message(
             "Reopen /autothread with server management permissions.", ephemeral=True
@@ -79,9 +81,14 @@ class Session:
             else []
         )
         try:
-            await interaction.edit_original_response(
-                content=None, embeds=[], view=view, attachments=uploads
-            )
+            if self.command_center and self.command_center.panel_manager:
+                await self.command_center.panel_manager.edit(
+                    self.command_center, interaction, view, uploads
+                )
+            else:
+                await interaction.edit_original_response(
+                    content=None, embeds=[], view=view, attachments=uploads
+                )
         finally:
             for upload in uploads:
                 upload.close()
@@ -471,6 +478,8 @@ class Menu(discord.ui.LayoutView):
             row("SAVE RULE", "Apply this reviewed draft.", "Save", callback=save)
         panel.add_item(
             discord.ui.TextDisplay(
+                "-# Admin controls · Draft changes apply only after Save"
+                if session.command_center and session.command_center.panel_manager else
                 "-# Private admin controls · Draft changes apply only after Save"
             )
         )
@@ -496,9 +505,15 @@ class Menu(discord.ui.LayoutView):
 
         back.callback = go_back
         close = discord.ui.Button(label="Close" if page == "main" else "Cancel setup")
+        if session.command_center and session.command_center.panel_manager:
+            close.label = "Home"
 
         async def cancel(interaction):
             await interaction.response.defer()
+            if session.command_center and session.command_center.panel_manager:
+                session.generation += 1
+                await session.command_center.panel_manager.reset(session.guild.id)
+                return
             session.draft, session.original = defaults(), None
             if page == "main":
                 session.generation += 1

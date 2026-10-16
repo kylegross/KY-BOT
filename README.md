@@ -509,3 +509,22 @@ Activity Logs is opt-in for enabled AutoDelete sources, with a separate destinat
 General Settings in the /settings Command Center opens a directory for AutoDelete, AutoThread and AutoReact. Each inline Manage button navigates within the same Command Center panel. Back returns to General Settings; Close exits the Command Center. The General Settings panel uses the Command Center artwork and can be customized under Embed Design.
 
 Automation headers use GENERAL SETTINGS | AUTODELETE, GENERAL SETTINGS | AUTOTHREAD, and GENERAL SETTINGS | AUTOREACT. They inherit the General Settings artwork and use the multicolor silver finish by default. Per-menu customizations remain available in Embed Design under settings-scoped profiles; existing custom images and dimensions are retained. Slash commands remain shortcuts to the same styled controls.
+
+## Permanent Command Center
+
+Run `/settings` and use the first **COMMAND CENTER CHANNEL** section to choose a
+text channel. KY BOT posts one durable Command Center per server. Choosing the same
+channel refreshes that panel; choosing a different channel moves it and removes the
+previous post. Once a panel exists, `/settings` provides a link to it.
+
+The posted menu stays available and returns to its landing view after ten minutes
+without an accepted administrator interaction (checked every ten seconds). One
+administrator uses the shared panel at a time; Home or the idle reset releases it.
+All three automation menus use the same reset. Design editing opens a private draft
+and returns the shared panel home. Stale controls from a reset cannot change it.
+
+KY BOT needs View Channel, Send Messages, Embed Links, Attach Files and Read Message
+History in the selected channel. The saved channel/message IDs are stored in the
+shared settings database, and the bot restores the landing panel after a restart.
+The new storage table is created automatically; no manual migration is needed.
+Panel navigation and relocation are excluded from server message-event logs.

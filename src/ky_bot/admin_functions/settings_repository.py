@@ -22,6 +22,8 @@ class GuildSettings:
     welcome_dim: int = 35
     welcome_custom_background: bool = False
     member_log_channel_id: int | None = None
+    command_center_channel_id: int | None = None
+    command_center_message_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +37,25 @@ class WelcomeArtwork:
 class SettingsRepository:
     def __init__(self, connection: aiosqlite.Connection) -> None:
         self.connection = connection
+
+    async def command_centers(self):
+        async with self.connection.execute(
+            "SELECT guild_id, channel_id, message_id FROM command_center_panels"
+        ) as cursor:
+            return [tuple(int(row[i]) for i in range(3)) for row in await cursor.fetchall()]
+
+    async def save_command_center(self, guild_id, channel_id, message_id):
+        await self.connection.execute(
+            "INSERT INTO command_center_panels (guild_id, channel_id, message_id) VALUES (?, ?, ?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET channel_id = excluded.channel_id, "
+            "message_id = excluded.message_id",
+            (str(guild_id), str(channel_id), str(message_id)),
+        )
+
+    async def clear_command_center(self, guild_id):
+        await self.connection.execute(
+            "DELETE FROM command_center_panels WHERE guild_id = ?", (str(guild_id),)
+        )
 
     async def save_member_inviter(self, guild_id, member_id, inviter_id):
         await self.connection.execute(
@@ -80,6 +101,11 @@ class SettingsRepository:
 
     async def get(self, guild_id: int) -> GuildSettings:
         async with self.connection.execute(
+            "SELECT channel_id, message_id FROM command_center_panels WHERE guild_id = ?",
+            (str(guild_id),),
+        ) as cursor:
+            panel = await cursor.fetchone()
+        async with self.connection.execute(
             "SELECT channel_id FROM member_log_settings WHERE guild_id = ?", (str(guild_id),)
         ) as cursor:
             member_log = await cursor.fetchone()
@@ -107,6 +133,8 @@ class SettingsRepository:
             art[2] if art else 35,
             bool(art[3]) if art else False,
             int(member_log[0]) if member_log else None,
+            int(panel[0]) if panel else None,
+            int(panel[1]) if panel else None,
         )
 
     async def get_welcome_artwork(self, guild_id: int) -> WelcomeArtwork:
@@ -227,5 +255,9 @@ async def open_settings(path: Path, *, database_url: str | None = None):
             "CREATE TABLE IF NOT EXISTS member_inviters "
             "(guild_id TEXT NOT NULL, member_id TEXT NOT NULL, inviter_id TEXT, "
             "PRIMARY KEY(guild_id, member_id))"
+        )
+        await connection.execute(
+            "CREATE TABLE IF NOT EXISTS command_center_panels "
+            "(guild_id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, message_id TEXT NOT NULL)"
         )
         yield SettingsRepository(connection)

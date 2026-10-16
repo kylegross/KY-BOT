@@ -13,6 +13,7 @@ from ky_bot.storage.postgres import CHECKLIST_LOCK, PostgresChecklistStore
 SETTINGS_TABLES = (
     "guild_settings", "welcome_settings", "welcome_artwork", "embed_designs", "member_log_settings",
     "member_inviters",
+    "command_center_panels",
 )
 CHECKLIST_TABLES = ("boards", "categories", "tasks", "logs", "subtasks")
 TABLES = SETTINGS_TABLES + CHECKLIST_TABLES
@@ -27,7 +28,10 @@ def snapshot(path, tables):
         existing = {
             row[0] for row in source.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        optional = {"subtasks", "embed_designs", "member_log_settings", "member_inviters"}
+        optional = {
+            "subtasks", "embed_designs", "member_log_settings", "member_inviters",
+            "command_center_panels",
+        }
         if not (set(tables) - optional) <= existing:
             raise ValueError("Source database needs the current KY BOT SQLite schema.")
         return {

@@ -54,6 +54,8 @@ class Session:
             and generation == self.generation
             and (self.command_center is None or interaction.permissions.administrator)
         ):
+            if self.command_center and self.command_center.panel_manager:
+                return await self.command_center.interaction_check(interaction)
             return True
         await interaction.response.send_message(
             "Reopen /autoreact with server management permissions.", ephemeral=True
@@ -100,9 +102,14 @@ class Session:
             else []
         )
         try:
-            await interaction.edit_original_response(
-                content=None, embeds=[], attachments=uploads, view=view
-            )
+            if self.command_center and self.command_center.panel_manager:
+                await self.command_center.panel_manager.edit(
+                    self.command_center, interaction, view, uploads
+                )
+            else:
+                await interaction.edit_original_response(
+                    content=None, embeds=[], attachments=uploads, view=view
+                )
         finally:
             for upload in uploads:
                 upload.close()
@@ -546,9 +553,15 @@ class Menu(discord.ui.LayoutView):
 
         back.callback = go_back
         close = discord.ui.Button(label="Close" if page == "main" else "Cancel setup")
+        if s.command_center and s.command_center.panel_manager:
+            close.label = "Home"
 
         async def cancel(i):
             await i.response.defer()
+            if s.command_center and s.command_center.panel_manager:
+                s.generation += 1
+                await s.command_center.panel_manager.reset(s.guild.id)
+                return
             s.draft, s.expected = defaults(), {}
             if page == "main":
                 s.generation += 1

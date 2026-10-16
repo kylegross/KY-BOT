@@ -81,7 +81,7 @@ class SettingsService:
             raise ValueError("I need View Channel, Send Messages, and Embed Links in that channel.")
         if require_images and not permissions.attach_files:
             raise ValueError(
-                "I need Attach Files permission to send welcome images in that channel."
+                "I need Attach Files permission to send images in that channel."
             )
         return channel
 
