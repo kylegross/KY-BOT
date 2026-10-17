@@ -67,3 +67,9 @@ CREATE TABLE IF NOT EXISTS leveling_members (
     PRIMARY KEY(guild,member)
 );
 CREATE INDEX IF NOT EXISTS leveling_rank_idx ON leveling_members(guild,xp DESC,member);
+CREATE TABLE IF NOT EXISTS leveling_adjustments (
+    guild BIGINT NOT NULL, operation BIGINT NOT NULL, actor BIGINT NOT NULL,
+    member BIGINT NOT NULL, action TEXT NOT NULL, value BIGINT NOT NULL,
+    before_xp BIGINT NOT NULL, after_xp BIGINT NOT NULL,
+    created DOUBLE PRECISION NOT NULL, PRIMARY KEY(guild,operation)
+);

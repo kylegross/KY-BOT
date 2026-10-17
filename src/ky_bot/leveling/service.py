@@ -92,7 +92,27 @@ class LevelingService:
         )
         await self.after_award(message.author, result)
 
-    async def after_award(self, member, result):
+    async def resolve_member(self, guild, member_id):
+        member = guild.get_member(member_id)
+        if member is None:
+            try:
+                member = await guild.fetch_member(member_id)
+            except discord.NotFound:
+                raise ValueError("That member is no longer in this server.") from None
+        if member.guild.id != guild.id or member.bot:
+            raise ValueError("Choose a human member of this server.")
+        return member
+
+    async def adjust_member(self, guild, member_id, action, value, *, actor, operation):
+        member = await self.resolve_member(guild, member_id)
+        result = await self.store.adjust(
+            guild.id, member.id, action, value, actor=actor, operation=operation
+        )
+        if not result["replayed"] and result["level"] > result["before"]:
+            await self.after_award(member, result, announce=False)
+        return result
+
+    async def after_award(self, member, result, *, announce=True):
         if result is None:
             return
         config = result["config"]
@@ -106,7 +126,11 @@ class LevelingService:
                 log.warning(
                     "Unable to grant leveling reward %s in guild %s", role_id, member.guild.id
                 )
-        if result["level"] <= result["before"] or not config["announcement_channel"]:
+        if (
+            not announce
+            or result["level"] <= result["before"]
+            or not config["announcement_channel"]
+        ):
             return
         channel = member.guild.get_channel(config["announcement_channel"])
         if not isinstance(channel, discord.TextChannel):

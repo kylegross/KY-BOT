@@ -33,6 +33,7 @@ PAGES = {
         "Admin tools",
         "Available: `/settings` — persistent server settings (administrators only).\n\n"
         "Open **Leveling** for message XP, opt-in voice XP, rewards and rankings.\n\n"
+        "Use `/xp add`, `/xp remove`, or `/xp level` for administrator member corrections.\n\n"
         "Choose a log channel for messages, joins/leaves, roles, bans and invites. "
         "Clear the channel to disable logging.\n\n"
         "Use `/create checklist` for an inline task board. Choose Yes for a checklist "

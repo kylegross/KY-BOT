@@ -10,7 +10,7 @@ from ky_bot.design.menu_design import menu_files, profile_for
 from ky_bot.errors import report_error, send_private
 from ky_bot.leveling.artwork import card_file
 from ky_bot.leveling.service import role_allowed
-from ky_bot.leveling.store import MAX_LEVEL, defaults, level_for, threshold
+from ky_bot.leveling.store import MAX_LEVEL, MAX_XP, defaults, level_for, threshold
 from ky_bot.views.private_style import private_heading
 from ky_bot.views.sections import section_dividers
 
@@ -22,6 +22,7 @@ HEADINGS = {
     "rewards": "ROLE REWARDS",
     "announcements": "LEVEL-UP MESSAGES",
     "leaderboard": "LEADERBOARD",
+    "members": "MEMBER XP",
 }
 
 
@@ -41,6 +42,7 @@ class Session:
         self.config, self.design = defaults(), profile_for({}, "settings:leveling")
         self.page, self.reward_level = 0, None
         self.ranking = (0, 0, [])
+        self.member_id, self.member_xp = None, 0
         self.lock = asyncio.Lock()
 
     async def allowed(self, interaction, generation):
@@ -69,6 +71,8 @@ class Session:
         if page == "leaderboard":
             self.ranking = await self.cog.store.leaderboard(self.guild.id, self.page)
             self.page = self.ranking[0]
+        if page == "members" and self.member_id is not None:
+            self.member_xp = await self.cog.store.member_xp(self.guild.id, self.member_id)
         self.generation += 1
         view = Menu(self, page, notice)
         uploads = await asyncio.to_thread(artwork, self.design, page) if page in HEADINGS else []
@@ -162,6 +166,59 @@ class Numbers(discord.ui.Modal):
             await report_error(interaction, error)
 
 
+class MemberAdjustment(discord.ui.Modal):
+    def __init__(self, session, action):
+        super().__init__(
+            title={
+                "add": "Add member XP",
+                "remove": "Remove member XP",
+                "level": "Set member level",
+            }[action]
+        )
+        self.session, self.generation = session, session.generation
+        self.member_id, self.action = session.member_id, action
+        self.amount = discord.ui.TextInput(
+            label="Level (0–10000)" if action == "level" else f"XP amount (1–{MAX_XP:,})",
+            max_length=10,
+        )
+        self.add_item(self.amount)
+
+    async def on_submit(self, interaction):
+        s = self.session
+        async with s.lock:
+            if not await s.allowed(interaction, self.generation):
+                return
+            await interaction.response.defer()
+            try:
+                value = int(str(self.amount))
+            except ValueError:
+                await send_private(interaction, "Enter a whole number.")
+                return
+            if self.member_id is None:
+                await send_private(interaction, "Select a member first.")
+                return
+            result = await s.cog.service.adjust_member(
+                s.guild,
+                self.member_id,
+                self.action,
+                value,
+                actor=interaction.user.id,
+                operation=interaction.id,
+            )
+            await s.show(
+                interaction,
+                "members",
+                f"<@{self.member_id}>: **{result['before_xp']:,} → {result['xp']:,} XP** · "
+                f"**Level {result['level']}**.",
+            )
+
+    async def on_error(self, interaction, error):
+        if isinstance(error, ValueError):
+            await send_private(interaction, str(error))
+        else:
+            await report_error(interaction, error)
+
+
 class Menu(discord.ui.LayoutView):
     def __init__(self, session, page="main", notice=None):
         super().__init__(
@@ -200,7 +257,12 @@ class Menu(discord.ui.LayoutView):
                     if not await s.allowed(interaction, self.generation):
                         return
                     if isinstance(action, tuple):
-                        await interaction.response.send_modal(Numbers(s, action[0]))
+                        modal = (
+                            MemberAdjustment(s, action[0].split(":")[1])
+                            if action[0].startswith("member:")
+                            else Numbers(s, action[0])
+                        )
+                        await interaction.response.send_modal(modal)
                     else:
                         await interaction.response.defer()
                         await action(interaction)
@@ -250,6 +312,7 @@ class Menu(discord.ui.LayoutView):
                 go("announcements"),
             )
             row("LEADERBOARD", "Member rankings for this server.", "View", go("leaderboard"))
+            row("MEMBER XP", "Add or remove XP, or set a member's level.", "Manage", go("members"))
             row(
                 "TURN ON / OFF",
                 "XP earning is "
@@ -257,6 +320,50 @@ class Menu(discord.ui.LayoutView):
                 + " in this server. Progress is kept.",
                 "Pause" if config["enabled"] else "Resume",
                 lambda i: toggle(i, "enabled"),
+            )
+        elif page == "members":
+            picker = discord.ui.UserSelect(
+                placeholder="Choose a member to manage…",
+                min_values=1,
+                max_values=1,
+                default_values=[discord.Object(id=s.member_id)] if s.member_id else [],
+            )
+
+            async def choose_member(interaction):
+                async with s.lock:
+                    if not await s.allowed(interaction, self.generation):
+                        return
+                    await interaction.response.defer()
+                    member = await s.cog.service.resolve_member(s.guild, picker.values[0].id)
+                    s.member_id = member.id
+                    await s.show(interaction, "members")
+
+            picker.callback = choose_member
+            panel.add_item(discord.ui.ActionRow(picker))
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    f"<@{s.member_id}> · **{s.member_xp:,} XP** · "
+                    f"**Level {level_for(s.member_xp)}**"
+                    if s.member_id
+                    else "Choose a server member to view and adjust their XP."
+                )
+            )
+            for title, description, label, action in (
+                ("ADD XP", "Increase this member's total XP.", "Add XP", "add"),
+                ("REMOVE XP", "Decrease XP, stopping at zero.", "Remove XP", "remove"),
+                (
+                    "SET LEVEL",
+                    "Set XP to the exact starting point of a level.",
+                    "Set level",
+                    "level",
+                ),
+            ):
+                row(title, description, label, ("member:" + action,), disabled=s.member_id is None)
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    "-# Admin corrections work while earning is paused. Existing reward roles "
+                    "are kept; no public level-up card is sent."
+                )
             )
         elif page == "xp":
             row(

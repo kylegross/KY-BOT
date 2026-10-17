@@ -3,6 +3,7 @@
 import asyncio
 import json
 import secrets
+import time
 import uuid
 from contextlib import asynccontextmanager
 from math import isqrt
@@ -15,6 +16,10 @@ SCHEMA = (
     "voice_at DOUBLE PRECISION NOT NULL DEFAULT 0, source BIGINT NOT NULL DEFAULT 0, "
     "fingerprint TEXT NOT NULL DEFAULT '', PRIMARY KEY(guild,member))",
     "CREATE INDEX IF NOT EXISTS leveling_rank_idx ON leveling_members(guild,xp DESC,member)",
+    "CREATE TABLE IF NOT EXISTS leveling_adjustments (guild BIGINT NOT NULL, "
+    "operation BIGINT NOT NULL, actor BIGINT NOT NULL, member BIGINT NOT NULL, "
+    "action TEXT NOT NULL, value BIGINT NOT NULL, before_xp BIGINT NOT NULL, "
+    "after_xp BIGINT NOT NULL, created DOUBLE PRECISION NOT NULL, PRIMARY KEY(guild,operation))",
 )
 MAX_LEVEL = 10000
 MAX_XP = 50 * MAX_LEVEL * (MAX_LEVEL + 1)
@@ -223,6 +228,69 @@ class LevelStore:
                 (new_xp, message_at, voice_at, previous_source, previous_text, guild, member),
             )
             return dict(xp=new_xp, before=level_for(xp), level=level_for(new_xp), config=config)
+
+    async def member_xp(self, guild, member):
+        async with self.lock:
+            row = await self.execute(
+                "SELECT xp FROM leveling_members WHERE guild=? AND member=?", (guild, member)
+            )
+            return row[0] if row else 0
+
+    async def adjust(self, guild, member, action, value, *, actor, operation):
+        """Apply an admin correction once, without resetting earning cooldowns or replay guards."""
+        if action not in ("add", "remove", "level"):
+            raise ValueError("Choose Add XP, Remove XP, or Set level.")
+        minimum, maximum = (0, MAX_LEVEL) if action == "level" else (1, MAX_XP)
+        if type(value) is not int or not minimum <= value <= maximum:
+            raise ValueError(f"Use a whole number from {minimum:,} to {maximum:,}.")
+        async with self.transaction(guild):
+            _, config = await self._config(guild)
+            prior = await self.execute(
+                "SELECT member,actor,action,value,before_xp,after_xp "
+                "FROM leveling_adjustments WHERE guild=? AND operation=?",
+                (guild, operation),
+            )
+            if prior:
+                if tuple(prior[:4]) != (member, actor, action, value):
+                    raise ValueError("This interaction already applied a different adjustment.")
+                before, after = prior[4:]
+            else:
+                await self.execute(
+                    "INSERT INTO leveling_members(guild,member) VALUES (?,?) "
+                    "ON CONFLICT(guild,member) DO NOTHING",
+                    (guild, member),
+                )
+                before = (
+                    await self.execute(
+                        "SELECT xp FROM leveling_members WHERE guild=? AND member=?",
+                        (guild, member),
+                    )
+                )[0]
+                after = (
+                    threshold(value)
+                    if action == "level"
+                    else min(MAX_XP, before + value)
+                    if action == "add"
+                    else max(0, before - value)
+                )
+                await self.execute(
+                    "UPDATE leveling_members SET xp=? WHERE guild=? AND member=?",
+                    (after, guild, member),
+                )
+                await self.execute(
+                    "INSERT INTO leveling_adjustments "
+                    "(guild,operation,actor,member,action,value,before_xp,after_xp,created) "
+                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    (guild, operation, actor, member, action, value, before, after, time.time()),
+                )
+            return dict(
+                xp=after,
+                before_xp=before,
+                before=level_for(before),
+                level=level_for(after),
+                config=config,
+                replayed=bool(prior),
+            )
 
     async def leaderboard(self, guild, page=0):
         async with self.lock:

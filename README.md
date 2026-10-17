@@ -575,11 +575,42 @@ replayed. Reward permission failures retry on the member's next eligible award.
 
 Storage uses the existing DATABASE_URL PostgreSQL database when configured;
 otherwise leveling tables share DATABASE_PATH with server settings. Tables are
-created automatically. No command sync or manual data migration is needed for
-this addition. The SQLite import tool also includes leveling tables when present.
+created automatically. No manual data migration is needed. The SQLite import tool also includes leveling tables when present.
 For an authenticated web backend, use `ky_bot.leveling.store.LevelStore` with the
 same database URL and an authorized server ID. `config`, `configure`, `award`, and
 `leaderboard` are async; configure requires the revision returned by config.
 Transactions serialize per server across PostgreSQL processes, keeping cooldowns
 and edits safe across bot/web connections. Web callers must enforce membership
 and administrator permissions before accessing a server's data.
+
+
+### Member XP adjustments
+
+Administrators can use **Leveling > MEMBER XP > Manage**, choose a current human
+member, and use the inline **Add XP**, **Remove XP**, or **Set level** controls.
+The same actions are available as global, server-only slash commands:
+
+- `/xp add member:Member amount:250`
+- `/xp remove member:Member amount:100`
+- `/xp level member:Member level:10`
+
+Adding/removing uses the member's current total and updates their derived level.
+Removal stops at zero; addition stops at the level-10000 XP cap. Setting a level
+accepts 0-10000 and sets XP to that level's starting threshold (level 10 = 5500 XP),
+replacing any partial progress. New members start with zero XP. Every correction
+is limited to the current server, requires Administrator at runtime, and works
+while XP earning is paused or the member is excluded from automatic earning.
+
+Corrections preserve message/voice cooldowns and replay guards. Upward level
+changes can grant configured role rewards; downward changes keep existing roles.
+No public level-up card is posted for an admin correction. Slash confirmations are
+private, with silent clickable member mentions. A shared database audit row stores
+the actor, target, action, requested value and before/after XP; repeated delivery
+of the same interaction cannot apply an adjustment twice. No new log channel is
+created. The new audit table is created automatically in SQLite/PostgreSQL and is
+included in the SQLite import when present.
+
+After deploying this command addition, register `/xp` with a **global** command
+sync (`COMMAND_SYNC=global`). Guild-only/test-server sync is not needed. This does
+not change the server-scoped nature of XP: global commands operate on the server
+where the administrator runs them.
