@@ -10,6 +10,7 @@ from ky_bot.checklists.board import safe
 from ky_bot.design.menu_design import automation_files, automation_profile, default_profile
 from ky_bot.errors import report_error
 from ky_bot.views.private_style import private_heading
+from ky_bot.views.sections import section_dividers
 
 from .autodelete_logging import TYPES
 from .autodelete_service import AutoDeleteService, check_permissions
@@ -430,8 +431,9 @@ class Menu(discord.ui.LayoutView):
                 for r in s.cog.store.list(s.guild.id)
                 if page == "all" or r["channel"] in s.channels
             ]
-            s.page = min(s.page, max(0, (len(records) - 1) // 3))
-            for rule in records[s.page * 3 : (s.page + 1) * 3]:
+            page_size = 2  # Each saved rule includes both edit and remove sections.
+            s.page = min(s.page, max(0, (len(records) - 1) // page_size))
+            for rule in records[s.page * page_size : (s.page + 1) * page_size]:
 
                 async def edit(i, rule=rule):
                     s.channels, s.content, s.seconds = (
@@ -469,7 +471,7 @@ class Menu(discord.ui.LayoutView):
                     "Rule pages.",
                     label,
                     action=turn,
-                    disabled=s.page == 0 if delta < 0 else (s.page + 1) * 3 >= len(records),
+                    disabled=s.page == 0 if delta < 0 else (s.page + 1) * page_size >= len(records),
                 )
 
             async def new(i):
@@ -669,6 +671,7 @@ class Menu(discord.ui.LayoutView):
             button.callback = navigate
             navigation.append(button)
         panel.add_item(discord.ui.ActionRow(*navigation))
+        section_dividers(panel)
         self.add_item(panel)
 
     async def interaction_check(self, i):

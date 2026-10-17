@@ -8,6 +8,7 @@ import discord
 from ky_bot.admin_functions.settings_repository import GuildSettings
 from ky_bot.admin_functions.settings_service import SETTINGS_TITLES, SettingsService
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.sections import section_dividers
 
 HEADER_URL = "attachment://ky_settings_header.png"
 
@@ -170,6 +171,11 @@ class SettingsView(discord.ui.LayoutView):
             row(
                 "**GENERAL SETTINGS**\n-# Channel cleanup, threads and emoji reactions.",
                 self.navigation("Manage", "general"),
+            )
+            separator()
+            row(
+                "**LEVELING**\n-# Message XP, optional voice XP, rewards and member rankings.",
+                self.automation_navigation("Leveling"),
             )
             separator()
             row(
@@ -358,6 +364,7 @@ class SettingsView(discord.ui.LayoutView):
             )
         )
         panel.add_item(controls)
+        section_dividers(panel)
         self.add_item(panel)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:

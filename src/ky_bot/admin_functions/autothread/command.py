@@ -25,6 +25,7 @@ from ky_bot.checklists.board import safe
 from ky_bot.checklists.inline import InlineView
 from ky_bot.errors import report_error
 from ky_bot.views.private_style import private_heading
+from ky_bot.views.sections import section_dividers
 
 
 def artwork(design=None):
@@ -537,6 +538,7 @@ class Menu(discord.ui.LayoutView):
             if page == "main" and session.command_center is None
             else discord.ui.ActionRow(back, close)
         )
+        section_dividers(panel)
         self.add_item(panel)
 
     async def interaction_check(self, interaction):

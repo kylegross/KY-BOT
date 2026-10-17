@@ -55,3 +55,15 @@ CREATE TABLE IF NOT EXISTS autoreact_jobs (
 CREATE TABLE IF NOT EXISTS embed_designs (
     guild_id TEXT PRIMARY KEY, revision TEXT NOT NULL, profiles TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS leveling_settings (
+    guild BIGINT PRIMARY KEY, revision TEXT NOT NULL, settings TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS leveling_members (
+    guild BIGINT NOT NULL, member BIGINT NOT NULL, xp BIGINT NOT NULL DEFAULT 0,
+    message_at DOUBLE PRECISION NOT NULL DEFAULT 0,
+    voice_at DOUBLE PRECISION NOT NULL DEFAULT 0,
+    source BIGINT NOT NULL DEFAULT 0, fingerprint TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY(guild,member)
+);
+CREATE INDEX IF NOT EXISTS leveling_rank_idx ON leveling_members(guild,xp DESC,member);

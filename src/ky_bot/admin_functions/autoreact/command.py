@@ -13,6 +13,7 @@ from ky_bot.checklists.board import safe
 from ky_bot.checklists.inline import InlineView
 from ky_bot.errors import report_error
 from ky_bot.views.private_style import private_heading
+from ky_bot.views.sections import section_dividers
 
 from .service import AutoReactService, emoji_key, parse_emojis, permissions, resolve_emoji
 from .store import CONTENT, FILTERS, Store, defaults, validate
@@ -464,8 +465,9 @@ class Menu(discord.ui.LayoutView):
                 for r in s.cog.store.list(s.guild.id)
                 if page == "all" or r["channel"] in s.channels
             ]
-            s.page = min(s.page, max(0, (len(records) - 1) // 4))
-            for rule in records[s.page * 4 : (s.page + 1) * 4]:
+            page_size = 3  # Leave room for section dividers within Discord's component limit.
+            s.page = min(s.page, max(0, (len(records) - 1) // page_size))
+            for rule in records[s.page * page_size : (s.page + 1) * page_size]:
 
                 async def edit(i, rule=rule):
                     s.channels = [rule["channel"]]
@@ -500,7 +502,7 @@ class Menu(discord.ui.LayoutView):
                     "Browse saved rules.",
                     label,
                     action=turn,
-                    disabled=s.page == 0 if delta < 0 else (s.page + 1) * 4 >= len(records),
+                    disabled=s.page == 0 if delta < 0 else (s.page + 1) * page_size >= len(records),
                 )
         elif page in ("toggle", "remove"):
             rules = [s.cog.store.get(s.guild.id, cid) for cid in s.channels]
@@ -585,6 +587,7 @@ class Menu(discord.ui.LayoutView):
             if page == "main" and s.command_center is None
             else discord.ui.ActionRow(back, close)
         )
+        section_dividers(panel)
         self.add_item(panel)
 
     async def interaction_check(self, interaction):

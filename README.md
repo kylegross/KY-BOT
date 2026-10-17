@@ -528,3 +528,58 @@ History in the selected channel. The saved channel/message IDs are stored in the
 shared settings database, and the bot restores the landing panel after a restart.
 The new storage table is created automatically; no manual migration is needed.
 Panel navigation and relocation are excluded from server message-event logs.
+
+
+## Leveling
+
+Open **LEVELING** on the `/settings` Command Center landing page. All settings and
+member XP belong to one server; pausing a server keeps its progress and has no
+effect on other servers. The menu uses inline controls, section dividers, and the
+Command Center silver artwork. Customize its header/footer under **EMBED DESIGN >
+Leveling**. Public menus use the existing ten-minute return-to-Home behavior.
+
+Message XP starts enabled: 15-25 XP per eligible message, with a 60-second cooldown
+per member. Administrators can change the range (1-1000 XP) and cooldown
+(5-86400 seconds), or disable message earning independently. Bots, webhooks, system
+messages, commands beginning with /, !, ?, or a KY BOT mention, short messages
+without attachments, repeated text within five minutes, and checklist channels,
+logs and discussion threads do not earn XP. Edits and old/replayed messages do not
+award XP. Only a content digest is stored for repeat detection, never message text.
+
+Voice XP is OFF by default. Administrators can enable it and set the amount
+(1-1000 XP) and interval (30-86400 seconds); the initial values are 5 XP per minute.
+At least two eligible, unmuted and undeafened humans must share a voice channel.
+AFK channels and excluded channels/roles do not earn XP. Partial intervals reset
+when participation or eligibility changes, settings change, or the bot disconnects
+or restarts. A 15-second worker checks intervals; no offline time is backfilled.
+
+Exclusions cover up to 25 channels and 25 roles. Excluding a channel also excludes
+its threads. Message and voice awards recheck exclusions and the per-server pause
+inside the XP transaction. Level thresholds are total XP = 50 * level * (level + 1):
+level 1 needs 100, level 2 needs 300, and level 10 needs 5500. The leaderboard shows
+10 members per page. XP is capped at level 10000.
+
+Optional role rewards accumulate and are checked when a member next earns XP.
+KY BOT needs Manage Roles and a role above each reward; managed, default, and
+administrative roles cannot be rewards. Removing a reward does not remove existing
+member roles. No role names appear in level-up announcements.
+
+Choose an announcement channel to enable the wide silver welcome-style level-up
+card, or clear it to stop announcements while retaining XP. The card has a thin
+frame, member avatar/name, level, upper-left KY BOT brand, and upper-right UTC date.
+Preview sends a private sample, without awarding XP or posting to the destination.
+KY BOT needs View Channel, Send Messages, Embed Links and Attach Files there.
+Announcements contain a clickable member mention without sending a notification.
+Delivery failures are logged; XP stays saved, and missed announcements are not
+replayed. Reward permission failures retry on the member's next eligible award.
+
+Storage uses the existing DATABASE_URL PostgreSQL database when configured;
+otherwise leveling tables share DATABASE_PATH with server settings. Tables are
+created automatically. No command sync or manual data migration is needed for
+this addition. The SQLite import tool also includes leveling tables when present.
+For an authenticated web backend, use `ky_bot.leveling.store.LevelStore` with the
+same database URL and an authorized server ID. `config`, `configure`, `award`, and
+`leaderboard` are async; configure requires the revision returned by config.
+Transactions serialize per server across PostgreSQL processes, keeping cooldowns
+and edits safe across bot/web connections. Web callers must enforce membership
+and administrator permissions before accessing a server's data.

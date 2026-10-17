@@ -19,6 +19,7 @@ from ky_bot.design.menu_design import (
 )
 from ky_bot.errors import report_error
 from ky_bot.views.private_style import private_heading
+from ky_bot.views.sections import section_dividers
 
 TARGETS = {
     "settings:overview": "Server settings",
@@ -28,6 +29,7 @@ TARGETS = {
     "settings:autothread": "AutoThread",
     "settings:autoreact": "AutoReact",
     "settings:autodelete": "AutoDelete",
+    "settings:leveling": "Leveling",
     "checklist": "All checklists / default",
     "welcome_image": "Welcome image",
 }
@@ -129,7 +131,15 @@ class DesignSession:
         self.preview_key = key
         profile = self.drafts[key]
         uploads = []
-        if key.startswith("settings:") and key.removeprefix("settings:") not in AUTOMATION_KEYS:
+        if key == "settings:leveling":
+            from ky_bot.leveling.menu import Menu, Session, artwork
+
+            session = Session(self.bot.get_cog("Leveling"), interaction)
+            session.config = (await session.cog.store.config(self.guild_id))[1]
+            session.design = profile
+            sample = Menu(session)
+            uploads = await asyncio.to_thread(artwork, profile)
+        elif key.startswith("settings:") and key.removeprefix("settings:") not in AUTOMATION_KEYS:
             from ky_bot.admin_functions.settings_view import SettingsView, settings_files
 
             section = key.split(":")[1]
@@ -617,6 +627,17 @@ class Editor(discord.ui.LayoutView):
             self.stop()
 
         row("CANCEL", "Discard this draft and return to server settings.", "Cancel", cancel)
+        # Keep navigation as ordinary buttons, reserving section rows for settings.
+        navigation = []
+        for item in list(panel.children):
+            if isinstance(item, discord.ui.Section) and item.accessory.label in (
+                ("Apply design", "Back to editing", "Cancel") if sample else ("Cancel",)
+            ):
+                panel.remove_item(item)
+                navigation.append(item.accessory)
+        if navigation:
+            panel.add_item(discord.ui.ActionRow(*navigation))
+        section_dividers(panel)
         if sample and self.total_children_count + panel._total_count > 40:
             destination = self.children[-1]
             if not isinstance(destination, discord.ui.Container):
