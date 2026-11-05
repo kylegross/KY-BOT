@@ -48,7 +48,15 @@ class HelpTests(unittest.IsolatedAsyncioTestCase):
         item = next(x for x in view.walk_children() if isinstance(x, discord.ui.Button))
         await item.callback(i)
         self.assertEqual(view.page, "requests")
-        i.edit_original_response.assert_awaited_once_with(view=view)
+        i.edit_original_response.assert_awaited_once()
+        args = i.edit_original_response.await_args.kwargs
+        self.assertIs(args["view"], view)
+        self.assertTrue(args["attachments"])
+        names = {attachment.filename for attachment in args["attachments"]}
+        for child in view.walk_children():
+            if isinstance(child, discord.ui.MediaGallery):
+                for item in child.items:
+                    self.assertIn(item.media.url.removeprefix("attachment://"), names)
         view.message = SimpleNamespace(edit=AsyncMock())
         await view.on_timeout()
         buttons = [x for x in view.walk_children() if isinstance(x, discord.ui.Button)]
@@ -78,4 +86,3 @@ class HelpTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

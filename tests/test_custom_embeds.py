@@ -513,3 +513,41 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    async def test_manage_embeds_has_create_edit_context_and_compact_plain_navigation(self):
+        from ky_bot.custom_embeds.views import editor_artwork
+
+        for creating in (True, False):
+            session = Session(self.cog, 50, 1, self.ident, creating=creating)
+            session.row = await self.store.get(1, self.ident)
+            for page in ("main", "content", "images", "delivery", "publish"):
+                session.page = page
+                view = Editor(session)
+                self.assertEqual(view.header_mode, "create" if creating else "edit")
+                attachments = editor_artwork(view)
+                try:
+                    self.assertEqual(attachments[0].filename, "ky_header_create_embed.png")
+                    self.assertTrue(attachments[0].fp.read().startswith(b"\x89PNG"))
+                finally:
+                    for attachment in attachments:
+                        attachment.close()
+                children = list(view.panel.children)
+                if page == "main":
+                    nav = next(
+                        item
+                        for item in children
+                        if isinstance(item, discord.ui.Section)
+                        and item.accessory.label == "All embeds"
+                    )
+                    self.assertEqual(nav.children[0].content.split("\n")[0], "**SAVED EMBEDS**")
+                    self.assertIsInstance(children[children.index(nav) - 1], discord.ui.Separator)
+                    channel_row = next(
+                        item
+                        for item in children
+                        if isinstance(item, discord.ui.ActionRow)
+                        and isinstance(item.children[0], discord.ui.ChannelSelect)
+                    )
+                    self.assertIsInstance(
+                        children[children.index(channel_row) - 1], discord.ui.TextDisplay
+                    )
+                view.stop()

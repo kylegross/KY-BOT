@@ -6,7 +6,13 @@ from importlib.resources import files
 
 import discord
 
+from ky_bot.views.sections import navigation_item
+
 GROUPS = {
+    "askdm:roles": (
+        ("ROLE PERMISSIONS", ("WHO CAN SEND", "WHO CAN RECEIVE")),
+        ("RESTRICTIONS", ("BLOCKED FROM SENDING", "BLOCKED FROM RECEIVING")),
+    ),
     "moderation": (("MEMBER MODERATION", ("KICK A MEMBER", "BAN A MEMBER", "TIME OUT A MEMBER")),),
     "nsfw": (
         ("CHANNEL & DELIVERY", ("SOURCE CHANNEL", "AGE-RESTRICTED CHANNEL", "SPOILERED MEDIA")),
@@ -15,7 +21,7 @@ GROUPS = {
     "settings:overview": (
         ("SERVER SETUP", ("COMMAND CENTER CHANNEL", "WELCOME EXPERIENCE")),
         ("ADMINISTRATION", ("MODERATION", "LOGS")),
-        ("TOOLS & DESIGN", ("GENERAL SETTINGS", "CREATE EMBED")),
+        ("TOOLS & DESIGN", ("GENERAL SETTINGS", "MANAGE EMBEDS")),
         ("COMMUNITY", ("LEVELING", "CONFESSIONS", "ASK TO DM/FR")),
     ),
     "settings:general": (
@@ -44,7 +50,6 @@ GROUPS = {
         ),
         ("DELIVERY", ("STICKY DELIVERY",)),
         ("REVIEW & PUBLISH", ("PREVIEW & PUBLISH",)),
-        ("SAVED EMBEDS", ("SAVED EMBEDS",)),
     ),
     "custom_embeds:library": (
         ("CREATE EMBED", ("CREATE EMBED",)),
@@ -125,28 +130,32 @@ def filename(title):
 
 
 def strip_files(menu, style="dark_silver", text_color=None):
+    return category_files((title for title, _ in GROUPS.get(menu, ())), style, text_color)
+
+
+def category_files(titles, style="dark_silver", text_color=None):
     if style not in {"dark_silver", "gold", "silver_neon", "red_iridescent"}:
         raise ValueError("Choose a supported menu finish.")
-    if text_color:
-        from ky_bot.checklists.artwork import title_image
-
-        return [
-            discord.File(
-                io.BytesIO(title_image(title, style, text_color)), filename=filename(title)
-            )
-            for title, _ in GROUPS.get(menu, ())
-        ]
-    return [
-        discord.File(
-            io.BytesIO(
-                files("ky_bot.design")
-                .joinpath("assets", "strips", style + "_" + filename(title))
-                .read_bytes()
-            ),
-            filename=filename(title),
+    result = []
+    for title in titles:
+        data = (
+            files("ky_bot.design")
+            .joinpath("assets", "strips", style + "_" + filename(title))
+            .read_bytes()
         )
-        for title, _ in GROUPS.get(menu, ())
-    ]
+        if text_color:
+            from PIL import Image
+
+            from ky_bot.design.footers import text_ink
+
+            # Reuse the packaged mask, including its inset and trailing rule.
+            with Image.open(io.BytesIO(data)) as image:
+                ink = text_ink(image.getchannel("A"), style, text_color)
+            stream = io.BytesIO()
+            ink.save(stream, format="PNG")
+            data = stream.getvalue()
+        result.append(discord.File(io.BytesIO(data), filename=filename(title)))
+    return result
 
 
 def add_strip(panel, title):
@@ -179,7 +188,9 @@ def group_sections(panel, menu):
         if isinstance(child, discord.ui.Separator):
             continue
         label = heading(child)
-        if label in names:
+        if navigation_item(child):
+            current = tail
+        elif label in names:
             current = blocks.setdefault(label, [])
         elif isinstance(child, discord.ui.TextDisplay) and child.content.startswith(
             ("-# Private admin controls", "-# Admin controls")

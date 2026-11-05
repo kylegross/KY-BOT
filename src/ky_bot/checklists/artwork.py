@@ -4,8 +4,8 @@ import io
 
 from PIL import Image, ImageOps
 
-from ky_bot.design.collection import COLOURS, floral_background
-from ky_bot.design.footers import centered_overlay, metal, read_upload, rectangular_frame
+from ky_bot.design.collection import floral_background
+from ky_bot.design.footers import centered_overlay, read_upload, rectangular_frame, text_ink
 from ky_bot.design.headers import render_header
 from ky_bot.design.typography import SECTION_HEADING_LEFT, section_heading_mask, text_mask
 
@@ -28,14 +28,7 @@ def title_image(title, style, text_color=None):
             if len(text) <= 4:
                 raise
             text = text.rstrip("…")[:-1] + "…"
-    from ky_bot.design.text_colour import text_colour
-
-    custom_color = text_colour(text_color)
-    if style == "red_iridescent" and not custom_color:
-        ink = metal(mask, style)
-    else:
-        ink = Image.new("RGBA", mask.size, custom_color or COLOURS[style])
-        ink.putalpha(mask)
+    ink = text_ink(mask, style, text_color)
     label = Image.new("RGBA", (1120, mask.height + 32))
     label.alpha_composite(ink, (SECTION_HEADING_LEFT, 16))
     return png(label)
@@ -58,10 +51,7 @@ def board_artwork(board, categories, tasks=None):
     text_color = board.get("_menu_profile", {}).get("text_color")
     if board["footer_text"]:
         mask = text_mask(board["footer_text"], role="display", size=52, min_size=24, max_width=1000)
-        from ky_bot.design.text_colour import text_colour
-
-        ink = Image.new("RGBA", mask.size, text_colour(text_color) or COLOURS[style])
-        ink.putalpha(mask)
+        ink = text_ink(mask, style, text_color)
         footer.alpha_composite(ink, ((size[0] - mask.width) // 2, (size[1] - mask.height) // 2))
     elif board["footer_icon"]:
         icon = ImageOps.contain(

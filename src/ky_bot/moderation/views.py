@@ -7,7 +7,7 @@ from importlib.resources import files
 import discord
 
 from ky_bot.errors import report_error, send_private
-from ky_bot.views.menu_strips import group_sections, strip_files
+from ky_bot.views.menu_strips import add_strip, category_files, group_sections, strip_files
 from ky_bot.views.sections import section_dividers
 
 from .service import duration_label, parse_duration
@@ -17,7 +17,7 @@ def safe(text):
     return discord.utils.escape_mentions(discord.utils.escape_markdown(str(text)))
 
 
-def artwork():
+def artwork(view=None):
     return [
         discord.File(
             io.BytesIO(files("ky_bot.design").joinpath("assets", folder, name).read_bytes()),
@@ -27,11 +27,15 @@ def artwork():
             ("header", "ky_header_moderation.png"),
             ("footer", "ky_footer_moderation.png"),
         )
-    ] + strip_files("moderation", "silver_neon")
+    ] + (
+        category_files(view.category_titles, "silver_neon")
+        if view is not None and hasattr(view, "category_titles")
+        else strip_files("moderation", "silver_neon")
+    )
 
 
 async def display(interaction, view):
-    attachments = artwork()
+    attachments = artwork(view)
     try:
         return await interaction.edit_original_response(
             content=None,
@@ -72,7 +76,8 @@ class Panel(discord.ui.LayoutView):
         self.panel.add_item(discord.ui.Section(value, accessory=control))
 
     def finish(self):
-        group_sections(self.panel, "moderation")
+        if not hasattr(self, "category_titles"):
+            group_sections(self.panel, "moderation")
         section_dividers(self.panel)
         self.panel.add_item(
             discord.ui.MediaGallery(
@@ -142,6 +147,8 @@ class Menu(Panel):
 class MemberForm(Panel):
     def __init__(self, cog, owner, guild, action):
         super().__init__(owner, guild)
+        self.category_titles = ("MEMBER SELECTION",)
+        add_strip(self.panel, "MEMBER SELECTION")
         self.cog, self.action, self.target = cog, action, None
         self.text(
             "**"
@@ -237,6 +244,8 @@ class Details(discord.ui.Modal):
 class Confirm(Panel):
     def __init__(self, cog, owner, guild, target, name, action, duration, reason):
         super().__init__(owner, guild)
+        self.category_titles = ("REVIEW ACTION",)
+        add_strip(self.panel, "REVIEW ACTION")
         self.cog, self.target, self.action = cog, target, action
         self.duration, self.reason = duration, reason
         self.used = False

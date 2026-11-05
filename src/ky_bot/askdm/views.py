@@ -48,6 +48,8 @@ class Panel(discord.ui.LayoutView):
         self.panel.add_item(discord.ui.Section(text, accessory=button))
 
     def finish(self):
+        if getattr(self, "category_menu", None):
+            group_sections(self.panel, self.category_menu)
         section_dividers(self.panel)
         self.panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://ask_footer.png"))
@@ -333,6 +335,9 @@ class Admin(Panel):
     def __init__(self, cog, parent, revision, config, *, picker=None, notice=None):
         super().__init__(timeout=None if parent.panel_manager else 600)
         self.cog, self.parent, self.revision = cog, parent, revision
+        self.category_menu = (
+            "askdm:roles" if picker == "roles" or picker in self.ROLE_FIELDS else "askdm"
+        )
         guild = parent.guild_id
         self.text("**COMMAND CENTER · ASK TO DM/FR**")
         if notice:
@@ -476,14 +481,15 @@ class Admin(Panel):
             self.stop()
 
         self.row("**COMMAND CENTER**\nReturn to the main menu.", button("Home", home))
-        group_sections(self.panel, "askdm")
         self.finish()
 
     async def interaction_check(self, i):
         return await self.parent.interaction_check(i)
 
 
-def uploads(profile=None):
+def uploads(profile=None, view=None):
     return _base_uploads(profile) + strip_files(
-        "askdm", (profile or {}).get("style", "dark_silver"), (profile or {}).get("text_color")
+        getattr(view, "category_menu", "askdm"),
+        (profile or {}).get("style", "dark_silver"),
+        (profile or {}).get("text_color"),
     )

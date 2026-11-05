@@ -54,12 +54,7 @@ class LogMenu(discord.ui.LayoutView):
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_header.png"))
         )
-        panel.add_item(
-            discord.ui.TextDisplay(
-                "**LOGS**\nManage logging in one place. Feature menus and these "
-                "shortcuts share the same saved settings."
-            )
-        )
+        panel.add_item(discord.ui.TextDisplay("Manage destinations and delivery for all logs."))
 
         def button(label, callback):
             item = discord.ui.Button(label=label)
@@ -107,7 +102,7 @@ class LogMenu(discord.ui.LayoutView):
             await self.show(event, True)
 
         if automation:
-            panel.add_item(discord.ui.TextDisplay("**AUTOMATION LOGS**"))
+            add_strip(panel, "ACTIVITY LOGS")
             for title, name in (
                 ("AUTODELETE", "AutoDelete"),
                 ("AUTOTHREAD", "AutoThread"),
@@ -133,12 +128,12 @@ class LogMenu(discord.ui.LayoutView):
             )
             row(
                 "CONFESSIONS",
-                "Per-channel author logs and administrator review/report destinations.",
+                "Author logs, approvals and reports.",
                 feature("Confessions", logs=True),
             )
             row(
                 "ASK TO DM/FR",
-                "Request outcomes and private staff-log destination.",
+                "Request outcomes and private staff logs.",
                 feature("AskDM"),
             )
             row("CHECKLISTS", "Completion logs for each existing checklist.", checklist_logs)
@@ -155,29 +150,27 @@ class LogMenu(discord.ui.LayoutView):
             await event.response.defer(ephemeral=True)
             await self.show(event)
 
-        panel.add_item(
-            discord.ui.ActionRow(button("Back", back if automation else home), button("Home", home))
-        )
+        navigation = ([button("Back", back)] if automation else []) + [button("Home", home)]
+        panel.add_item(discord.ui.ActionRow(*navigation))
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_footer.png"))
         )
         section_dividers(panel)
         self.add_item(panel)
         attachments = uploads(config)
-        if not automation:
-            import io
+        import io
 
-            attachments.extend(
-                discord.File(
-                    io.BytesIO(
-                        files("ky_bot.design")
-                        .joinpath("assets", "strips", "silver_neon_" + filename(title))
-                        .read_bytes()
-                    ),
-                    filename=filename(title),
-                )
-                for title in ("SERVER ACTIVITY", "OTHER LOGS")
+        attachments.extend(
+            discord.File(
+                io.BytesIO(
+                    files("ky_bot.design")
+                    .joinpath("assets", "strips", "silver_neon_" + filename(title))
+                    .read_bytes()
+                ),
+                filename=filename(title),
             )
+            for title in (("ACTIVITY LOGS",) if automation else ("SERVER ACTIVITY", "OTHER LOGS"))
+        )
         try:
             await i.edit_original_response(
                 view=self,

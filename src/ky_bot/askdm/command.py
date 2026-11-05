@@ -170,6 +170,8 @@ class AskDM(commands.Cog):
             from ky_bot.design.collection import COLOURS
 
             view.panel.accent_colour = int(COLOURS[profile["style"]][1:], 16)
+        if isinstance(view, Admin):
+            return await asyncio.to_thread(uploads, profile, view)
         return await asyncio.to_thread(uploads, profile) if profile else uploads()
 
     async def refresh_design(self, guild):

@@ -10,9 +10,11 @@ from PIL import Image
 from ky_bot.errors import report_error, send_private
 from ky_bot.views.sections import section_dividers
 
+from .appearance import standard_artwork
 from .cards import Card, post_card, safe, uploads
 from .command import Action, administrator, destination
-from .headings import title_image
+from .headings import DIVIDER
+from .layout import arrange, attachments
 
 
 class ChannelChooser(discord.ui.View):
@@ -69,12 +71,16 @@ class Edit(discord.ui.Modal):
             title={
                 "style": "Confession appearance",
                 "text": "Submission panel text",
+                "header": "Header title",
+                "lettercolor": "Custom decorative text color",
                 "limits": "Submission limits",
                 "sticky": "Sticky submission panel",
             }[kind]
         )
         self.menu, self.kind, self.revision, self.channel = menu, kind, menu.revision, menu.channel
         fields = {
+            "header": (("header_title", "Header banner title", 80),),
+            "lettercolor": (("text_color", "Hex color (blank follows selected finish)", 7),),
             "style": (
                 ("color", "Embed color (hex, e.g. D6E2F3)", 6),
                 ("title", "Confession heading", 80),
@@ -95,9 +101,9 @@ class Edit(discord.ui.Modal):
         for key, label, limit in fields:
             item = discord.ui.TextInput(
                 label=label,
-                default=str(menu.config[key]),
+                default="" if menu.config[key] is None else str(menu.config[key]),
                 max_length=limit,
-                required=key not in {"footer_text", "panel_text"},
+                required=key not in {"footer_text", "panel_text", "text_color"},
                 style=discord.TextStyle.paragraph
                 if key == "panel_text"
                 else discord.TextStyle.short,
@@ -118,7 +124,13 @@ class Edit(discord.ui.Modal):
             if "color" in values:
                 values["color"] = values["color"].lstrip("#")
             await self.menu.save(i, self.revision, **values)
-            await self.menu.show(i, "channel", "Settings saved.")
+            target = {
+                "header": "artwork",
+                "lettercolor": "lettering",
+                "style": "appearance",
+                "text": "appearance",
+            }.get(self.kind, "behavior")
+            await self.menu.show(i, target, "Settings saved for this channel only.")
         except ValueError as error:
             await send_private(i, str(error))
 
@@ -286,22 +298,29 @@ class Admin(discord.ui.LayoutView):
             "channels": "CHANNELS",
             "channel": "CHANNEL SETTINGS",
             "behavior": "SUBMISSIONS & DELIVERY",
-            "logging": "LOGGING & REVIEW",
+            "logging": "LOGGING & APPROVAL",
             "appearance": "APPEARANCE",
+            "artwork": "HEADER & FOOTER DESIGN",
+            "lettering": "DECORATIVE TEXT",
             "permissions": "ROLE ACCESS",
-            "queue": "PENDING APPROVALS",
+            "queue": "ADMINISTRATOR APPROVAL",
             "reports": "REPORTS",
             "bans": "CONFESSION BANS",
         }[page]
-        self.title_art = title_image(heading)
-        panel.add_item(
-            discord.ui.MediaGallery(
-                discord.MediaGalleryItem("attachment://confession_title.png", description=heading)
-            )
+        self.header_art = standard_artwork(
+            "header",
+            config["artwork_finish"],
+            "CONFESSIONS" + DIVIDER + heading,
+            config["text_finish"],
+            config["text_color"],
         )
         panel.add_item(
             discord.ui.TextDisplay(
-                f"Configure <#{self.channel}>. Changes are saved per channel."
+                "Administrators only · Authors are identified before publishing."
+                if page == "queue"
+                else "Review member reports privately."
+                if page == "reports"
+                else f"Configure <#{self.channel}>. Changes are saved per channel."
                 if self.channel
                 else "Anonymous member submissions. Configure each channel independently."
             )
@@ -326,6 +345,7 @@ class Admin(discord.ui.LayoutView):
             return flip
 
         if page == "channels":
+            panel.add_item(discord.ui.TextDisplay("**CONFESSION CHANNELS**"))
             rows = await self.cog.store.channels(self.guild)
             picker = discord.ui.ChannelSelect(
                 placeholder="Add or manage a confession channel",
@@ -492,37 +512,125 @@ class Admin(discord.ui.LayoutView):
                 "Manage",
                 self.go("bans"),
             )
-        elif page == "appearance":
-            row(
-                "COLOR & TEXT",
-                f"#{config['color']} · Same color on public posts and this channel’s logs.",
-                "Edit",
-                ("style",),
-            )
-            row(
-                "SUBMISSION PANEL TEXT",
-                "Edit the heading and message above Submit confession.",
-                "Edit",
-                ("text",),
-            )
-            row(
-                "HEADER ARTWORK",
-                "Your upload" if config["header"] else "KY BOT silver floral header",
-                "Upload",
-                ("art:header",),
-            )
-            row(
-                "FOOTER ARTWORK",
-                "Your upload" if config["footer"] else "KY BOT silver floral footer",
-                "Upload",
-                ("art:footer",),
-            )
+        elif page in {"appearance", "artwork", "lettering"}:
+            if page in {"artwork", "lettering"}:
+                from ky_bot.design.menu_design import FINISHES
 
-            async def reset(event):
-                await self.save(event, self.revision, header=None, footer=None)
-                await self.show(event, "appearance", "Default artwork restored.")
+                key = "artwork_finish" if page == "artwork" else "text_finish"
+                picker = discord.ui.Select(
+                    placeholder="Choose a standard finish",
+                    options=[
+                        discord.SelectOption(
+                            label=label,
+                            value=value,
+                            default=config[key] == value
+                            and not (page == "lettering" and config["text_color"]),
+                        )
+                        for value, label in FINISHES.items()
+                    ],
+                )
+                if page == "lettering":
+                    picker.append_option(
+                        discord.SelectOption(
+                            label="Custom color…",
+                            value="__custom",
+                            default=bool(config["text_color"]),
+                        )
+                    )
+                revision, selected_channel = self.revision, self.channel
 
-            row("DEFAULT ARTWORK", "Restore the branded header and footer.", "Restore", reset)
+                async def choose_finish(event):
+                    await self.allowed(event)
+                    if self.channel != selected_channel:
+                        raise ValueError(
+                            "The selected channel changed. Reopen its appearance menu."
+                        )
+                    if picker.values[0] == "__custom":
+                        await event.response.send_modal(Edit(self, "lettercolor"))
+                        return
+                    await event.response.defer(ephemeral=True)
+                    values = {key: picker.values[0]}
+                    if key == "text_finish":
+                        values["text_color"] = None
+                    await self.save(event, revision, **values)
+                    await self.show(event, page, "Finish saved for this channel only.")
+
+                panel.add_item(
+                    discord.ui.TextDisplay(
+                        "**" + ("ARTWORK FINISH" if page == "artwork" else "TEXT FINISH") + "**"
+                    )
+                )
+                picker.callback = choose_finish
+                panel.add_item(discord.ui.ActionRow(picker))
+            if page == "appearance":
+                row(
+                    "HEADER & FOOTER DESIGN",
+                    "Banner title, standard artwork finish and uploads.",
+                    "Manage",
+                    self.go("artwork"),
+                )
+                row(
+                    "DECORATIVE TEXT",
+                    "Four standard lettering finishes or your own hex color.",
+                    "Manage",
+                    self.go("lettering"),
+                )
+                row(
+                    "EMBED COLOR & TITLES",
+                    f"#{config['color']} · This channel and its logs only.",
+                    "Edit",
+                    ("style",),
+                )
+                row(
+                    "SUBMISSION PANEL TEXT",
+                    "Panel heading, message and submit button label.",
+                    "Edit",
+                    ("text",),
+                )
+            elif page == "artwork":
+                row("HEADER TITLE", config["header_title"], "Edit", ("header",))
+                row(
+                    "HEADER ARTWORK",
+                    "Your upload" if config["header"] else "Selected standard finish",
+                    "Upload",
+                    ("art:header",),
+                )
+                row(
+                    "FOOTER ARTWORK",
+                    "Your upload" if config["footer"] else "Selected standard finish",
+                    "Upload",
+                    ("art:footer",),
+                )
+
+                async def reset(event):
+                    await self.save(event, self.revision, header=None, footer=None)
+                    await self.show(event, "artwork", "Standard artwork restored for this channel.")
+
+                row(
+                    "USE STANDARD ARTWORK",
+                    "Restore the selected finish without changing other channels.",
+                    "Restore",
+                    reset,
+                )
+            else:
+                row(
+                    "CUSTOM TEXT COLOR",
+                    config["text_color"] or "Following the selected lettering finish.",
+                    "Edit color",
+                    ("lettercolor",),
+                )
+                row(
+                    "CONFESSION & FOOTER TEXT",
+                    "Edit the confession heading, footer text and embed accent.",
+                    "Edit",
+                    ("style",),
+                )
+                row(
+                    "PANEL HEADING & MESSAGE",
+                    "Edit the special question heading and supporting text.",
+                    "Edit",
+                    ("text",),
+                )
 
             async def preview(event):
                 view = Card(
@@ -541,7 +649,7 @@ class Admin(discord.ui.LayoutView):
 
             row(
                 "PREVIEW",
-                "Check this channel’s panel privately before publishing.",
+                "Check this channel’s title, artwork and lettering privately.",
                 "Preview",
                 preview,
             )
@@ -567,6 +675,7 @@ class Admin(discord.ui.LayoutView):
                 picker.callback = choose
                 panel.add_item(discord.ui.ActionRow(picker))
         elif page in {"queue", "reports"}:
+            panel.add_item(discord.ui.TextDisplay("**QUEUE CONTENT**"))
             if page == "queue":
                 posts = await self.cog.store.pending(self.guild, self.channel)
             else:
@@ -680,7 +789,9 @@ class Admin(discord.ui.LayoutView):
                 await self.show(event, "channels")
 
         back = (
-            "channels"
+            "appearance"
+            if page in {"artwork", "lettering"}
+            else "channels"
             if page == "channel"
             else "channel"
             if page in {"appearance", "logging", "behavior", "permissions"}
@@ -688,19 +799,19 @@ class Admin(discord.ui.LayoutView):
             if page in {"queue", "reports", "bans"}
             else "channels"
         )
-        panel.add_item(
-            discord.ui.ActionRow(
-                self.button("Back", self.go(back)),
-                self.button("Refresh", self.go(page)),
-                self.button("Home", home),
-            )
-        )
+        navigation = [self.button("Back", self.go(back))] if page != "channels" else []
+        navigation.extend((self.button("Refresh", self.go(page)), self.button("Home", home)))
+        panel.add_item(discord.ui.ActionRow(*navigation))
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_footer.png"))
         )
+        arrange(panel, page)
+        for child in list(panel.children):
+            if isinstance(child, discord.ui.TextDisplay) and child.content == "**QUEUE CONTENT**":
+                panel.remove_item(child)
         section_dividers(panel)
         self.add_item(panel)
-        files = uploads(config, self)
+        files = uploads(config, self) + attachments(page, config)
         try:
             await i.edit_original_response(
                 content=None,

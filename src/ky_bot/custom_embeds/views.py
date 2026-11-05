@@ -27,10 +27,15 @@ def safe(value):
     return discord.utils.escape_mentions(discord.utils.escape_markdown(str(value)))
 
 
-def _base_editor_artwork():
+def _base_editor_artwork(mode=None):
+    header_name = "ky_header_manage_embeds" + ("_" + mode if mode else "") + ".png"
     return [
         discord.File(
-            io.BytesIO(files("ky_bot.design").joinpath("assets", folder, name).read_bytes()),
+            io.BytesIO(
+                files("ky_bot.design")
+                .joinpath("assets", folder, header_name if folder == "header" else name)
+                .read_bytes()
+            ),
             filename=name,
         )
         for folder, name in (
@@ -101,7 +106,7 @@ class Base(discord.ui.LayoutView):
     async def interaction_check(self, i):
         if i.guild_id == self.guild and i.user.id == self.owner and i.permissions.administrator:
             return True
-        await send_private(i, "Open Create Embed as a server administrator in this server.")
+        await send_private(i, "Open Manage Embeds as a server administrator in this server.")
         return False
 
     async def on_error(self, i, error, item):
@@ -132,7 +137,7 @@ class Library(Base):
         async def create(i):
             await i.response.defer(ephemeral=True, thinking=True)
             ident = await cog.store.create(guild, initial_channel(i))
-            await Session(cog, owner, guild, ident).show(i)
+            await Session(cog, owner, guild, ident, creating=True).show(i)
 
         self.row(
             "**CREATE EMBED**\nImages, formatted text, custom color and optional sticky delivery.",
@@ -225,10 +230,11 @@ class Library(Base):
 
 
 class Session:
-    def __init__(self, cog, owner, guild, ident):
+    def __init__(self, cog, owner, guild, ident, *, creating=False):
         self.cog, self.owner, self.guild, self.ident = cog, owner, guild, ident
         self.lock = asyncio.Lock()
         self.row = None
+        self.creating = creating
         self.page = "main"
         self.style = "bold"
         self.section_index = 0
@@ -253,6 +259,8 @@ class Session:
     async def show(self, i, page="main", notice=None):
         self.row = await self.cog.store.get(self.guild, self.ident)
         self.row["draft"] = defaults() | self.row["draft"]
+        if self.row["published"]:
+            self.creating = False
         self.page = page
         view = Editor(self, notice)
         await editor_display(i, view)
@@ -403,6 +411,7 @@ class Editor(Base):
     def __init__(self, s, notice=None):
         super().__init__(s.owner, s.guild)
         self.session = s
+        self.header_mode = "create" if s.creating else "edit"
         row, data, page = s.row, s.row["draft"], s.page
         revision = row["revision"]
         self.strip_menu = "custom_embeds" if page == "main" else f"custom_embeds:{page}"
@@ -760,6 +769,7 @@ class DeleteConfirm(Base):
     def __init__(self, s, revision):
         super().__init__(s.owner, s.guild)
         self.session, self.revision = s, revision
+        self.header_mode = "create" if s.creating else "edit"
         self.strip_menu = "custom_embeds:delete"
         self.used = False
         self.text(
@@ -814,4 +824,6 @@ class DeleteConfirm(Base):
 
 def editor_artwork(view=None):
     menu = view.strip_menu if view is not None else "custom_embeds:library"
-    return _base_editor_artwork() + strip_files(menu, "silver_neon")
+    return _base_editor_artwork(getattr(view, "header_mode", None)) + strip_files(
+        menu, "silver_neon"
+    )

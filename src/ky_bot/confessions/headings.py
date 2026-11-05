@@ -6,7 +6,8 @@ from importlib.resources import files
 
 from PIL import Image, ImageDraw, ImageOps
 
-from ky_bot.design.footers import metal
+from ky_bot.design.collection import COLOURS
+from ky_bot.design.footers import text_ink
 from ky_bot.design.headers import asset
 from ky_bot.design.typography import SECTION_HEADING_LEFT
 from ky_bot.design.welcome import font, readable
@@ -35,6 +36,8 @@ MASKS.update(
         "LOGGING & APPROVAL": "title_logging_approval.png",
         "LOGGING & REVIEW": "title_logging_review.png",
         "APPEARANCE": "title_appearance.png",
+        "HEADER & FOOTER DESIGN": "title_header_footer_design.png",
+        "DECORATIVE TEXT": "title_decorative_text.png",
         "ROLE ACCESS": "title_role_access.png",
         "PENDING APPROVALS": "title_pending_approvals.png",
         "REPORTS": "title_reports.png",
@@ -58,17 +61,21 @@ def lettering(text):
 
 
 @lru_cache(maxsize=128)
-def title_image(title):
+def title_image(title, finish="silver_neon", text_color=None):
+    def paint(mask):
+        return text_ink(mask, finish, text_color)
+
     if title == PROMPT:
         mask = lettering(title)
         image = Image.new("RGBA", (1120, mask.height + 32))
         left = (1120 - mask.width) // 2
-        image.alpha_composite(metal(mask, "silver_neon"), (left, 16))
+        image.alpha_composite(paint(mask), (left, 16))
         middle = 16 + mask.height // 2
         pen = ImageDraw.Draw(image)
+        rule_color = text_color or ("#BFCAD9" if finish == "silver_neon" else COLOURS[finish])
         if left > 24:
-            pen.line((2, middle, left - 18, middle), fill="#BFCAD9", width=2)
-            pen.line((left + mask.width + 18, middle, 1118, middle), fill="#BFCAD9", width=2)
+            pen.line((2, middle, left - 18, middle), fill=rule_color, width=2)
+            pen.line((left + mask.width + 18, middle, 1118, middle), fill=rule_color, width=2)
         stream = io.BytesIO()
         image.save(stream, format="PNG")
         return stream.getvalue()
@@ -97,7 +104,7 @@ def title_image(title):
         x += glyph.width + gap
     mask = ImageOps.contain(mask, (1080, line_height), Image.Resampling.LANCZOS)
     image = Image.new("RGBA", (1120, mask.height + 32))
-    image.alpha_composite(metal(mask, "silver_neon"), (SECTION_HEADING_LEFT, 16))
+    image.alpha_composite(paint(mask), (SECTION_HEADING_LEFT, 16))
     stream = io.BytesIO()
     image.save(stream, format="PNG")
     return stream.getvalue()

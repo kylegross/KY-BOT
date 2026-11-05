@@ -18,7 +18,7 @@ from ky_bot.design.menu_design import (
     profile_for,
 )
 from ky_bot.errors import report_error
-from ky_bot.views.private_style import private_heading
+from ky_bot.views.menu_strips import add_strip, category_files
 from ky_bot.views.sections import section_dividers
 
 TARGETS = {
@@ -133,13 +133,18 @@ class DesignSession:
     async def show(self, interaction, page="edit", notice=None):
         self.generation += 1
         view = Editor(self, page, notice)
-        await interaction.edit_original_response(
-            content=None,
-            embeds=[],
-            attachments=[],
-            view=view,
-            allowed_mentions=discord.AllowedMentions.none(),
-        )
+        attachments = category_files([view.category_title], "silver_neon")
+        try:
+            await interaction.edit_original_response(
+                content=None,
+                embeds=[],
+                attachments=attachments,
+                view=view,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        finally:
+            for attachment in attachments:
+                attachment.close()
 
     async def preview(self, interaction, key=None):
         key = key or self.preview_key or self.selected[0]
@@ -453,12 +458,15 @@ class Editor(discord.ui.LayoutView):
             for item in list(sample.children):
                 sample.remove_item(item)
                 self.add_item(item)
-        panel = discord.ui.Container(accent_colour=0xBDC3CA)
-        panel.add_item(
-            discord.ui.TextDisplay(
-                private_heading("DESIGN PREVIEW" if page == "preview" else "EMBED DESIGN")
-            )
+        panel = discord.ui.Container(accent_colour=0xD6E2F3)
+        self.category_title = {"targets": "SELECT MENUS", "finish": "LETTERING FINISH"}.get(
+            page, "MENU APPEARANCE"
         )
+        if sample:
+            # These are bottom approval controls, not a category of sample settings.
+            panel.add_item(discord.ui.TextDisplay("**DESIGN PREVIEW**"))
+        else:
+            add_strip(panel, self.category_title)
         if notice:
             panel.add_item(discord.ui.TextDisplay(notice))
 
@@ -725,6 +733,15 @@ class Editor(discord.ui.LayoutView):
                         sample_panel.children[-1], discord.ui.Separator
                     ):
                         sample_panel.remove_item(sample_panel.children[-1])
+            # A footer gallery can follow a now-orphaned rule, so trimming only
+            # trailing rules no longer suffices after navigation moves above it.
+            for sample_panel in self.children:
+                if isinstance(sample_panel, discord.ui.Container):
+                    for child in reversed(sample_panel.children):
+                        if self.total_children_count + panel._total_count - 1 <= 40:
+                            break
+                        if isinstance(child, discord.ui.Separator):
+                            sample_panel.remove_item(child)
             destination = self.children[-1]
             if not isinstance(destination, discord.ui.Container):
                 raise ValueError("Preview exceeds Discord's component limit.")

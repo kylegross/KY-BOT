@@ -12,8 +12,7 @@ from discord.ext import commands
 from ky_bot.checklists.board import safe
 from ky_bot.checklists.inline import InlineView
 from ky_bot.errors import report_error
-from ky_bot.views.menu_strips import group_sections
-from ky_bot.views.private_style import private_heading
+from ky_bot.views.menu_strips import category_files, filename, group_sections
 from ky_bot.views.sections import section_dividers
 
 from .service import AutoReactService, emoji_key, parse_emojis, permissions, resolve_emoji
@@ -22,6 +21,19 @@ from .store import CONTENT, FILTERS, Store, defaults, validate
 CATALOG = json.loads(files(__package__).joinpath("emoji_catalog.json").read_text(encoding="utf-8"))[
     "emojis"
 ]
+
+
+PAGE_TITLES = {
+    "channels": "DESTINATION",
+    "emojis": "EMOJIS",
+    "browse": "ADD EMOJI",
+    "server": "SERVER EMOJIS",
+    "content": "CONTENT & TRIGGERS",
+    "filters": "FILTERS",
+    "review": "PREVIEW & SAVE",
+    "remove": "REMOVE RULE",
+    "toggle": "TURN ON / OFF",
+}
 
 
 def artwork(design=None):
@@ -101,7 +113,9 @@ class Session:
         uploads = (
             await asyncio.to_thread(artwork, self.design)
             if page in ("main", "configure", "rules", "all")
-            else []
+            else category_files(
+                [PAGE_TITLES[page]], self.design["style"], self.design.get("text_color")
+            )
         )
         try:
             if self.command_center and self.command_center.panel_manager:
@@ -169,19 +183,10 @@ class Menu(discord.ui.LayoutView):
                 )
         else:
             panel.add_item(
-                discord.ui.TextDisplay(
-                    private_heading(
-                        {
-                            "channels": "DESTINATION",
-                            "emojis": "EMOJIS",
-                            "browse": "ADD EMOJI",
-                            "server": "SERVER EMOJIS",
-                            "content": "CONTENT & TRIGGERS",
-                            "filters": "FILTERS",
-                            "review": "PREVIEW & SAVE",
-                            "remove": "REMOVE RULE",
-                            "toggle": "TURN ON / OFF",
-                        }.get(page, "AUTOREACT")
+                discord.ui.MediaGallery(
+                    discord.MediaGalleryItem(
+                        "attachment://" + filename(PAGE_TITLES.get(page, "AUTOREACT")),
+                        description=PAGE_TITLES.get(page, "AUTOREACT"),
                     )
                 )
             )

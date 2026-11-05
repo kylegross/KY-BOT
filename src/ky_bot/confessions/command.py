@@ -9,7 +9,7 @@ from discord.ext import commands, tasks
 
 from ky_bot.errors import report_error, send_private
 
-from .cards import Card, post_card, privacy, safe, uploads
+from .cards import Card, author_log_embed, post_card, privacy, safe, uploads
 from .store import Store
 
 log = logging.getLogger(__name__)
@@ -434,25 +434,27 @@ class Confessions(commands.Cog):
             await self.store.panel(guild.id, post["channel"], count=True)
         if post["data"]["logging"]:
             try:
-                logged = await self.send_card(
-                    log_channel,
-                    config,
-                    post_card(
-                        config,
-                        post,
-                        staff=True,
-                        buttons=[
-                            Action(post["id"], a)
-                            for a in ("remove", "ban")
-                            if a != "ban" or config["bans"]
-                        ],
-                    ),
-                )
+                logged = await self.send_author_log(log_channel, config, post)
                 await self.store.transition(post["id"], {"published"}, "published", log=logged.id)
             except discord.HTTPException:
                 # Published state is retained: retrying must never duplicate the public confession.
                 log.warning("Confession author log delivery unconfirmed in guild %s", guild.id)
         await self.refresh_queue(guild, post, config)
+
+    async def send_author_log(self, channel, config, post):
+        member = None
+        guild = getattr(channel, "guild", None)
+        if guild is not None and post["author"]:
+            member = guild.get_member(post["author"])
+            if member is None:
+                try:
+                    member = await guild.fetch_member(post["author"])
+                except discord.HTTPException:
+                    pass
+        return await channel.send(
+            embed=author_log_embed(config, post, getattr(member, "display_name", None)),
+            allowed_mentions=discord.AllowedMentions.none(),
+        )
 
     async def refresh_queue(self, guild, post, config):
         if not post["data"].get("queue"):
@@ -648,9 +650,7 @@ class Confessions(commands.Cog):
                 config,
                 config["panel_title"],
                 config["panel_text"],
-                detail=(
-                    "Use the button below or `/confess`."
-                ),
+                detail=("Use the button below or `/confess`."),
                 buttons=[Action(channel_id, "submit", label=config["submit_label"])],
             )
             message = await self.send_card(channel, config, view)

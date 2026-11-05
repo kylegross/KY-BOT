@@ -7,7 +7,7 @@ from importlib.resources import files
 import discord
 
 from ky_bot.errors import report_error, send_private
-from ky_bot.views.menu_strips import group_sections, strip_files
+from ky_bot.views.menu_strips import add_strip, category_files, group_sections, strip_files
 from ky_bot.views.sections import section_dividers
 
 log = logging.getLogger(__name__)
@@ -162,7 +162,8 @@ GUIDES = {
             (
                 "CHANNEL SETTINGS",
                 "Administrators use Command Center → Confessions to configure "
-                "multiple channels independently: color, uploaded header/footer artwork, "
+                "multiple channels independently: header title, embed color, artwork finish, "
+                "four lettering finishes or a custom text color, uploaded header/footer artwork, "
                 "panel text, "
                 "replies, reports, role access, cooldown, character limits and confession bans.",
             ),
@@ -219,7 +220,7 @@ GUIDES = {
             ),
             (
                 "CREATE CUSTOM EMBEDS",
-                "Open **Command Center → Create Embed**. Add images, text, a highlight color and "
+                "Open **Command Center → Manage Embeds**. Add images, text, a highlight color and "
                 "optional footer. Preview privately, then publish. Sticky posts can move after "
                 "every message or a chosen message count; their old copy is removed. Saved drafts "
                 "do not change live posts until you publish. Menu appearance settings are under "
@@ -352,7 +353,7 @@ GUIDES = {
         (
             (
                 "CREATE OR EDIT",
-                "Run `/create embed` or open Command Center → Create Embed. Start a new "
+                "Run `/create embed` or open Command Center → Manage Embeds. Start a new "
                 "saved draft or choose an "
                 "existing post. Add a title, message and optional footer text.",
             ),
@@ -454,7 +455,14 @@ class HelpView(discord.ui.LayoutView):
         async def navigate(interaction):
             await interaction.response.defer()
             self.show(page)
-            self.message = await interaction.edit_original_response(view=self)
+            attachments = help_files(self)
+            try:
+                self.message = await interaction.edit_original_response(
+                    view=self, attachments=attachments
+                )
+            finally:
+                for attachment in attachments:
+                    attachment.close()
 
         return self.button(label, navigate)
 
@@ -543,10 +551,9 @@ class HelpView(discord.ui.LayoutView):
         else:
             title, sections = GUIDES[page]
             panel.add_item(discord.ui.TextDisplay(f"**{title}**"))
-            for index, (heading, text) in enumerate(sections):
-                if index:
-                    panel.add_item(discord.ui.Separator())
-                panel.add_item(discord.ui.TextDisplay(f"**{heading}**\n{text}"))
+            for heading, text in sections:
+                add_strip(panel, heading)
+                panel.add_item(discord.ui.TextDisplay(text))
         if page == "admin":
             for label, target in (
                 ("CUSTOM EMBEDS", "embeds"),
@@ -621,5 +628,9 @@ class HelpView(discord.ui.LayoutView):
         await report_error(interaction, error)
 
 
-def help_files():
+def help_files(view=None):
+    if view is not None and view.page != "home":
+        return _base_help_files() + category_files(
+            (heading for heading, _ in GUIDES[view.page][1]), "silver_neon"
+        )
     return _base_help_files() + strip_files("help", "silver_neon")

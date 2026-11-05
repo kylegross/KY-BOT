@@ -4,7 +4,7 @@ import discord
 
 LEFT_NAVIGATION = {"back", "close", "close menu", "all guides", "back to editing", "cancel"}
 
-NAVIGATION_LABELS = {"back", "home", "close", "close menu", "all guides", "all embeds"}
+NAVIGATION_LABELS = LEFT_NAVIGATION | {"home", "all embeds"}
 
 
 def navigation_item(item):
@@ -48,6 +48,39 @@ def section_dividers(panel: discord.ui.Container) -> None:
             children.extend(discord.ui.Section(home_text, accessory=button) for button in homes)
         else:
             children.append(child)
+    # Keep picker descriptions adjacent to the picker, without spacer components.
+    children = [
+        child
+        for index, child in enumerate(children)
+        if not (
+            isinstance(child, discord.ui.Separator)
+            and index > 0
+            and index + 1 < len(children)
+            and isinstance(children[index - 1], (discord.ui.TextDisplay, discord.ui.Section))
+            and isinstance(children[index + 1], discord.ui.ActionRow)
+            and any(
+                isinstance(
+                    control,
+                    (
+                        discord.ui.Select,
+                        discord.ui.ChannelSelect,
+                        discord.ui.RoleSelect,
+                        discord.ui.UserSelect,
+                        discord.ui.MentionableSelect,
+                    ),
+                )
+                for control in children[index + 1].children
+            )
+        )
+    ]
+    # Footer artwork closes the menu after all navigation controls.
+    footers = [
+        child
+        for child in children
+        if isinstance(child, discord.ui.MediaGallery)
+        and any("footer" in item.media.url.rsplit("/", 1)[-1].lower() for item in child.items)
+    ]
+    children = [child for child in children if child not in footers] + footers
     for child in panel.children:
         panel.remove_item(child)
     branded_groups = any(
@@ -56,12 +89,7 @@ def section_dividers(panel: discord.ui.Container) -> None:
         for child in children
     )
     previous = None
-    seen_control = False
     for child in children:
-        is_control = isinstance(child, (discord.ui.Section, discord.ui.ActionRow))
-        intro_boundary = (
-            not seen_control and is_control and isinstance(previous, discord.ui.TextDisplay)
-        )
         adjacent_sections = (
             not branded_groups
             and isinstance(previous, discord.ui.Section)
@@ -76,18 +104,16 @@ def section_dividers(panel: discord.ui.Container) -> None:
                 and len(panel.children) >= 2
                 and isinstance(panel.children[-2], discord.ui.Separator)
             )
-            and not (
-                isinstance(previous, discord.ui.MediaGallery)
-                and "attachment://ky_strip_" in str(previous.to_component_dict())
-            )
+            and not navigation_item(previous)
         )
-        if intro_boundary:
+        if adjacent_sections or footer_boundary:
             panel.add_item(
-                discord.ui.Separator(visible=False, spacing=discord.SeparatorSpacing.large)
+                discord.ui.Separator(
+                    spacing=discord.SeparatorSpacing.small
+                    if footer_boundary
+                    else discord.SeparatorSpacing.large
+                )
             )
-        elif adjacent_sections or footer_boundary:
-            panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
-        seen_control = seen_control or is_control
         if (
             isinstance(child, discord.ui.Section)
             and isinstance(child.accessory, discord.ui.Button)

@@ -7,7 +7,7 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
 from ky_bot.design.collection import COLOURS
-from ky_bot.design.footers import FooterError, metal, read_upload, rectangular_frame
+from ky_bot.design.footers import FooterError, read_upload, rectangular_frame, text_ink
 from ky_bot.design.typography import TypographyError, divided_title_mask, text_mask
 
 SIZE = (1600, 520)
@@ -118,11 +118,7 @@ def render_header(
         pen = ImageDraw.Draw(image)
         for rule_y in (top, bottom):
             pen.line((rule_left, rule_y, rule_left + rule_width, rule_y), fill=colour, width=3)
-        if style == "red_iridescent" and not text_color:
-            text = metal(mask, style)
-        else:
-            text = Image.new("RGBA", mask.size, colour)
-            text.putalpha(mask)
+        text = text_ink(mask, style, text_color)
         image.alpha_composite(text, (x, y))
     output = io.BytesIO()
     image.save(output, format="PNG")

@@ -11,9 +11,16 @@ from ky_bot.errors import report_error, send_private
 from ky_bot.leveling.artwork import announcement, card_file
 from ky_bot.leveling.service import role_allowed
 from ky_bot.leveling.store import MAX_LEVEL, MAX_XP, defaults, level_for, threshold
-from ky_bot.views.menu_strips import group_sections, strip_files
-from ky_bot.views.private_style import private_heading
+from ky_bot.views.menu_strips import category_files, filename, group_sections, strip_files
 from ky_bot.views.sections import section_dividers
+
+PAGE_TITLES = {
+    "exclude_channels": "EXCLUDED CHANNELS",
+    "exclude_roles": "EXCLUDED ROLES",
+    "destination": "ANNOUNCEMENT CHANNEL",
+    "reward_role": "ROLE REWARD",
+    "remove_reward": "REMOVE REWARD",
+}
 
 NAMES = ("ky_leveling_header.png", "ky_leveling_footer.png", "ky_leveling_title.png")
 HEADINGS = {
@@ -76,7 +83,13 @@ class Session:
             self.member_xp = await self.cog.store.member_xp(self.guild.id, self.member_id)
         self.generation += 1
         view = Menu(self, page, notice)
-        uploads = await asyncio.to_thread(artwork, self.design, page) if page in HEADINGS else []
+        uploads = (
+            await asyncio.to_thread(artwork, self.design, page)
+            if page in HEADINGS
+            else category_files(
+                [PAGE_TITLES[page]], self.design["style"], self.design.get("text_color")
+            )
+        )
         try:
             if self.command_center and self.command_center.panel_manager:
                 self.message = await self.command_center.panel_manager.edit(
@@ -235,15 +248,10 @@ class Menu(discord.ui.LayoutView):
                 )
         else:
             panel.add_item(
-                discord.ui.TextDisplay(
-                    private_heading(
-                        {
-                            "exclude_channels": "EXCLUDED CHANNELS",
-                            "exclude_roles": "EXCLUDED ROLES",
-                            "destination": "ANNOUNCEMENT CHANNEL",
-                            "reward_role": "ROLE REWARD",
-                            "remove_reward": "REMOVE REWARD",
-                        }[page]
+                discord.ui.MediaGallery(
+                    discord.MediaGalleryItem(
+                        "attachment://" + filename(PAGE_TITLES.get(page, "LEVELING")),
+                        description=PAGE_TITLES.get(page, "LEVELING"),
                     )
                 )
             )

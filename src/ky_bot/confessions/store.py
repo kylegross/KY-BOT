@@ -53,6 +53,10 @@ def defaults():
     return dict(
         enabled=False,
         color="D6E2F3",
+        header_title="CONFESSIONS",
+        artwork_finish="silver_neon",
+        text_finish="silver_neon",
+        text_color=None,
         logging=False,
         log_channel=0,
         approval=False,
@@ -101,8 +105,16 @@ def validate(config):
         raise ValueError("Choose the private log/review destination before enabling this option.")
     if len(result["color"]) != 6 or any(c not in "0123456789abcdefABCDEF" for c in result["color"]):
         raise ValueError("Use a six-digit hex color, for example D6E2F3.")
+    from ky_bot.design.menu_design import FINISHES
+    from ky_bot.design.text_colour import text_colour
+
+    for key in ("artwork_finish", "text_finish"):
+        if result[key] not in FINISHES:
+            raise ValueError("Choose one of the four standard finishes.")
+    result["text_color"] = text_colour(result["text_color"])
     for key, limit in (
         ("title", 80),
+        ("header_title", 80),
         ("panel_title", 80),
         ("panel_text", 1000),
         ("submit_label", 80),
@@ -110,7 +122,7 @@ def validate(config):
     ):
         if not isinstance(result[key], str) or len(result[key]) > limit:
             raise ValueError(f"{key.replace('_', ' ')} must be at most {limit} characters.")
-    if not result["title"].strip() or not result["panel_title"].strip():
+    if any(not result[key].strip() for key in ("title", "panel_title", "header_title")):
         raise ValueError("Titles cannot be empty.")
     for key in ("allowed_roles", "blocked_roles"):
         if (

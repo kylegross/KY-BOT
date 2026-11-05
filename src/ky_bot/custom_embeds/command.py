@@ -42,7 +42,7 @@ class CustomEmbeds(commands.Cog):
 
     async def authorize(self, interaction):
         if interaction.guild is None:
-            raise ValueError("Open Create Embed inside your server.")
+            raise ValueError("Open Manage Embeds inside your server.")
         member = await interaction.guild.fetch_member(interaction.user.id)
         if not member.guild_permissions.administrator:
             raise ValueError("Only server administrators can publish or delete custom embeds.")
@@ -264,7 +264,9 @@ class CustomEmbeds(commands.Cog):
         await self.authorize(interaction)
         await interaction.response.defer(ephemeral=True, thinking=True)
         ident = await self.store.create(interaction.guild_id, initial_channel(interaction))
-        await Session(self, interaction.user.id, interaction.guild_id, ident).show(interaction)
+        await Session(self, interaction.user.id, interaction.guild_id, ident, creating=True).show(
+            interaction
+        )
 
     async def open_menu(self, interaction, *, command_center=None):
         if command_center is None or not await command_center.interaction_check(interaction):

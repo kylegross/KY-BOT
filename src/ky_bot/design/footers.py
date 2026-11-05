@@ -83,10 +83,10 @@ def rectangular_frame(
 
 
 def metal(mask: Image.Image, style: str, *, sheen: float = 1.0) -> Image.Image:
-    """Tint alpha artwork consistently, with a restrained optional dual-color halo."""
+    """Apply a standard iridescent finish without changing the supplied glyph alpha."""
     palettes = {
-        "gold": ("#704009", "#e9b64e", "#fff4cf"),
-        "dark_silver": ("#030303", "#22201e", "#dededc"),
+        "gold": ("#88631B", "#E9BD68", "#FFF0BC"),
+        "dark_silver": ("#707988", "#A5ADBA", "#DEDBE6"),
         "silver_neon": ("#677b99", "#d5e1f0", "#ffffff"),
         "red_iridescent": ("#240A35", "#961B4A", "#DB8EB4"),
     }
@@ -107,7 +107,7 @@ def metal(mask: Image.Image, style: str, *, sheen: float = 1.0) -> Image.Image:
                 break
     ramp.putdata(values)
     colored = ImageOps.colorize(ramp.resize(mask.size), low, high, mid=mid).convert("RGBA")
-    if style in {"silver_neon", "red_iridescent"}:
+    if style in STYLES:
         stops = [
             (255, 184, 221),
             (206, 184, 255),
@@ -125,6 +125,22 @@ def metal(mask: Image.Image, style: str, *, sheen: float = 1.0) -> Image.Image:
                 (83, 30, 112),
                 (179, 37, 87),
                 (211, 119, 157),
+            ]
+        elif style == "gold":
+            stops = [
+                (255, 205, 136),
+                (245, 193, 162),
+                (220, 203, 246),
+                (242, 226, 170),
+                (255, 213, 137),
+            ]
+        elif style == "dark_silver":
+            stops = [
+                (153, 166, 188),
+                (179, 164, 190),
+                (141, 173, 180),
+                (181, 183, 194),
+                (158, 170, 194),
             ]
         tint = Image.new("RGBA", (mask.width, 1))
         values = []
@@ -146,7 +162,20 @@ def metal(mask: Image.Image, style: str, *, sheen: float = 1.0) -> Image.Image:
         edge.putalpha(bevel.point(lambda x: x * 0.65 * sheen))
         result.alpha_composite(edge)
     result.alpha_composite(colored)
+    result.putalpha(mask)
     return result
+
+
+def text_ink(mask: Image.Image, style: str, text_color: str | None = None) -> Image.Image:
+    """Use the standard finish unless an explicit custom hex color overrides it."""
+    from ky_bot.design.text_colour import text_colour
+
+    custom_color = text_colour(text_color)
+    if custom_color:
+        ink = Image.new("RGBA", mask.size, custom_color)
+        ink.putalpha(mask)
+        return ink
+    return metal(mask, style)
 
 
 def slogan_mask(text: str, font_path: Path | None) -> Image.Image:

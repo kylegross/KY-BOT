@@ -6,17 +6,17 @@ import io
 import discord
 from PIL import Image, ImageOps
 
-from ky_bot.checklists.artwork import png, title_image
-from ky_bot.design.collection import COLOURS, floral_background
-from ky_bot.design.footers import centered_overlay, metal, read_upload, rectangular_frame
+from ky_bot.checklists.artwork import png
+from ky_bot.design.collection import floral_background
+from ky_bot.design.footers import centered_overlay, read_upload, rectangular_frame, text_ink
 from ky_bot.design.headers import render_header
 from ky_bot.design.typography import text_mask
 
 FINISHES = {
-    "gold": "Gold",
-    "dark_silver": "Dark silver",
-    "silver_neon": "Multicolor silver",
-    "red_iridescent": "Iridescent red",
+    "gold": "Iridescent gold",
+    "dark_silver": "Iridescent dark silver",
+    "silver_neon": "Multicolor iridescent silver",
+    "red_iridescent": "Multicolor iridescent red",
 }
 AUTOMATION_KEYS = ("autodelete", "autothread", "autoreact")
 
@@ -101,14 +101,7 @@ def render_menu(profile, title):
         mask = text_mask(
             profile["footer_text"], role="display", size=52, min_size=24, max_width=1000
         )
-        from ky_bot.design.text_colour import text_colour
-
-        custom_color = text_colour(profile.get("text_color"))
-        if style == "red_iridescent" and not custom_color:
-            ink = metal(mask, style)
-        else:
-            ink = Image.new("RGBA", mask.size, custom_color or COLOURS[style])
-            ink.putalpha(mask)
+        ink = text_ink(mask, style, profile.get("text_color"))
         footer.alpha_composite(ink, ((1600 - mask.width) // 2, (150 - mask.height) // 2))
     elif profile["footer_icon"]:
         icon = ImageOps.contain(
@@ -125,12 +118,19 @@ def render_menu(profile, title):
 
 
 def menu_files(profile, title, heading, names):
+    from ky_bot.views.menu_strips import category_files
+
     header, footer = render_menu(profile, title)
+    category = category_files([heading], profile["style"], profile.get("text_color"))[0]
+    try:
+        category_data = category.fp.read()
+    finally:
+        category.close()
     return [
         discord.File(io.BytesIO(data), filename=name)
         for name, data in zip(
             names,
-            (header, footer, title_image(heading, profile["style"], profile.get("text_color"))),
+            (header, footer, category_data),
         )
     ]
 

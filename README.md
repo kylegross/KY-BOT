@@ -690,7 +690,7 @@ or old channel cleanup jobs are imported.
 
 ## Create custom embeds
 
-Open Command Center > Create Embed. Create a new saved draft or choose an existing
+Open Command Center > Manage Embeds. Create a new saved draft or choose an existing
 embed from the library. Editors and previews are private to the administrator.
 
 - Content: a private saved name, optional title, message and footer text.
@@ -906,3 +906,33 @@ finish. It preserves the existing floral artwork, charcoal texture, proportions 
 branding with ruby, rose and violet highlights. Standard, compact, framed and borderless
 variants are included. `/header` and `/footer` expose the same finish after command sync;
 Menu Appearance uses its existing controls. The other three finishes are unchanged.
+
+
+### Independent confession channel appearance
+
+Confessions → choose a channel → Appearance now separates Header & Footer Design,
+Decorative Text, Embed Color & Titles, and Submission Panel Text. Each channel saves its
+own banner title, standard artwork finish or uploads, confession/panel wording, button
+label, accent color and decorative text finish. The text dropdown offers iridescent silver,
+gold, dark silver, iridescent red, and Custom color. Selecting a standard text finish clears
+a previous custom override; a blank custom hex value follows that selected finish.
+Header and footer artwork can use a different finish from the lettering. These controls
+save only to the selected server/channel, not to another confession channel or a shared
+appearance profile. Per-channel staff logs retain the corresponding channel’s styling.
+
+
+### Compact confession logs and shared lettering finishes
+
+The Logs hub uses the same category strips and right-hand rules as Command Center,
+with compact rows and standard footer navigation. Confession author logs use native
+Server Activity-style embeds: a decorated event title, labeled author/channel/ID/text
+fields, the channel’s accent color, a confession message link, and the
+`KY BOT · CONFESSIONS` footer with timestamp. Long text continues in another field.
+They do not repeat
+the public floral header/footer artwork. Administrator approval cards remain private
+review panels and continue to show the author before approval.
+
+Confession headings and header titles now use the shared `text_ink` renderer used by
+other menus. Standard finishes are iridescent gold, iridescent dark silver, multicolor
+iridescent silver, and multicolor iridescent red; explicit custom hex colors override
+the finish without changing another channel’s settings.

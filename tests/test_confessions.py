@@ -184,14 +184,55 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
         error = discord.HTTPException(
             SimpleNamespace(status=500, reason="Unavailable"), "Unconfirmed"
         )
-        cog.send_card = AsyncMock(side_effect=[SimpleNamespace(id=999), error])
+        cog.send_card = AsyncMock(return_value=SimpleNamespace(id=999))
+        cog.send_author_log = AsyncMock(side_effect=error)
         cog.refresh_queue = AsyncMock()
         with patch("ky_bot.confessions.command.destination", return_value=SimpleNamespace(id=10)):
             await cog.publish(SimpleNamespace(id=1), post, self.config)
             with self.assertRaises(ValueError):
                 await cog.publish(SimpleNamespace(id=1), post, self.config)
-        self.assertEqual(cog.send_card.await_count, 2)
+        cog.send_card.assert_awaited_once()
+        cog.send_author_log.assert_awaited_once()
         self.assertEqual((await self.store.post(post["id"]))["state"], "published")
+
+    async def test_author_log_matches_compact_staff_embed_format(self):
+        from ky_bot.confessions.cards import author_log_embed
+
+        await self.configure(logging=True, log_channel=30, color="CAB6DF")
+        post = await self.submit()
+        post["data"]["message"] = 999
+        embed = author_log_embed(self.config, post)
+        data = embed.to_dict()
+        fields = {field.name: field.value for field in embed.fields}
+        self.assertIn("CONFESSION POSTED", embed.title)
+        self.assertIn("𑁍", embed.title)
+        self.assertIn("<@123>", fields["Author"])
+        self.assertIn("User ID:", fields["Author"])
+        self.assertEqual(fields["Channel"], "<#10>")
+        self.assertEqual(fields["Confession text"], post["body"])
+        self.assertEqual(embed.colour.value, 0xCAB6DF)
+        self.assertNotIn("image", data)
+        self.assertNotIn("thumbnail", data)
+        self.assertEqual(embed.footer.text, "KY BOT · CONFESSIONS")
+        self.assertIn("https://discord.com/channels/1/10/999", fields["Confession ID"])
+        post["body"] = "A" * 2000
+        long_log = author_log_embed(self.config, post)
+        self.assertEqual(
+            "".join(
+                field.value
+                for field in long_log.fields
+                if field.name in {"Confession text", "Continued"}
+            ),
+            post["body"],
+        )
+        self.assertTrue(all(len(field.value) <= 1024 for field in long_log.fields))
+        cog = Confessions(SimpleNamespace())
+        channel = SimpleNamespace(send=AsyncMock(return_value=SimpleNamespace(id=444)))
+        await cog.send_author_log(channel, self.config, post)
+        arguments = channel.send.await_args.kwargs
+        self.assertIn("embed", arguments)
+        self.assertNotIn("files", arguments)
+        self.assertNotIn("view", arguments)
 
     async def test_every_admin_page_serializes_within_discord_component_limit(self):
         permissions = discord.Permissions(administrator=True)
@@ -212,6 +253,8 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
             "behavior",
             "logging",
             "appearance",
+            "artwork",
+            "lettering",
             "permissions",
             "queue",
             "reports",
@@ -220,6 +263,54 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
             await menu.show(interaction, page)
             self.assertLessEqual(menu.total_children_count, 40, page)
             menu.to_components()
+            panel = menu.children[0]
+            intros = [
+                index
+                for index, child in enumerate(panel.children)
+                if isinstance(child, discord.ui.TextDisplay)
+                and child.content.startswith(
+                    (
+                        "Configure ",
+                        "Anonymous member submissions.",
+                        "Administrators only",
+                        "Review member reports",
+                    )
+                )
+            ]
+            self.assertEqual(len(intros), 1, page)
+            self.assertIsInstance(panel.children[intros[0] + 1], discord.ui.MediaGallery, page)
+            self.assertEqual(
+                sum(isinstance(child, discord.ui.Separator) for child in panel.children), 1, page
+            )
+            self.assertTrue(menu.header_art, page)
+            self.assertFalse(
+                any(
+                    isinstance(child, discord.ui.MediaGallery)
+                    and any("confession_title.png" in item.media.url for item in child.items)
+                    for child in panel.children
+                ),
+                page,
+            )
+            strips = [
+                item.media.url.removeprefix("attachment://")
+                for child in panel.children
+                if isinstance(child, discord.ui.MediaGallery)
+                for item in child.items
+                if "attachment://ky_strip_" in item.media.url
+            ]
+            self.assertTrue(strips, page)
+            sent = interaction.edit_original_response.call_args.kwargs["attachments"]
+            names = {file.filename for file in sent}
+            self.assertNotIn("confession_title.png", names, page)
+            self.assertTrue(set(strips) <= names, page)
+            for left, middle, right in zip(panel.children, panel.children[1:], panel.children[2:]):
+                self.assertFalse(
+                    isinstance(left, discord.ui.Section)
+                    and isinstance(middle, discord.ui.Separator)
+                    and isinstance(right, discord.ui.Section)
+                    and not (right.accessory.label or "").lower() == "home",
+                    page,
+                )
         menu.stop()
 
     async def test_logs_hub_uses_existing_feature_settings_and_fits(self):
@@ -260,6 +351,53 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
         picker = ChecklistLogs(SimpleNamespace(), 7, 1)
         picker.to_components()
         picker.stop()
+
+    async def test_channel_appearance_never_changes_another_channel(self):
+        from ky_bot.confessions.cards import uploads
+        from ky_bot.confessions.headings import title_image
+
+        await self.store.configure(
+            1,
+            11,
+            None,
+            enabled=True,
+            header_title="AFTER HOURS",
+            artwork_finish="gold",
+            text_finish="gold",
+            color="AA9933",
+        )
+        await self.configure(
+            header_title="SECRETS",
+            artwork_finish="red_iridescent",
+            text_finish="silver_neon",
+            text_color="#39dccb",
+            color="901133",
+        )
+        _, other = await self.store.config(1, 11)
+        self.assertEqual(other["header_title"], "AFTER HOURS")
+        self.assertEqual(other["artwork_finish"], "gold")
+        self.assertEqual(other["text_finish"], "gold")
+        self.assertIsNone(other["text_color"])
+        self.assertEqual(self.config["text_color"], "#39DCCB")
+        first, second = uploads(self.config), uploads(other)
+        try:
+            self.assertNotEqual(first[0].fp.read(), second[0].fp.read())
+            self.assertNotEqual(first[1].fp.read(), second[1].fp.read())
+        finally:
+            for file in first + second:
+                file.close()
+        self.assertNotEqual(
+            title_image("SUBMIT CONFESSION", "gold"),
+            title_image("SUBMIT CONFESSION", "silver_neon", "#39DCCB"),
+        )
+        for changes in (
+            {"text_color": "invalid"},
+            {"text_finish": "unknown"},
+            {"artwork_finish": "unknown"},
+            {"header_title": ""},
+        ):
+            with self.assertRaises(ValueError):
+                validate(defaults() | changes)
 
     def test_invalid_settings(self):
         for changes in (

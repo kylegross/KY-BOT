@@ -9,13 +9,24 @@ from discord.ext import commands
 from ky_bot.checklists.board import safe
 from ky_bot.design.menu_design import automation_files, automation_profile, default_profile
 from ky_bot.errors import report_error
-from ky_bot.views.menu_strips import group_sections
-from ky_bot.views.private_style import private_heading
+from ky_bot.views.menu_strips import category_files, filename, group_sections
 from ky_bot.views.sections import section_dividers
 
 from .autodelete_logging import TYPES
 from .autodelete_service import AutoDeleteService, check_permissions
 from .autodelete_store import LABELS, PRESETS, RuleStore, normalize
+
+PAGE_TITLES = {
+    "channels": "DESTINATION",
+    "content": "CONTENT & BOT MEDIA",
+    "time": "TIMEFRAME",
+    "toggle": "TURN ON / OFF",
+    "review": "REVIEW RULE",
+    "confirm_clean": "CONFIRM CLEANUP",
+    "remove": "REMOVE RULE",
+    "logs": "ACTIVITY LOGS",
+    "log_review": "REVIEW ACTIVITY LOGS",
+}
 
 
 def artwork(design=None):
@@ -78,7 +89,9 @@ class Session:
         uploads = (
             await asyncio.to_thread(artwork, self.design)
             if page in ("main", "configure", "rules", "all", "clean")
-            else []
+            else category_files(
+                [PAGE_TITLES[page]], self.design["style"], self.design.get("text_color")
+            )
         )
         try:
             if self.command_center and self.command_center.panel_manager:
@@ -157,19 +170,10 @@ class Menu(discord.ui.LayoutView):
                 )
         else:
             panel.add_item(
-                discord.ui.TextDisplay(
-                    private_heading(
-                        {
-                            "channels": "DESTINATION",
-                            "content": "CONTENT & BOT MEDIA",
-                            "time": "TIMEFRAME",
-                            "toggle": "TURN ON / OFF",
-                            "review": "REVIEW RULE",
-                            "confirm_clean": "CONFIRM CLEANUP",
-                            "remove": "REMOVE RULE",
-                            "logs": "ACTIVITY LOGS",
-                            "log_review": "REVIEW ACTIVITY LOGS",
-                        }.get(page, "AUTODELETE")
+                discord.ui.MediaGallery(
+                    discord.MediaGalleryItem(
+                        "attachment://" + filename(PAGE_TITLES.get(page, "AUTODELETE")),
+                        description=PAGE_TITLES.get(page, "AUTODELETE"),
                     )
                 )
             )

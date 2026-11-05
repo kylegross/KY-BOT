@@ -2,12 +2,13 @@
 
 import base64
 import io
-from importlib.resources import files
+from datetime import UTC, datetime
 
 import discord
 
 from ky_bot.views.sections import section_dividers
 
+from .appearance import standard_artwork
 from .headings import DIVIDER, title_image
 
 
@@ -40,9 +41,17 @@ def uploads(config, view=None):
     result = []
     for key in ("header", "footer"):
         data = (
-            base64.b64decode(config[key])
+            view.header_art
+            if key == "header" and view is not None and getattr(view, "header_art", None)
+            else base64.b64decode(config[key])
             if config[key]
-            else files("ky_bot.confessions").joinpath("assets", key + ".png").read_bytes()
+            else standard_artwork(
+                key,
+                config.get("artwork_finish", "silver_neon"),
+                config.get("header_title", "CONFESSIONS"),
+                config.get("text_finish", "silver_neon"),
+                config.get("text_color"),
+            )
         )
         result.append(discord.File(io.BytesIO(data), filename="confession_" + key + ".png"))
     if view is not None and getattr(view, "title_art", None):
@@ -59,7 +68,9 @@ class Card(discord.ui.LayoutView):
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_header.png"))
         )
-        self.title_art = title_image(title)
+        self.title_art = title_image(
+            title, config.get("text_finish", "silver_neon"), config.get("text_color")
+        )
         panel.add_item(
             discord.ui.MediaGallery(
                 discord.MediaGalleryItem("attachment://confession_title.png", description=title)
@@ -113,3 +124,43 @@ def post_card(config, post, *, staff=False, buttons=()):
         buttons=buttons,
         show_footer_text=staff,
     )
+
+
+def author_log_embed(config, post, display_name=None):
+    """Match Server Activity's decorated event title, stacked fields and footer."""
+    event = "CONFESSION REPLY POSTED" if post["parent"] else "CONFESSION POSTED"
+    author = (
+        safe(discord.utils.escape_markdown(display_name))
+        if display_name
+        else f"<@{post['author']}>"
+        if post["author"]
+        else "Not logged"
+    )
+    if post["author"]:
+        author += f" · User ID: `{post['author']}`"
+    embed = discord.Embed(
+        title=f"\\*ੈ𑁍  {event}  𑁍ੈ\\*",
+        colour=int(config["color"], 16),
+        timestamp=datetime.fromtimestamp(post["created"], UTC),
+    )
+    embed.add_field(name="Author", value=author, inline=False)
+    embed.add_field(name="Channel", value=f"<#{post['channel']}>", inline=False)
+    identifier = post["id"][:8].upper()
+    if post["data"].get("message"):
+        url = (
+            f"https://discord.com/channels/{post['guild']}/{post['channel']}/"
+            f"{post['data']['message']}"
+        )
+        identifier = f"[{identifier}]({url})"
+    embed.add_field(name="Confession ID", value=identifier, inline=False)
+    if post["parent"]:
+        embed.add_field(name="Reply to", value=post["parent"][:8].upper(), inline=False)
+    body = safe(post["body"])
+    for offset in range(0, len(body), 1024):
+        embed.add_field(
+            name="Confession text" if offset == 0 else "Continued",
+            value=body[offset : offset + 1024],
+            inline=False,
+        )
+    embed.set_footer(text="KY BOT · CONFESSIONS")
+    return embed

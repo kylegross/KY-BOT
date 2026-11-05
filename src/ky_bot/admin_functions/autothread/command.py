@@ -24,9 +24,21 @@ from ky_bot.admin_functions.autothread.store import (
 from ky_bot.checklists.board import safe
 from ky_bot.checklists.inline import InlineView
 from ky_bot.errors import report_error
-from ky_bot.views.menu_strips import group_sections
-from ky_bot.views.private_style import private_heading
+from ky_bot.views.menu_strips import category_files, group_sections
+from ky_bot.views.menu_strips import filename as category_filename
 from ky_bot.views.sections import section_dividers
+
+PAGE_TITLES = {
+    "channels": "DESTINATION",
+    "content": "CONTENT & TRIGGERS",
+    "uploads": "ATTACHMENT RULES",
+    "archive": "AUTO-ARCHIVE",
+    "access": "ACCESS & FILTERS",
+    "welcome": "WELCOME MESSAGE",
+    "review": "PREVIEW & SAVE",
+    "toggle": "TURN ON / OFF",
+    "delete": "REMOVE RULE",
+}
 
 
 def artwork(design=None):
@@ -80,7 +92,9 @@ class Session:
         uploads = (
             await asyncio.to_thread(artwork, self.design)
             if page in ("main", "configure", "rules", "all")
-            else []
+            else category_files(
+                [PAGE_TITLES[page]], self.design["style"], self.design.get("text_color")
+            )
         )
         try:
             if self.command_center and self.command_center.panel_manager:
@@ -155,19 +169,10 @@ class Menu(discord.ui.LayoutView):
                 )
         else:
             panel.add_item(
-                discord.ui.TextDisplay(
-                    private_heading(
-                        {
-                            "channels": "DESTINATION",
-                            "content": "CONTENT & TRIGGERS",
-                            "uploads": "ATTACHMENT RULES",
-                            "archive": "AUTO-ARCHIVE",
-                            "access": "ACCESS & FILTERS",
-                            "welcome": "WELCOME MESSAGE",
-                            "review": "PREVIEW & SAVE",
-                            "toggle": "TURN ON / OFF",
-                            "delete": "REMOVE RULE",
-                        }.get(page, "AUTOTHREAD")
+                discord.ui.MediaGallery(
+                    discord.MediaGalleryItem(
+                        "attachment://" + category_filename(PAGE_TITLES.get(page, "AUTOTHREAD")),
+                        description=PAGE_TITLES.get(page, "AUTOTHREAD"),
                     )
                 )
             )
