@@ -95,6 +95,42 @@ GUIDES = {
             ),
         ),
     ),
+    "confessions": (
+        "CONFESSIONS",
+        (
+            (
+                "SUBMIT PRIVATELY",
+                "Use `/confess` or Submit confession on a channel’s panel. "
+                "Choose a configured destination, write your message and review the privacy "
+                "notice before confirming. Your name and avatar never appear on the public post.",
+            ),
+            (
+                "APPROVAL & AUTHOR LOGS",
+                "Channels can require administrator approval. In that "
+                "mode, administrators see the author in the private queue even when ongoing author "
+                "logging is off. Optional author logs also name the sender in a private log channel. "
+                "The confirmation tells you which settings apply before you submit.",
+            ),
+            (
+                "REPLY OR REPORT",
+                "Use Reply anonymously to respond, or Report to privately tell "
+                "administrators about a confession. Replies follow the channel’s approval and "
+                "logging settings. Reports identify the reporter only to administrators.",
+            ),
+            (
+                "CHANNEL SETTINGS",
+                "Administrators use Command Center → Confessions to configure "
+                "multiple channels independently: color, uploaded header/footer artwork, panel text, "
+                "replies, reports, role access, cooldown, character limits and confession bans.",
+            ),
+            (
+                "STICKY PANEL & LOGS",
+                "Sticky settings move only the submission panel after the "
+                "configured number of member messages. Confessions stay in order. Logs → Other Logs "
+                "→ Confessions opens the same per-channel log and administrator-review settings.",
+            ),
+        ),
+    ),
     "essentials": (
         "QUICK REFERENCE",
         (
@@ -313,7 +349,7 @@ GUIDES = {
             ),
             (
                 "SERVER ACTIVITY",
-                "Choose server-event and member-log channels under Server Activity. The bot can "
+                "Open Logs → Server Activity for server-event and member-log channels. The bot can "
                 "record messages, members, roles, bans and invites. Channel permissions "
                 "determine who can view those logs.",
             ),
@@ -323,8 +359,9 @@ GUIDES = {
                 "of KY BOT menus. Preview the selected finishes and apply them together.",
             ),
             (
-                "CHECKLIST & REQUEST LOGS",
-                "Checklist logs are selected when creating the checklist. Ask to DM/FR has its "
+                "OTHER LOGS",
+                "Logs → Other Logs collects feature logging shortcuts. Checklist logs are also "
+                "selected during checklist setup. Ask to DM/FR has its "
                 "own staff log channel and public/hidden request switch. Changing request "
                 "visibility does not turn staff logging off.",
             ),
@@ -407,6 +444,11 @@ class HelpView(discord.ui.LayoutView):
                     "CHECKLISTS",
                     "Create order with tasks, inline actions and discussions.",
                     "checklists",
+                ),
+                (
+                    "CONFESSIONS",
+                    "Anonymous posts and replies, privacy notices and reporting.",
+                    "confessions",
                 ),
                 (
                     "LEVELING & REWARDS",

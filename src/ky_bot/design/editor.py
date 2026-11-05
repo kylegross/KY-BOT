@@ -658,7 +658,28 @@ class Editor(discord.ui.LayoutView):
         if navigation:
             panel.add_item(discord.ui.ActionRow(*navigation))
         section_dividers(panel)
+        # Notices (including the post-apply confirmation) need a component too.
+        # Sacrifice only decorative rules, never draft data or working controls.
+        if not sample:
+            for child in reversed(panel.children):
+                if panel._total_count <= 40:
+                    break
+                if isinstance(child, discord.ui.Separator):
+                    panel.remove_item(child)
+            if panel._total_count > 40:
+                raise ValueError("Design editor exceeds Discord's component limit.")
         if sample and self.total_children_count + panel._total_count > 40:
+            # Keep every preview action while dropping redundant labels and empty rules.
+            # The artwork already identifies the menu, and navigation has been removed above.
+            for child in list(panel.children):
+                if isinstance(child, (discord.ui.TextDisplay, discord.ui.Separator)):
+                    panel.remove_item(child)
+            for sample_panel in self.children:
+                if isinstance(sample_panel, discord.ui.Container):
+                    while sample_panel.children and isinstance(
+                        sample_panel.children[-1], discord.ui.Separator
+                    ):
+                        sample_panel.remove_item(sample_panel.children[-1])
             destination = self.children[-1]
             if not isinstance(destination, discord.ui.Container):
                 raise ValueError("Preview exceeds Discord's component limit.")

@@ -1,7 +1,9 @@
 """Guild-scoped event logs; raw message events also cover uncached messages."""
 
 import asyncio
+import json
 import logging
+import re
 from importlib.resources import files
 from typing import TYPE_CHECKING
 
@@ -14,7 +16,8 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 MEMBER_EVENTS = {"MEMBER JOINED", "MEMBER LEFT"}
 MEMBER_COLOURS = {
-    "MEMBER JOINED": 0xC9DDF0, "MEMBER LEFT": 0xC9DDF0,
+    "MEMBER JOINED": 0xC9DDF0,
+    "MEMBER LEFT": 0xC9DDF0,
 }
 MEMBER_DESCRIPTIONS = {
     "MEMBER JOINED": "A new member joined the server.",
@@ -44,6 +47,21 @@ class Activity(commands.Cog):
         self.bot = bot
         self.invite_snapshots = {}
         self.invite_locks = {}
+
+    def logger(self):
+        cog = getattr(self.bot, "get_cog", lambda _: None)("AutoDelete")
+        return cog.service.logs if cog else None
+
+    def auto_deleted(self, guild_id, message_id):
+        logger = self.logger()
+        return (
+            logger is not None
+            and logger.db.execute(
+                "SELECT 1 FROM activity_log_deletions WHERE guild=? AND message=?",
+                (guild_id, message_id),
+            ).fetchone()
+            is not None
+        )
 
     def is_command_center(self, guild_id, message_id):
         panels = getattr(self.bot.server_settings, "command_center_panels", None)
@@ -94,9 +112,11 @@ class Activity(commands.Cog):
             self.invite_snapshots[guild.id] = after
             if before is None:
                 return None
-            changes = [(code, uses - before[code][0], inviter)
-                       for code, (uses, inviter) in after.items()
-                       if code in before and uses > before[code][0]]
+            changes = [
+                (code, uses - before[code][0], inviter)
+                for code, (uses, inviter) in after.items()
+                if code in before and uses > before[code][0]
+            ]
             # Concurrent/batched joins, expired single-use links and vanity links
             # cannot be assigned safely to a particular member.
             if len(changes) != 1 or changes[0][1] != 1:
@@ -126,16 +146,68 @@ class Activity(commands.Cog):
         member_event = title in MEMBER_EVENTS
         destination = settings.member_log_channel_id if member_event else settings.log_channel_id
         if destination is None or source_channel_id in {
-            settings.log_channel_id, settings.member_log_channel_id
+            settings.log_channel_id,
+            settings.member_log_channel_id,
         } - {None}:
             return
         guild = self.bot.get_guild(guild_id)
         if guild is None:
             return
+        logger = self.logger()
+        if not member_event and source_channel_id is not None:
+            source = guild.get_channel_or_thread(source_channel_id)
+            ids = {
+                source_channel_id,
+                getattr(source, "parent_id", None),
+                getattr(source, "category_id", None),
+            }
+            parent = getattr(source, "parent", None)
+            ids.add(getattr(parent, "category_id", None))
+            if ids & set(settings.log_excluded_channel_ids):
+                return
+            route = logger.route(guild_id, source_channel_id) if logger else None
+            if route and route.get("mode") == "nsfw":
+                return
         try:
             channel = await self.bot.server_settings.validate_channel(
                 guild, destination, **({"require_images": True} if member_event else {})
             )
+            if logger is not None and not member_event:
+                entity = fields.get("Member") or fields.get("Author") or fields.get("Role") or ""
+                found = re.search(r"`(\d+)`", entity)
+                ident = (
+                    int(found[1]) if found else "event:" + str(fields.get("Message ID") or title)
+                )
+                name = getattr(subject, "display_name", None) or entity.split(" · ", 1)[0] or title
+                label = (
+                    "Member ID"
+                    if "Member" in fields
+                    else "Author ID"
+                    if "Author" in fields
+                    else "Role ID"
+                    if "Role" in fields
+                    else "Record"
+                )
+                config = dict(
+                    guild=guild_id,
+                    source=source_channel_id or 0,
+                    destination=destination,
+                    title="KY BOT · SERVER ACTIVITY",
+                    color=0xC9DDF0,
+                    types=json.dumps([]),
+                    mode="server",
+                    actor_label=label,
+                )
+                details = "\n\n".join(f"{key}: {value}" for key, value in fields.items())
+                logger.queue(
+                    config,
+                    source_channel_id or 0,
+                    fields.get("Message ID") or ident,
+                    title,
+                    dict(name=name, user=ident, gifs=[]),
+                    details,
+                )
+                return
             embed = discord.Embed(
                 title=f"\\*ੈ𑁍  {title}  𑁍ੈ\\*",
                 colour=MEMBER_COLOURS.get(title, 0xC9DDF0),
@@ -151,9 +223,9 @@ class Activity(commands.Cog):
             if member_event:
                 embed.set_footer(text="KY BOT", icon_url="attachment://ky_bot_logo.png")
                 logo = discord.File(
-                    files("ky_bot.design").joinpath(
-                        "assets", "footer", "ky_member_log_logo.png"
-                    ).open("rb"),
+                    files("ky_bot.design")
+                    .joinpath("assets", "footer", "ky_member_log_logo.png")
+                    .open("rb"),
                     filename="ky_bot_logo.png",
                 )
                 try:
@@ -170,7 +242,9 @@ class Activity(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent) -> None:
-        if self.is_command_center(payload.guild_id, payload.message_id):
+        if self.is_command_center(payload.guild_id, payload.message_id) or self.auto_deleted(
+            payload.guild_id, payload.message_id
+        ):
             return
         message = payload.cached_message
         fields = {"Channel": f"<#{payload.channel_id}>", "Message ID": str(payload.message_id)}
@@ -188,7 +262,10 @@ class Activity(commands.Cog):
     @commands.Cog.listener()
     async def on_raw_bulk_message_delete(self, payload: discord.RawBulkMessageDeleteEvent) -> None:
         message_ids = {
-            mid for mid in payload.message_ids if not self.is_command_center(payload.guild_id, mid)
+            mid
+            for mid in payload.message_ids
+            if not self.is_command_center(payload.guild_id, mid)
+            and not self.auto_deleted(payload.guild_id, mid)
         }
         if not message_ids:
             return
@@ -214,7 +291,9 @@ class Activity(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_message_edit(self, payload: discord.RawMessageUpdateEvent) -> None:
-        if self.is_command_center(payload.guild_id, payload.message_id):
+        if self.is_command_center(payload.guild_id, payload.message_id) or self.auto_deleted(
+            payload.guild_id, payload.message_id
+        ):
             return
         # Embed loading and pin changes do not count as edits to a message's text/files.
         if "content" not in payload.data and "attachments" not in payload.data:
@@ -291,7 +370,8 @@ class Activity(commands.Cog):
             payload.guild_id, payload.user.id
         )
         await self.emit(
-            payload.guild_id, "MEMBER LEFT",
+            payload.guild_id,
+            "MEMBER LEFT",
             {"Member": member_person(payload.user), "Invited by": member_reference(inviter_id)},
             subject=payload.user,
         )
@@ -309,7 +389,7 @@ class Activity(commands.Cog):
             fields["Roles removed"] = text(
                 ", ".join(f"{old[i].name} (`{i}`)" for i in sorted(removed))
             )
-        await self.emit(after.guild.id, "MEMBER ROLES CHANGED", fields)
+        await self.emit(after.guild.id, "MEMBER ROLES CHANGED", fields, subject=after)
 
     @commands.Cog.listener()
     async def on_guild_role_create(self, role: discord.Role) -> None:

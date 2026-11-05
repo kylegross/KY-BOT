@@ -9,12 +9,12 @@ import discord
 GROUPS = {
     "settings:overview": (
         ("SERVER SETUP", ("COMMAND CENTER CHANNEL", "WELCOME EXPERIENCE")),
-        ("ADMINISTRATION", ("MODERATION", "SERVER ACTIVITY")),
+        ("ADMINISTRATION", ("MODERATION", "LOGS")),
         ("TOOLS & DESIGN", ("GENERAL SETTINGS", "CREATE EMBED")),
-        ("COMMUNITY", ("LEVELING", "ASK TO DM/FR")),
+        ("COMMUNITY", ("LEVELING", "CONFESSIONS", "ASK TO DM/FR")),
     ),
     "settings:general": (
-        ("AUTOMATION", ("AUTODELETE", "AUTOTHREAD", "AUTOREACT")),
+        ("AUTOMATION", ("AUTODELETE", "AUTOTHREAD", "AUTOREACT", "NSFW FLASH LOGS")),
         ("MENU APPEARANCE", ("MENU APPEARANCE",)),
     ),
     "settings:welcome": (
@@ -50,6 +50,7 @@ GROUPS = {
             (
                 "ASK TO DM/FR",
                 "CHECKLISTS",
+                "CONFESSIONS",
                 "LEVELING & REWARDS",
                 "EMOJIS & STICKERS",
                 "QUICK REFERENCE",

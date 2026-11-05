@@ -23,3 +23,12 @@ execution. Implementation lives in `src/ky_bot/moderation/`.
 **Leveling → Level-Up Messages → Edit formatting** customizes the heading, announcement
 message, card height and text sizes. **Preview** shows the current card privately.
 See the main README and `/help` for permissions, placeholders, and usage.
+
+
+## Central Logs and Confessions
+
+Command Center now has a dedicated Logs entry with Server Activity and Other Logs.
+Feature menus retain their original logging shortcuts and storage remains feature-owned.
+Confessions is configured per destination channel; its author-log and administrator-review
+channel pickers are available both through Confessions and through Logs → Other Logs.
+Only administrators can approve/reject confessions and access author-bearing review cards.

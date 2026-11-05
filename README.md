@@ -812,3 +812,45 @@ with an explicit Git ignore exception for those public TTF files. The licensed
 VONCA font directory stays excluded. Install updated dependencies or rebuild the
 Docker image after deployment; Docker also installs Noto core/CJK fonts for wider
 script coverage. No slash command sync is needed.
+
+
+## Confessions and the Logs hub
+
+`/confess` and the persistent Submit confession panel open a private submission form.
+Members choose a destination when multiple configured channels are available. The final
+confirmation discloses author logging and administrator approval before submission.
+Public posts and replies omit the sender’s name, avatar and user ID. The body can still
+identify a person if the member includes identifying information themselves.
+
+Administrators open **Command Center → Confessions** to add or manage channels. Each
+channel has its own on/off state, color, header/footer uploads and text, reply/report
+switches, optional named author logs, optional administrator approval, allowed/blocked
+roles, cooldown, length limit, and confession-ban enforcement. Defaults are paused, no
+author logs, no approval, and reporting off until a private review channel is selected.
+Use the channel’s Preview before Publish panel. Sticky can be off or move the submission
+panel after 1–100 new member messages; confession posts and replies stay in place.
+
+Only administrators can approve/reject, remove posts, dismiss reports or manage confession
+bans. Approval queues identify authors even when ongoing logging is off. Private author
+log and review/report destinations must be restricted to administrators and KY BOT.
+These permissions are checked before delivery, and administrator status is fetched again
+for privileged actions. Confession bans affect submissions/replies in channels enforcing
+the restriction, and do not kick or ban anyone from the Discord server.
+
+**Command Center → Logs** groups Server Activity and Other Logs. Its shortcuts edit the
+same saved settings used in the original feature menus. Confession log cards use the
+corresponding public channel’s color. Enabling logging later does not retroactively reveal
+earlier unlogged authors. A keyed, per-server pseudonymous identifier supports confession
+bans and cooldowns even with direct author logging off. Content, moderation status and
+routing identifiers persist for recovery; author IDs are retained while needed for named
+review or logging and are cleared from unlogged posts after publication/rejection.
+Existing Discord queue/log messages are not automatically erased when a setting changes.
+
+Submission operations and approval transitions are atomic. An uncertain public send is
+marked for manual investigation and is never automatically repeated. Failed queue/report
+notifications remain available through the admin Pending approvals/Reports menus.
+An interrupted publish must be checked against the public channel before recovery; do not
+resubmit blindly. SQLite and PostgreSQL schemas are created when this extension loads.
+
+Deployment requires a normal bot restart and one deliberate command sync to register
+`/confess`. No command sync or production posting is performed while reviewing the preview.

@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 import discord
 
-RETENTION_SECONDS = 15 * 24 * 60 * 60
+RETENTION_SECONDS = 30 * 24 * 60 * 60
 DESTINATION = 0
 DEFAULTS = {}
 TYPES = {
@@ -181,12 +181,18 @@ class ActivityLogs:
             CREATE TABLE IF NOT EXISTS activity_log_seed(guild INTEGER PRIMARY KEY);
             CREATE TABLE IF NOT EXISTS activity_log_messages(guild INTEGER,channel INTEGER,message INTEGER,data TEXT,PRIMARY KEY(guild,message));
             CREATE TABLE IF NOT EXISTS activity_log_queue(id TEXT PRIMARY KEY,guild INTEGER,destination INTEGER,payload TEXT,created REAL,state TEXT DEFAULT 'pending',sending REAL,message INTEGER,retry REAL DEFAULT 0);
+            CREATE INDEX IF NOT EXISTS activity_log_queue_message ON activity_log_queue(message);
+            CREATE INDEX IF NOT EXISTS activity_log_events_batch ON activity_log_events(batch);
+            CREATE INDEX IF NOT EXISTS activity_log_retention_expiry ON activity_log_retention(expires,retry);
+            CREATE TABLE IF NOT EXISTS activity_log_compacted(batch TEXT PRIMARY KEY);
+            CREATE TABLE IF NOT EXISTS nsfw_spoiler_config(guild INTEGER,source INTEGER,required INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(guild,source));
+            CREATE TABLE IF NOT EXISTS nsfw_flash_config(guild INTEGER,source INTEGER,destination INTEGER,title TEXT,color INTEGER,types TEXT,enabled INTEGER DEFAULT 0,PRIMARY KEY(guild,source));
+            CREATE INDEX IF NOT EXISTS activity_log_batch_started ON activity_log_batches(started);
+
             """)
+        # Posted records stay in Discord; retire the old deletion schedule.
         with self.db:
-            for row in self.db.execute(
-                "SELECT guild,destination,message FROM activity_log_queue WHERE message IS NOT NULL"
-            ).fetchall():
-                self.track_retention(row["guild"], row["destination"], row["message"])
+            self.db.execute("DELETE FROM activity_log_retention")
             for row in self.db.execute(
                 "SELECT guild,source,types FROM activity_log_config"
             ).fetchall():
@@ -219,10 +225,98 @@ class ActivityLogs:
                     )
             self.db.execute("INSERT OR IGNORE INTO activity_log_seed VALUES (?)", (guild.id,))
 
+    def spoiler_required(self, guild, channel):
+        row = self.db.execute(
+            "SELECT required FROM nsfw_spoiler_config WHERE guild=? AND source=?", (guild, channel)
+        ).fetchone()
+        return bool(row and row["required"])
+
+    def set_spoilers(self, guild, channel, required):
+        with self.db:
+            self.db.execute(
+                "INSERT OR REPLACE INTO nsfw_spoiler_config VALUES (?,?,?)",
+                (guild, channel, int(required)),
+            )
+
+    async def enforce_spoilers(self, message):
+        if not message.guild or message.author.bot or message.webhook_id:
+            return False
+        if not message.channel.is_nsfw() or not self.spoiler_required(
+            message.guild.id, message.channel.id
+        ):
+            return False
+        from ky_bot.nsfw.spoilers import violates
+
+        if not violates(message):
+            return False
+        # Mark before deletion so neither flash logs nor generic server logs call this a manual deletion.
+        with self.db:
+            self.db.execute(
+                "INSERT OR REPLACE INTO activity_log_deletions VALUES (?,?,'pending')",
+                (message.guild.id, message.id),
+            )
+        try:
+            await message.delete()
+        except discord.HTTPException:
+            self.finish_deletion(message, False)
+            logging.warning(
+                "NSFW spoiler enforcement could not delete a post in channel %s", message.channel.id
+            )
+            return False
+        self.finish_deletion(message, True)
+        notice = (
+            f"Your post in #{message.channel.name} was removed because this channel requires "
+            "spoiler tags on images and videos. Mark uploads as Spoiler, or wrap media links "
+            "in ||spoilers||, then repost. KY BOT did not download or save your media."
+        )
+        try:
+            await message.author.send(notice, allowed_mentions=discord.AllowedMentions.none())
+        except discord.HTTPException:
+            try:
+                await message.channel.send(
+                    "A media post was removed. Please mark images/videos as spoilers and repost.",
+                    allowed_mentions=discord.AllowedMentions.none(),
+                    delete_after=12,
+                )
+            except discord.HTTPException:
+                pass
+        return True
+
+    def flash_config(self, guild, channel):
+        row = self.db.execute(
+            "SELECT * FROM nsfw_flash_config WHERE guild=? AND source=?", (guild, channel)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def save_flash(self, guild, source, destination, types, enabled):
+        if source == destination:
+            raise ValueError("Choose a separate age-restricted staff log channel.")
+        if not types or not set(types) <= TYPES.keys():
+            raise ValueError("Choose at least one event type.")
+        with self.db:
+            self.db.execute(
+                "INSERT OR REPLACE INTO nsfw_flash_config VALUES (?,?,?,?,?,?,?)",
+                (
+                    guild,
+                    source,
+                    destination,
+                    "NSFW FLASH LOG",
+                    0xBDC3CA,
+                    json.dumps(sorted(types)),
+                    int(enabled),
+                ),
+            )
+
     def route(self, guild, channel):
         g = self.client.get_guild(guild)
         if g:
             self.seed(g)
+        flash = self.flash_config(guild, channel)
+        if flash and flash["enabled"]:
+            source = g.get_channel(channel) if g else None
+            if source and source.is_nsfw():
+                return dict(flash, mode="nsfw")
+            return None
         row = self.config(guild, channel)
         return row if row and row["enabled"] and channel in self.active_channels(guild) else None
 
@@ -272,7 +366,21 @@ class ActivityLogs:
                     user = None
             if user is not None:
                 names[uid] = user.display_name
-        return snapshot(m, names)
+        return self.prepare_snapshot(m, names)
+
+    def prepare_snapshot(self, m, names=None):
+        value = snapshot(m, names)
+        cfg = self.route(m.guild.id, m.channel.id)
+        if cfg and cfg.get("mode") == "nsfw":
+            # Provider page links only. Never retain uploaded GIF or direct media URLs.
+            value["gifs"] = [
+                url
+                for url in value["gifs"]
+                if (urlparse(url).hostname or "").lower().removeprefix("www.")
+                in {"tenor.com", "giphy.com"}
+                and not re.search(r"\.(?:gif|gifv|png|jpe?g|mp4|webm)(?:[?#]|$)", url, re.I)
+            ]
+        return value
 
     def conversation(self, guild, message):
         row = self.db.execute(
@@ -334,12 +442,23 @@ class ActivityLogs:
             "\\-# Images/videos are not retained.", "-# Images/videos are not retained."
         )
         gifs = s.get("gifs", []) if "gifs" in json.loads(config["types"]) else []
+        if config.get("mode") == "nsfw":
+            gifs = [
+                url
+                for url in gifs
+                if (urlparse(url).hostname or "").lower().removeprefix("www.")
+                in {"tenor.com", "giphy.com"}
+                and not re.search(r"\.(?:gif|gifv|png|jpe?g|mp4|webm)(?:[?#]|$)", url, re.I)
+            ]
         if gifs:
             details += "\n**GIF links (no preview):**\n" + "\n".join(
                 "<" + url.replace(">", "%3E").replace("<", "%3C") + ">" for url in gifs
             )
-        context = self.conversation(config["guild"], message)
-        actor = f"**{safe(s['name'])}** (User ID: `{s['user']}`)"
+        context = (
+            None if config.get("mode") == "server" else self.conversation(config["guild"], message)
+        )
+        actor_label = config.get("actor_label", "User ID")
+        actor = f"**{safe(s['name'])}** ({actor_label}: `{s['user']}`)"
         event = f"**{action}** · {actor} · <t:{int(stamp)}:T>\n" + details
         member = str(s["user"]) if s["user"] != "unknown" else f"unknown:{message}"
         if context:
@@ -368,7 +487,8 @@ class ActivityLogs:
             self.db.execute(
                 "INSERT INTO activity_log_events VALUES (?,?,?)", (token, batch["id"], event)
             )
-            header = f"**{safe(s['name'])}** (User ID: `{s['user']}`)\nChannel: <#{channel}>\n-# One-minute activity window\n\n"
+            location = f"Channel: <#{channel}>" if channel else "Server-wide activity"
+            header = f"**{safe(s['name'])}** ({actor_label}: `{s['user']}`)\n{location}\n-# One-minute activity window\n\n"
             if context:
                 excerpt = safe(context["text"]).replace(
                     "\\-# Images/videos are not retained.", "-# Images/videos are not retained."
@@ -404,6 +524,8 @@ class ActivityLogs:
             for n, page in enumerate(pages):
                 payload = json.dumps(
                     dict(
+                        nsfw=config.get("mode") == "nsfw",
+                        source=channel,
                         title=config["title"]
                         + (" — CONVERSATION" if context else " — MEMBER ACTIVITY")
                         + (f" · {n + 1}" if n else ""),
@@ -424,6 +546,8 @@ class ActivityLogs:
 
     async def on_message(self, m):
         if not m.guild or m.author.bot or m.webhook_id:
+            return
+        if await self.enforce_spoilers(m):
             return
         cfg = self.route(m.guild.id, m.channel.id)
         if not cfg:
@@ -450,9 +574,17 @@ class ActivityLogs:
                 cfg, m.channel.id, m.id, "MESSAGE SENT", s, body(s), f"post:{m.guild.id}:{m.id}"
             )
 
-    async def on_edit(self, p):
+    async def on_edit(self, p, *, fetcher=None):
         if not p.guild_id:
             return
+        source = self.client.get_channel(p.channel_id)
+        if source and source.is_nsfw() and self.spoiler_required(p.guild_id, p.channel_id):
+            try:
+                current = await source.fetch_message(p.message_id)
+                if await self.enforce_spoilers(current):
+                    return
+            except (discord.NotFound, discord.Forbidden):
+                return
         cfg = self.route(p.guild_id, p.channel_id)
         if not cfg:
             return
@@ -463,7 +595,7 @@ class ActivityLogs:
         if not channel:
             return
         try:
-            m = await channel.fetch_message(p.message_id)
+            m = await fetcher(channel) if fetcher else await channel.fetch_message(p.message_id)
         except discord.NotFound:
             return
         if m.author.bot or m.webhook_id:
@@ -610,7 +742,7 @@ class ActivityLogs:
             if not m.author.bot and not getattr(m, "webhook_id", None):
                 self.db.execute(
                     "INSERT OR REPLACE INTO activity_log_messages VALUES (?,?,?,?)",
-                    (m.guild.id, m.channel.id, m.id, json.dumps(snapshot(m))),
+                    (m.guild.id, m.channel.id, m.id, json.dumps(self.prepare_snapshot(m))),
                 )
 
     def finish_deletion(self, m, success):
@@ -645,67 +777,44 @@ class ActivityLogs:
                     self.seed(guild)
                 await self.expire_logs()
                 await self.flush()
+                self.compact_delivered()
             except Exception:
                 logging.exception("AutoDelete activity logs will retry")
             await asyncio.sleep(3)
 
-    def track_retention(self, guild, destination, message):
-        # Discord IDs encode the actual posting time, including pre-upgrade logs.
-        expires = discord.utils.snowflake_time(message).timestamp() + RETENTION_SECONDS
+    def compact_delivered(self, now=None):
+        """Drop delivered text after batching closes; retain delivery/dedupe IDs."""
+        now = time.time() if now is None else now
+        # queue() only extends batches younger than 60 seconds. A two-minute
+        # guard also leaves concurrent delivery updates time to settle.
+        rows = self.db.execute(
+            """SELECT b.id FROM activity_log_batches b
+            LEFT JOIN activity_log_compacted c ON c.batch=b.id
+            WHERE b.started<=? AND c.batch IS NULL
+            AND EXISTS (SELECT 1 FROM activity_log_queue q WHERE q.id>=b.id||':' AND q.id<b.id||';')
+            AND NOT EXISTS (SELECT 1 FROM activity_log_queue q WHERE q.id>=b.id||':' AND q.id<b.id||';' AND (q.state!='sent' OR q.message IS NULL))
+            ORDER BY b.started LIMIT 50""",
+            (now - 120,),
+        ).fetchall()
         with self.db:
-            self.db.execute(
-                "INSERT OR IGNORE INTO activity_log_retention(message,guild,destination,expires) VALUES (?,?,?,?)",
-                (message, guild, destination, expires),
-            )
+            for row in rows:
+                batch = row["id"]
+                self.db.execute(
+                    "UPDATE activity_log_queue SET payload='' WHERE id>=? AND id<?",
+                    (batch + ":", batch + ";"),
+                )
+                self.db.execute("UPDATE activity_log_events SET body='' WHERE batch=?", (batch,))
+                self.db.execute("INSERT OR IGNORE INTO activity_log_compacted VALUES (?)", (batch,))
+        return len(rows)
+
+    def track_retention(self, guild, destination, message):
+        # Compatibility for callers: Discord records no longer expire.
+        pass
 
     async def expire_logs(self):
-        now = time.time()
-        rows = self.db.execute(
-            "SELECT * FROM activity_log_retention WHERE expires<=? AND retry<=? ORDER BY expires LIMIT 25",
-            (now, now),
-        ).fetchall()
-        for row in rows:
-            try:
-                channel = self.client.get_channel(
-                    row["destination"]
-                ) or await self.client.fetch_channel(row["destination"])
-                if channel.guild.id != row["guild"]:
-                    raise ValueError("Wrong retention guild")
-                message = await channel.fetch_message(row["message"])
-                if message.author.id != self.client.user.id:
-                    raise ValueError("Retention only deletes KY BOT log messages")
-                # Discord cannot bulk-delete messages older than 14 days.
-                await message.delete()
-            except discord.NotFound:
-                pass
-            except Exception:
-                with self.db:
-                    self.db.execute(
-                        "UPDATE activity_log_retention SET retry=? WHERE message=?",
-                        (now + 3600, row["message"]),
-                    )
-                logging.exception(
-                    "AutoDelete log retention will retry for message %s", row["message"]
-                )
-                continue
-            with self.db:
-                self.db.execute(
-                    "DELETE FROM activity_log_reactions WHERE key IN (SELECT id FROM activity_log_queue WHERE message=?)",
-                    (row["message"],),
-                )
-                self.db.execute("DELETE FROM activity_log_queue WHERE message=?", (row["message"],))
-                self.db.execute(
-                    "DELETE FROM activity_log_retention WHERE message=?", (row["message"],)
-                )
-                empty = [
-                    r["id"]
-                    for r in self.db.execute(
-                        "SELECT id FROM activity_log_batches b WHERE NOT EXISTS (SELECT 1 FROM activity_log_queue q WHERE q.id LIKE b.id || ':%')"
-                    )
-                ]
-                for batch in empty:
-                    self.db.execute("DELETE FROM activity_log_events WHERE batch=?", (batch,))
-                    self.db.execute("DELETE FROM activity_log_batches WHERE id=?", (batch,))
+        # Remove legacy local deletion jobs without touching Discord messages.
+        with self.db:
+            self.db.execute("DELETE FROM activity_log_retention")
 
     async def flush(self):
         rows = self.db.execute(
@@ -721,6 +830,23 @@ class ActivityLogs:
                 if channel.guild.id != row["guild"]:
                     raise ValueError("Wrong log guild")
                 data = json.loads(row["payload"])
+                if data.get("nsfw"):
+                    cfg = self.flash_config(row["guild"], data["source"])
+                    source = self.client.get_channel(data["source"])
+                    if not cfg or not cfg["enabled"]:
+                        with self.db:
+                            self.db.execute(
+                                "UPDATE activity_log_queue SET state='cancelled',payload='' WHERE id=?",
+                                (row["id"],),
+                            )
+                        continue
+                    if not source or not source.is_nsfw() or not channel.is_nsfw():
+                        with self.db:
+                            self.db.execute(
+                                "UPDATE activity_log_queue SET retry=? WHERE id=?",
+                                (time.time() + 60, row["id"]),
+                            )
+                        continue
                 embed = discord.Embed(
                     title=data["title"],
                     description=data["text"],

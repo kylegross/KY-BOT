@@ -11,12 +11,23 @@ from dotenv import load_dotenv
 from ky_bot.storage.postgres import CHECKLIST_LOCK, PostgresChecklistStore
 
 SETTINGS_TABLES = (
-    "guild_settings", "welcome_settings", "welcome_artwork", "embed_designs", "member_log_settings",
+    "guild_settings",
+    "welcome_settings",
+    "welcome_artwork",
+    "embed_designs",
+    "member_log_settings",
     "member_inviters",
     "command_center_panels",
-    "leveling_settings", "leveling_members", "leveling_adjustments",
-    "ask_settings", "ask_requests", "ask_drafts", "ask_events", "custom_embeds",
+    "leveling_settings",
+    "leveling_members",
+    "leveling_adjustments",
+    "ask_settings",
+    "ask_requests",
+    "ask_drafts",
+    "ask_events",
+    "custom_embeds",
     "steal_destinations",
+    "server_log_exclusions",
 )
 CHECKLIST_TABLES = ("boards", "categories", "tasks", "logs", "subtasks")
 TABLES = SETTINGS_TABLES + CHECKLIST_TABLES
@@ -32,11 +43,21 @@ def snapshot(path, tables):
             row[0] for row in source.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
         optional = {
-            "subtasks", "embed_designs", "member_log_settings", "member_inviters",
+            "subtasks",
+            "embed_designs",
+            "member_log_settings",
+            "member_inviters",
             "command_center_panels",
-            "leveling_settings", "leveling_members", "leveling_adjustments",
-            "ask_settings", "ask_requests", "ask_drafts", "ask_events", "custom_embeds",
+            "leveling_settings",
+            "leveling_members",
+            "leveling_adjustments",
+            "ask_settings",
+            "ask_requests",
+            "ask_drafts",
+            "ask_events",
+            "custom_embeds",
             "steal_destinations",
+            "server_log_exclusions",
         }
         if not (set(tables) - optional) <= existing:
             raise ValueError("Source database needs the current KY BOT SQLite schema.")

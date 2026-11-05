@@ -87,3 +87,5 @@ CREATE TABLE IF NOT EXISTS custom_embeds (id TEXT PRIMARY KEY, guild BIGINT NOT 
 CREATE INDEX IF NOT EXISTS custom_embed_channel ON custom_embeds(guild,channel,sticky_every);
 
 CREATE TABLE IF NOT EXISTS steal_destinations (user_id BIGINT PRIMARY KEY, guild_id BIGINT NOT NULL);
+
+CREATE TABLE IF NOT EXISTS server_log_exclusions (guild_id TEXT PRIMARY KEY,channels TEXT NOT NULL);

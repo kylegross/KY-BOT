@@ -24,6 +24,7 @@ class GuildSettings:
     member_log_channel_id: int | None = None
     command_center_channel_id: int | None = None
     command_center_message_id: int | None = None
+    log_excluded_channel_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +136,7 @@ class SettingsRepository:
             int(member_log[0]) if member_log else None,
             int(panel[0]) if panel else None,
             int(panel[1]) if panel else None,
+            await self.get_log_exclusions(guild_id),
         )
 
     async def get_welcome_artwork(self, guild_id: int) -> WelcomeArtwork:
@@ -203,6 +205,22 @@ class SettingsRepository:
             "DELETE FROM member_log_settings WHERE guild_id = ?", (str(guild_id),)
         )
 
+    async def get_log_exclusions(self, guild_id):
+        async with self.connection.execute(
+            "SELECT channels FROM server_log_exclusions WHERE guild_id=?", (str(guild_id),)
+        ) as cursor:
+            row = await cursor.fetchone()
+        return tuple(json.loads(row[0])) if row else ()
+
+    async def set_log_exclusions(self, guild_id, channels):
+        channels = sorted(set(channels))
+        if len(channels) > 25 or any(type(x) is not int or not 0 < x < 2**64 for x in channels):
+            raise ValueError("Choose up to 25 channels or categories in this server.")
+        await self.connection.execute(
+            "INSERT INTO server_log_exclusions(guild_id,channels) VALUES (?,?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET channels=excluded.channels",
+            (str(guild_id), json.dumps(channels)),
+        )
 
     async def get_steal_destination(self, user_id):
         async with self.connection.execute(
@@ -214,7 +232,8 @@ class SettingsRepository:
     async def set_steal_destination(self, user_id, guild_id):
         await self.connection.execute(
             "INSERT INTO steal_destinations(user_id,guild_id) VALUES (?,?) "
-            "ON CONFLICT(user_id) DO UPDATE SET guild_id=excluded.guild_id", (user_id, guild_id)
+            "ON CONFLICT(user_id) DO UPDATE SET guild_id=excluded.guild_id",
+            (user_id, guild_id),
         )
 
 
@@ -277,5 +296,9 @@ async def open_settings(path: Path, *, database_url: str | None = None):
         await connection.execute(
             "CREATE TABLE IF NOT EXISTS steal_destinations "
             "(user_id BIGINT PRIMARY KEY, guild_id BIGINT NOT NULL)"
+        )
+        await connection.execute(
+            "CREATE TABLE IF NOT EXISTS server_log_exclusions "
+            "(guild_id TEXT PRIMARY KEY,channels TEXT NOT NULL)"
         )
         yield SettingsRepository(connection)

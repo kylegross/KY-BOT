@@ -200,6 +200,12 @@ class SettingsView(discord.ui.LayoutView):
             )
             separator()
             row(
+                "**CONFESSIONS**\n-# Anonymous posts, replies, approval queues "
+                "and channel styling.",
+                self.automation_navigation("Confessions"),
+            )
+            separator()
+            row(
                 "**ASK TO DM/FR**\n-# Consent requests, role restrictions, channels and logs.",
                 self.automation_navigation("AskDM"),
             )
@@ -210,13 +216,8 @@ class SettingsView(discord.ui.LayoutView):
             )
             separator()
             row(
-                "**SERVER ACTIVITY**\n-# Moderation logs · "
-                + (
-                    "Enabled"
-                    if self.settings.log_channel_id or self.settings.member_log_channel_id
-                    else "Disabled"
-                ),
-                self.navigation("Manage", "logging"),
+                "**LOGS**\n-# Server activity and other feature logs in one place.",
+                self.automation_navigation("Logs"),
             )
             separator()
             row(
@@ -237,6 +238,11 @@ class SettingsView(discord.ui.LayoutView):
                         "AutoThread",
                     ),
                     ("AUTOREACT", "Add selected emoji reactions to matching posts.", "AutoReact"),
+                    (
+                        "NSFW FLASH LOGS",
+                        "Age restriction and optional text-only channel logs.",
+                        "NSFWFlashLogs",
+                    ),
                 )
             ):
                 if index:
@@ -321,7 +327,7 @@ class SettingsView(discord.ui.LayoutView):
                 f"**SERVER EVENTS**\n-# {channel(self.settings.log_channel_id)}",
                 self.navigation("Choose channel", section, picker=True),
             )
-            if picker and picker != "members":
+            if picker and picker not in {"members", "exclusions"}:
                 self.log_channel = discord.ui.ChannelSelect(
                     channel_types=[discord.ChannelType.text],
                     placeholder="Choose a log channel…",
@@ -345,6 +351,44 @@ class SettingsView(discord.ui.LayoutView):
                     "-# ✧ Role changes, bans & unbans"
                 )
             )
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    "**EXCLUDED CHANNELS**\nChoose channels or categories to omit "
+                    "from Server Events. "
+                    "Threads inherit their parent/category exclusion. "
+                    "Clear the selection to include all. "
+                    "This does not disable separately configured NSFW Flash Logs."
+                )
+            )
+            excluded = discord.ui.ChannelSelect(
+                channel_types=[
+                    discord.ChannelType.text,
+                    discord.ChannelType.category,
+                    discord.ChannelType.forum,
+                    discord.ChannelType.voice,
+                    discord.ChannelType.stage_voice,
+                ],
+                placeholder="Exclude channels or categories from server events",
+                min_values=0,
+                max_values=25,
+                default_values=[
+                    discord.Object(id=value) for value in self.settings.log_excluded_channel_ids
+                ],
+            )
+
+            async def save_exclusions(interaction):
+                await interaction.response.defer()
+                values = []
+                for selected in excluded.values:
+                    channel = interaction.guild.get_channel(selected.id)
+                    if channel is None:
+                        raise ValueError("Choose channels or categories in this server.")
+                    values.append(channel.id)
+                await self.service.repository.set_log_exclusions(self.guild_id, values)
+                await self.refresh(interaction, "Server-event channel exclusions saved.")
+
+            excluded.callback = save_exclusions
+            panel.add_item(discord.ui.ActionRow(excluded))
             separator()
             row(
                 f"**MEMBERS & INVITES**\n-# {channel(self.settings.member_log_channel_id)}",

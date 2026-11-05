@@ -143,10 +143,18 @@ class BoardView(discord.ui.LayoutView):
                 accessory=action("Manage", "categories", categories_menu),
             )
         )
+        async def delete_checklist(interaction):
+            from ky_bot.checklists.deletion import open_delete
+
+            await open_delete(service, interaction, channel)
+
+        delete = action("Delete checklist", "delete", delete_checklist)
+        delete.style = discord.ButtonStyle.secondary
         done = sum(bool(t["done"]) for t in tasks)
         panel.add_item(
-            discord.ui.TextDisplay(
-                f"-# {done} of {len(tasks)} complete · Page {page + 1} of {pages}"
+            discord.ui.Section(
+                f"-# {done} of {len(tasks)} complete · Page {page + 1} of {pages}",
+                accessory=delete,
             )
         )
         gallery("checklist_footer.png")
@@ -173,14 +181,6 @@ class BoardView(discord.ui.LayoutView):
                     disabled=(page == 0 if delta < 0 else page == pages - 1),
                 )
             )
-        async def delete_checklist(interaction):
-            from ky_bot.checklists.deletion import open_delete
-
-            await open_delete(service, interaction, channel)
-
-        delete = action("Delete checklist", "delete", delete_checklist)
-        delete.style = discord.ButtonStyle.danger
-        buttons.append(delete)
         panel.add_item(discord.ui.ActionRow(*buttons))
         self.add_item(panel)
 

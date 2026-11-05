@@ -26,8 +26,13 @@ TABLES = [
     "activity_log_seed",
     "activity_log_messages",
     "activity_log_queue",
+    "activity_log_compacted",
+    "nsfw_flash_config",
+    "nsfw_spoiler_config",
 ]
 UPSERTS = {
+    "nsfw_spoiler_config": ("guild,source", "required"),
+    "nsfw_flash_config": ("guild,source", "destination,title,color,types,enabled"),
     "thread_sources": ("guild,thread", "kinds"),
     "activity_log_config": ("guild,source", "destination,title,color,types,enabled"),
     "activity_log_links": ("guild,message", "root,context"),

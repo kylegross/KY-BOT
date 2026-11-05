@@ -259,3 +259,21 @@ server channel picker, while No disables delivery. Completions made with logs of
 are not posted later. History remains in the checklist database. Existing Discord
 log posts and discussion threads remain subject to server/channel permissions and
 moderator removal.
+
+
+## Confessions
+
+Confessions and anonymous replies are anonymous in member-facing channels. They are not
+anonymous to administrators when administrator approval or named author logging is enabled.
+The private confirmation explains the current channel’s settings before submission.
+Approval queues identify authors even if ongoing author logs are disabled. Reporter
+identities and report reasons are visible to administrators in private review controls.
+
+KY BOT stores confession/reply content, channel/message and operation identifiers,
+submission state and moderation records needed to deliver and manage the feature.
+A keyed per-server pseudonymous author identifier supports cooldowns and confession bans.
+Direct author IDs are stored when needed for approval or enabled author logging; unlogged
+posts clear that direct ID after publication or rejection. This does not erase existing
+messages in Discord’s private review or log channels. Turning logging on later does not
+add author identities to earlier unlogged posts. Access to Discord review/log messages
+is controlled by server administrators and Discord permissions.
