@@ -30,6 +30,7 @@ TARGETS = {
     "settings:autoreact": "AutoReact",
     "settings:autodelete": "AutoDelete",
     "settings:leveling": "Leveling",
+    "askdm": "Ask to DM/FR · member and admin menus",
     "checklist": "All checklists / default",
     "welcome_image": "Welcome image",
 }
@@ -131,7 +132,15 @@ class DesignSession:
         self.preview_key = key
         profile = self.drafts[key]
         uploads = []
-        if key == "settings:leveling":
+        if key == "askdm":
+            from ky_bot.askdm.views import PublicPanel
+            from ky_bot.askdm.views import uploads as ask_uploads
+            from ky_bot.design.collection import COLOURS
+
+            sample = PublicPanel(self.bot.get_cog("AskDM"))
+            sample.panel.accent_colour = int(COLOURS[profile["style"]][1:], 16)
+            uploads = await asyncio.to_thread(ask_uploads, profile)
+        elif key == "settings:leveling":
             from ky_bot.leveling.menu import Menu, Session, artwork
 
             session = Session(self.bot.get_cog("Leveling"), interaction)
@@ -277,11 +286,22 @@ class DesignSession:
                     style = profile_for(profiles, f"checklist:{board['channel']}")["style"]
                     checklists.store.update_board(board["channel"], style=style, dirty=1)
             checklists.wakeup.set()
+        ask_notice = ""
+        if "askdm" in self.selected:
+            ask = self.bot.get_cog("AskDM")
+            if ask:
+                try:
+                    await ask.refresh_design(self.guild)
+                except (discord.HTTPException, ValueError):
+                    ask_notice = (
+                        " Ask to DM/FR artwork is saved; refresh its member "
+                        "panel after restoring channel access."
+                    )
         await self.show(
             interaction,
             notice=(
                 "Design applied. Existing checklists refresh automatically; "
-                "private menus use it when reopened or refreshed."
+                "private menus use it when reopened or refreshed." + ask_notice
             ),
         )
 

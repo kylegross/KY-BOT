@@ -7,6 +7,7 @@ from importlib.resources import files
 import discord
 
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.menu_strips import group_sections, strip_files
 from ky_bot.views.sections import section_dividers
 
 log = logging.getLogger(__name__)
@@ -147,12 +148,18 @@ GUIDES = {
             (
                 "MEMBER MODERATION",
                 "Open **Command Center → Moderation** for a private member picker. Or use `/ban "
-                "member` and `/timeout member duration`. Timeout examples: `30m`, `2h`, `3d 12h`. "
-                "Maximum: **28 days**. Ban Members or Moderate Members permissions are required, "
+                "member`, `/kick member` and `/timeout member duration`. "
+                "Timeout examples: `30m`, `2h`, `3d 12h`. "
+                "Maximum: **28 days**. Kick Members, Ban Members or Moderate Members "
+                "permissions are required, "
                 "and actions show a confirmation before applying.",
             ),
             (
-                "XP CORRECTIONS",
+                "LEVEL-UP FORMATTING & XP",
+                "**Leveling → Level-Up Messages → Edit formatting** changes the heading, "
+                "announcement message, card height and text sizes. Message placeholders: "
+                "`{mention}`, `{name}`, `{level}`. Select **Preview** "
+                "to check the card privately.\n"
                 "`/xp add` · `/xp remove` · `/xp level`\n"
                 "Administrator-only commands for adjusting a member’s XP or level.",
             ),
@@ -233,6 +240,13 @@ GUIDES = {
                 "remains until unbanned.",
             ),
             (
+                "KICK A MEMBER",
+                "`/kick member reason` requires Kick Members. The reason is optional. "
+                "Review privately, then confirm to remove the member. They can rejoin "
+                "with a valid invite. Existing messages are kept; the reason is recorded "
+                "in Discord’s audit log.",
+            ),
+            (
                 "CUSTOM TIMEOUT",
                 "`/timeout member duration reason` requires Moderate Members. Enter `30m`, "
                 "`2h`, `3d 12h` or `1 hour 30 minutes`. Maximum: **28 days**. The optional "
@@ -258,13 +272,15 @@ GUIDES = {
         (
             (
                 "CREATE OR EDIT",
-                "Open Command Center → Create Embed. Start a new saved draft or choose an "
+                "Run `/create embed` or open Command Center → Create Embed. Start a new "
+                "saved draft or choose an "
                 "existing post. Add a title, message and optional footer text.",
             ),
             (
                 "IMAGES, COLOR & FORMATTING",
                 "Upload a header and/or footer image, choose an accent color preset or custom "
-                "hex, and use Markdown or the special-lettering formatter. Images are saved for "
+                "hex. Content & Text Styles puts a style dropdown above each text field and "
+                "Add styled text at the top. Titles start as large headings. Images are saved for "
                 "later reposts; role and everyone notifications are suppressed.",
             ),
             (
@@ -317,7 +333,7 @@ GUIDES = {
 }
 
 
-def help_files():
+def _base_help_files():
     return [
         discord.File(
             io.BytesIO(files("ky_bot.design").joinpath("assets", directory, name).read_bytes()),
@@ -336,13 +352,14 @@ class HelpView(discord.ui.LayoutView):
         administrator=False,
         manage_guild=False,
         ban_members=False,
+        kick_members=False,
         moderate_members=False,
     ):
         super().__init__(timeout=600)
         self.owner_id, self.guild_id = owner_id, guild_id
         self.administrator = administrator
         self.manage_guild = manage_guild or administrator
-        self.moderator = administrator or ban_members or moderate_members
+        self.moderator = administrator or ban_members or kick_members or moderate_members
         self.message = None
         self.page = "home"
         self.show("home")
@@ -409,7 +426,11 @@ class HelpView(discord.ui.LayoutView):
             ]
             if self.moderator:
                 entries.append(
-                    ("MEMBER MODERATION", "Bans, custom timeouts and role checks.", "moderation")
+                    (
+                        "MEMBER MODERATION",
+                        "Kicks, bans, custom timeouts and role checks.",
+                        "moderation",
+                    )
                 )
             if self.administrator:
                 entries.append(
@@ -459,6 +480,8 @@ class HelpView(discord.ui.LayoutView):
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://ky_footer_help.png"))
         )
+        if page == "home":
+            group_sections(panel, "help")
         section_dividers(panel)
         self.add_item(panel)
 
@@ -477,6 +500,7 @@ class HelpView(discord.ui.LayoutView):
             interaction.guild_id is not None
             and (
                 interaction.permissions.ban_members
+                or interaction.permissions.kick_members
                 or interaction.permissions.moderate_members
                 or self.administrator
             )
@@ -502,3 +526,7 @@ class HelpView(discord.ui.LayoutView):
 
     async def on_error(self, interaction, error, item):
         await report_error(interaction, error)
+
+
+def help_files():
+    return _base_help_files() + strip_files("help", "dark_silver")

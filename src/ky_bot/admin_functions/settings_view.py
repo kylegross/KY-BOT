@@ -8,6 +8,7 @@ import discord
 from ky_bot.admin_functions.settings_repository import GuildSettings
 from ky_bot.admin_functions.settings_service import SETTINGS_TITLES, SettingsService
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.menu_strips import group_sections, strip_files
 from ky_bot.views.sections import section_dividers
 
 HEADER_URL = "attachment://ky_settings_header.png"
@@ -20,12 +21,18 @@ def settings_title_file(section: str) -> discord.File:
     )
 
 
-def settings_files(section: str, design=None) -> list[discord.File]:
+def _base_settings_files(section: str, design=None) -> list[discord.File]:
     if design is not None:
         from ky_bot.design.menu_design import menu_files
 
+        profile = dict(design)
+        if section != "overview":
+            subtitle = profile.get("title") or SETTINGS_TITLES[section][0]
+            if not subtitle.startswith("COMMAND CENTER 𖥸 "):
+                subtitle = "COMMAND CENTER 𖥸 " + subtitle
+            profile.update(title=subtitle, _rotated_divider=True)
         attachments = menu_files(
-            design,
+            profile,
             "COMMAND CENTER",
             SETTINGS_TITLES[section][0],
             ("ky_settings_header.png", "ky_settings_footer.png", "ky_settings_title.png"),
@@ -37,7 +44,13 @@ def settings_files(section: str, design=None) -> list[discord.File]:
     attachments = [
         discord.File(
             files("ky_bot.design")
-            .joinpath("assets", "header", "ky_header_command_center.png")
+            .joinpath(
+                "assets",
+                "header",
+                "ky_header_command_center.png"
+                if section == "overview"
+                else f"ky_header_settings_{section}.png",
+            )
             .open("rb"),
             filename="ky_settings_header.png",
         ),
@@ -131,14 +144,6 @@ class SettingsView(discord.ui.LayoutView):
                 )
             )
         )
-        if section != "overview":
-            panel.add_item(
-                discord.ui.MediaGallery(
-                    discord.MediaGalleryItem(
-                        "attachment://ky_settings_title.png",
-                    )
-                )
-            )
         if notice:
             panel.add_item(discord.ui.TextDisplay(notice))
 
@@ -200,7 +205,7 @@ class SettingsView(discord.ui.LayoutView):
             )
             separator()
             row(
-                "**MODERATION**\n-# Ban members and apply custom-duration timeouts.",
+                "**MODERATION**\n-# Kick or ban members and apply custom-duration timeouts.",
                 self.automation_navigation("Moderation"),
             )
             separator()
@@ -279,6 +284,10 @@ class SettingsView(discord.ui.LayoutView):
                     else "Disabled — choose a channel to enable."
                 ),
                 self.disable_welcome,
+            )
+            row(
+                "**APPEARANCE**\n-# Welcome card background and typography.",
+                self.navigation("Manage", "welcome_design"),
             )
         elif section == "welcome_design":
             background = (
@@ -402,6 +411,7 @@ class SettingsView(discord.ui.LayoutView):
             )
         )
         panel.add_item(controls)
+        group_sections(panel, "settings:" + section)
         section_dividers(panel)
         self.add_item(panel)
 
@@ -703,3 +713,9 @@ class WelcomeStyleModal(WelcomeDesignModal):
             await send_private(interaction, str(error))
             return
         await self.menu.refresh(interaction, "Welcome appearance saved.")
+
+
+def settings_files(section: str, design=None):
+    return _base_settings_files(section, design) + strip_files(
+        "settings:" + section, (design or {}).get("style", "silver_neon")
+    )

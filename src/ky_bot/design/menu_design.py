@@ -56,7 +56,11 @@ def automation_files(key, profile, names):
     profile = dict(profile or automation_profile({}, key))
     profile["title"] = "GENERAL SETTINGS 𖥸 " + (profile["title"] or key.upper())
     profile["_rotated_divider"] = True
-    return menu_files(profile, profile["title"], key.upper() + " SETTINGS", names)
+    from ky_bot.views.menu_strips import strip_files
+
+    return menu_files(profile, profile["title"], key.upper() + " SETTINGS", names) + strip_files(
+        "automation", profile["style"]
+    )
 
 
 def decode(value):

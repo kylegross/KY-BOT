@@ -287,7 +287,18 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
             self.assertLessEqual(view.content_length(), 4000)
             view.to_components()
             view.stop()
-        for mode in ("content", "color", "count", "format", "header", "footer"):
+        for mode in (
+            "content",
+            "title",
+            "body",
+            "footer_text",
+            "name",
+            "color",
+            "count",
+            "format",
+            "header",
+            "footer",
+        ):
             modal = EditModal(session, mode)
             self.assertLessEqual(len(modal.children), 5)
             modal.stop()
@@ -305,6 +316,86 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
             parent.show_section(section, picker=picker)
             self.assertLessEqual(parent.total_children_count, 40)
         parent.stop()
+
+    async def test_content_styles_apply_once_and_titles_default_to_large(self):
+        from ky_bot.custom_embeds.model import text_content
+
+        data = validate(defaults() | dict(title="Welcome", body="Hello", footer_text="Notes"))
+        self.assertEqual(text_content(data), "# Welcome\n\nHello")
+        data = validate(
+            data | dict(body_style="bold", title_style="special", footer_style="italic")
+        )
+        view, _ = render(data)
+        text = "\n".join(
+            x.content for x in view.walk_children() if isinstance(x, discord.ui.TextDisplay)
+        )
+        self.assertIn("𝙒𝙚𝙡𝙘𝙤𝙢𝙚", text)
+        self.assertIn("**Hello**", text)
+        self.assertIn("*Notes*", text)
+        view.stop()
+        with self.assertRaises(ValueError):
+            validate(data | dict(body_style="unknown"))
+
+    async def test_navigation_places_styles_with_content_and_saved_embeds_only_at_home(self):
+        session = Session(self.cog, 50, 1, self.ident)
+        session.row = await self.store.get(1, self.ident)
+        for page in ("main", "content", "images", "style", "delivery", "publish"):
+            session.page = page
+            view = Editor(session)
+            labels = [x.label for x in view.walk_children() if isinstance(x, discord.ui.Button)]
+            self.assertEqual("All embeds" in labels, page == "main")
+            selects = [x for x in view.walk_children() if isinstance(x, discord.ui.Select)]
+            if page == "content":
+                self.assertEqual(len(selects), 4)
+                self.assertIn("Add styled text", labels)
+                self.assertIn("Edit title", labels)
+            if page == "style":
+                self.assertEqual(len(selects), 1)
+                self.assertNotIn("Add styled text", labels)
+            view.stop()
+
+    async def test_new_draft_keeps_initial_channel_and_channel_picker_displays_it(self):
+        from ky_bot.custom_embeds.views import initial_channel
+
+        channel = Mock(spec=discord.TextChannel)
+        channel.id = 12345
+        interaction = self.interaction()
+        interaction.channel = channel
+        interaction.edit_original_response = AsyncMock()
+        self.assertEqual(initial_channel(interaction), 12345)
+        await self.cog.open_editor(interaction)
+        view = interaction.edit_original_response.await_args.kwargs["view"]
+        self.assertEqual(view.session.row["draft"]["channel"], 12345)
+        picker = next(x for x in view.walk_children() if isinstance(x, discord.ui.ChannelSelect))
+        self.assertEqual(picker.default_values[0].id, 12345)
+        view.stop()
+
+    async def test_field_style_change_and_append_keep_other_content(self):
+        await self.save(title="Welcome", body="First", footer_text="Footer")
+        session = Session(self.cog, 50, 1, self.ident)
+        session.page = "content"
+        session.row = await self.store.get(1, self.ident)
+        session.show = AsyncMock()
+        modal = EditModal(session, "format")
+        modal.fields["text"]._value = "Second"
+        await modal.on_submit(self.interaction())
+        row = await self.store.get(1, self.ident)
+        self.assertEqual(row["draft"]["body"], "First\n\n**Second**")
+        self.assertEqual(row["draft"]["title"], "Welcome")
+        session.row = row
+        view = Editor(session)
+        title_select = next(
+            x
+            for x in view.walk_children()
+            if isinstance(x, discord.ui.Select) and x.placeholder == "Choose title style"
+        )
+        title_select._values = ["italic"]
+        await title_select.callback(self.interaction())
+        row = await self.store.get(1, self.ident)
+        self.assertEqual(row["draft"]["title_style"], "italic")
+        self.assertEqual(row["draft"]["body"], "First\n\n**Second**")
+        self.assertEqual(row["draft"]["footer_text"], "Footer")
+        view.stop()
 
     def png(self):
         buffer = io.BytesIO()

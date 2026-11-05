@@ -32,9 +32,39 @@ Dynamic welcome text uses those local fonts when available, with a built-in fall
 A slash-command-first discord.py application with modular cogs, private Discord UI menus,
 validated environment configuration, rotating logs, safe error responses, and async resource cleanup.
 
-Available now: `/help`, `/ping`, `/footer`, `/header`, and an administrator-only `/settings` menu with persistent
-server configuration. Moderation, autodelete, autothreading, and games remain planned modules.
-The help menu labels them accordingly.
+Available features include the private Help Center and Command Center, welcome cards,
+server activity logging, checklists, Ask to DM/FR, custom embeds with sticky delivery,
+emoji/sticker copying, leveling and rewards, moderation, autodelete, autothreading,
+autoreactions, and branded header/footer design. See `/help` for command-specific access
+and usage. Games remain planned.
+
+### Member moderation
+
+Use `/kick member reason`, `/ban member reason`, or `/timeout member duration reason`.
+Reasons are optional. Each action opens a private review; confirm to apply or cancel to
+leave the member unchanged. Server administrators can also open
+**Command Center → Moderation** for member pickers and action details.
+
+Kick requires **Kick Members**, ban requires **Ban Members**, and timeout requires
+**Moderate Members**, for both the moderator and KY BOT. Both highest roles must be above
+the target (the server owner bypasses only the moderator role comparison). Self, bot and
+server-owner targets are protected. Permissions and hierarchy are fetched again on confirmation.
+Kicked members can rejoin with a valid invite; banned members cannot rejoin until unbanned.
+Kicks and bans keep existing messages. The moderator and optional reason appear in Discord’s
+audit log. Timeouts accept `30m`, `2h`, `3d 12h`, or `1 hour 30 minutes`, up to 28 days;
+bots and Administrator members cannot be timed out. A new timeout replaces the current one.
+
+After deploying a new slash command, use the configured command-sync process and restart
+the bot so `/kick` is registered in the intended server or global scope.
+
+### Level-up message formatting
+
+Open **Command Center → Leveling → Level-Up Messages → Edit formatting** to edit the
+heading, announcement message, card height (300–420), heading size (40–80), and username
+size (60–110). Announcements support `{mention}`, `{name}`, and `{level}`; automatic
+mentions are suppressed. Settings persist per server. **Preview** privately renders a
+level 1 card using the current settings. The compact default uses a lotus between the
+heading and level, plus a larger iridescent silver username.
 
 ## First launch on Windows
 
@@ -115,7 +145,7 @@ src/ky_bot/
   logging_setup.py  Console and rotating file logs with token redaction
   cogs/core.py      /help and /ping
   views/           Reusable owner-checked menus and component error handling
-  services/        Future domain logic (moderation, automation, games)
+  services/        Domain services and future games
   database/        Async SQLite settings repository and schema migration
 ```
 
@@ -126,7 +156,7 @@ call a service, and return a response. Use cog listeners for message-based autom
 commands are intentionally disabled. Centralize command errors in `errors.py` so local error
 handlers do not send duplicate responses. Defer interactions before long-running work.
 
-Future moderation/admin commands must enforce both user and bot permissions at execution time;
+Moderation/admin commands enforce both user and bot permissions at execution time;
 UI visibility is not authorization. Use permission decorators and check role hierarchy and target
 constraints in the service. Recheck authorization in components that perform privileged actions.
 Scheduled autodelete/autothreading jobs should be cancellable, rate-limit-aware, and restarted
@@ -160,7 +190,7 @@ and a second server. Refresh reloads current saved values; unavailable saved cha
 ## Custom footer frameworks
 
 `/footer` creates a private PNG download using your uploaded background and a fixed centered
-KY BOT botanical icon. Choose dark silver, gold, or silver neon. The canvas is 2176 � 320.
+KY BOT botanical icon. Choose dark silver, gold, or silver neon. The canvas is 2176 × 320.
 The background fills the rectangular image with subtle corners. You can adjust crop, darkening
 and icon size. Optional custom slogans and left/right logos use the alternate slogan layout.
 
@@ -261,7 +291,7 @@ uses silver neon, a small corner badge and readable centered COMMAND CENTER lett
 
 `/header` accepts your own still PNG, JPEG or WebP background and keeps the KY BOT name and
 icon fixed in the top-left corner. Choose the finish, add an optional VONCA title, adjust
-crop/darkening, and select `height` from 240�800 pixels (default 520; try 280 for compact).
+crop/darkening, and select `height` from 240–800 pixels (default 520; try 280 for compact).
 Width stays at 1600 pixels. A thin matching outline is optional; borderless is the default.
 Titles have subdued color with two fine rules. Dark silver uses a soft charcoal badge plate with a pale silver name and icon.
 
@@ -730,3 +760,36 @@ updated /help globally, then return COMMAND_SYNC to none. A guild-only command
 sync cannot register commands for personal installation. Each user must add KY BOT
 to their account to use it in other servers or private conversations, subject to
 Discord's app permissions in that context. /help explains these features.
+
+
+### Custom embed editor shortcuts and text styles
+
+Administrators can run `/create embed` in any server channel to create a private
+draft directly. New drafts default to the current text channel (a thread uses
+its parent text channel). The editor home shows the destination dropdown, and
+Saved Embeds appears only there. Existing saved destinations are preserved.
+Content & Text Styles starts with Add styled text for appending a passage to the
+message. Each title/message/footer field has its own style dropdown immediately
+above its edit button. These dropdowns apply to the whole field; manual Markdown
+can still format individual passages. Titles default to a large heading.
+Highlight Color contains only color controls. Preview and Publish remain separate.
+Register `/create embed` with one command sync after deployment.
+
+Menu Appearance now includes Ask to DM/FR for its member and administrator menus.
+The normal draft/preview/apply flow supports finish, header/footer artwork, title
+and footer decoration. Applying updates an existing member panel in place; private
+menus use the design when reopened or refreshed, and sticky copies retain it.
+
+
+### Menu category strips
+
+Main menus now group related controls beneath slim branded serif category strips.
+Command Center: Server Setup, Administration, Tools & Design, Community.
+Leveling: Rankings & Member Management, Rewards & Announcements, XP & Eligibility.
+Welcome Settings: Channel & Delivery, Message, Appearance. Create Embed, Ask to
+DM/FR settings, Server Activity, Help, Automation Menus and the Emoji & Sticker
+Picker use their corresponding categories. Compact confirmations keep simple
+dividers. Back/Home/Close remain separate navigation. Strip images are packaged
+in all three finishes, with no runtime font dependency. Existing persistent
+panels use the new layout when refreshed. No command sync is needed for this
+appearance update.

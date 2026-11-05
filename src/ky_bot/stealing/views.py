@@ -9,6 +9,7 @@ import aiohttp
 import discord
 
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.menu_strips import add_strip, strip_files
 from ky_bot.views.sections import section_dividers
 
 from .assets import name_for
@@ -19,7 +20,7 @@ def safe(value):
     return discord.utils.escape_mentions(discord.utils.escape_markdown(str(value)))
 
 
-def artwork():
+def _base_artwork():
     return [
         discord.File(
             io.BytesIO(files("ky_bot.design").joinpath("assets", folder, name).read_bytes()),
@@ -121,6 +122,7 @@ class Batch(discord.ui.LayoutView):
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://ky_header_steal.png"))
         )
+        add_strip(panel, "DESTINATION")
         panel.add_item(
             discord.ui.TextDisplay(
                 f"**DESTINATION**\n{safe(self.guild_name)} · Server ID: `{self.destination}`\n"
@@ -135,6 +137,7 @@ class Batch(discord.ui.LayoutView):
         self.page = min(self.page, pages - 1)
         items = available[self.page * 25 : (self.page + 1) * 25]
         if items:
+            add_strip(panel, "SELECT ASSETS")
             select = discord.ui.Select(
                 placeholder="Check emojis / stickers to copy"
                 if self.mode == "pick"
@@ -206,6 +209,7 @@ class Batch(discord.ui.LayoutView):
                 self.build()
                 await i.response.edit_message(view=self)
 
+            add_strip(panel, "CUSTOM NAMES")
             panel.add_item(
                 discord.ui.Section(
                     "**CUSTOM NAMES**\nLeave an item unchanged to keep its original name.",
@@ -239,6 +243,7 @@ class Batch(discord.ui.LayoutView):
                 )
             )
         if self.results:
+            add_strip(panel, "RESULTS")
             lines = [f"**{len(self.completed)} copied** · {len(self.uncertain)} unconfirmed"]
             for key, result in list(self.results.items())[-8:]:
                 label = self.names.get(key, self.assets[key].name or self.assets[key].ident)
@@ -335,3 +340,7 @@ class Batch(discord.ui.LayoutView):
 
     async def on_error(self, i, error, item):
         await report_error(i, error)
+
+
+def artwork():
+    return _base_artwork() + strip_files("steal", "dark_silver")

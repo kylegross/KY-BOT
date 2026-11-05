@@ -110,12 +110,12 @@ class Store:
         async with self.lock:
             return await self._get(guild, ident)
 
-    async def create(self, guild):
+    async def create(self, guild, channel=0):
         ident, revision = uuid.uuid4().hex, uuid.uuid4().hex
         async with self.lock:
             await self.execute(
                 "INSERT INTO custom_embeds(id,guild,revision,draft) VALUES (?,?,?,?)",
-                (ident, guild, revision, json.dumps(defaults())),
+                (ident, guild, revision, json.dumps(defaults() | dict(channel=channel))),
             )
         return ident
 

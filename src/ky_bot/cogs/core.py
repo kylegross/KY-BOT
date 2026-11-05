@@ -29,6 +29,9 @@ class Core(commands.Cog):
             manage_guild=bool(
                 interaction.guild_id is not None and interaction.permissions.manage_guild
             ),
+            kick_members=bool(
+                interaction.guild_id is not None and interaction.permissions.kick_members
+            ),
             ban_members=bool(
                 interaction.guild_id is not None and interaction.permissions.ban_members
             ),

@@ -156,6 +156,17 @@ class Checklists(commands.Cog):
             f"\nChecklist log: <#{destination}>." if destination else "\nChecklist log: Off."
         )
 
+    @create.command(name="embed", description="Open the private custom embed editor.")
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
+    async def embed(self, interaction: discord.Interaction):
+        cog = self.bot.get_cog("CustomEmbeds")
+        if cog is None:
+            from ky_bot.errors import send_private
+
+            return await send_private(interaction, "Create Embed is temporarily unavailable.")
+        await cog.open_editor(interaction)
+
     @create.command(name="checklist", description="Create or update this channel's checklist.")
     @app_commands.default_permissions(manage_guild=True)
     @app_commands.checks.has_permissions(manage_guild=True)

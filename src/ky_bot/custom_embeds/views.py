@@ -7,16 +7,17 @@ from importlib.resources import files
 import discord
 
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.menu_strips import group_sections, strip_files
 from ky_bot.views.sections import section_dividers
 
-from .model import PRESETS, STYLES, color, image_upload, styled, validate
+from .model import FIELD_STYLES, PRESETS, STYLES, color, image_upload, styled, validate
 
 
 def safe(value):
     return discord.utils.escape_mentions(discord.utils.escape_markdown(str(value)))
 
 
-def editor_artwork():
+def _base_editor_artwork():
     return [
         discord.File(
             io.BytesIO(files("ky_bot.design").joinpath("assets", folder, name).read_bytes()),
@@ -50,6 +51,13 @@ def button(label, callback, *, danger=False):
     )
     item.callback = callback
     return item
+
+
+def initial_channel(interaction):
+    channel = getattr(interaction, "channel", None)
+    if isinstance(channel, discord.Thread):
+        channel = channel.parent
+    return channel.id if isinstance(channel, discord.TextChannel) else 0
 
 
 class Base(discord.ui.LayoutView):
@@ -111,7 +119,7 @@ class Library(Base):
 
         async def create(i):
             await i.response.defer(ephemeral=True, thinking=True)
-            ident = await cog.store.create(guild)
+            ident = await cog.store.create(guild, initial_channel(i))
             await Session(cog, owner, guild, ident).show(i)
 
         self.row(
@@ -243,9 +251,13 @@ class EditModal(discord.ui.Modal):
         super().__init__(
             title={
                 "content": "Embed content",
+                "title": "Edit title",
+                "body": "Edit message",
+                "footer_text": "Edit footer text",
+                "name": "Saved draft name",
                 "color": "Custom highlight color",
                 "count": "Sticky message count",
-                "format": "Add formatted text",
+                "format": "Add styled text to message",
                 "header": "Upload header image",
                 "footer": "Upload footer image",
             }[mode]
@@ -262,7 +274,17 @@ class EditModal(discord.ui.Modal):
                 discord.ui.Label(text="Choose an image (up to 8 MB)", component=self.upload)
             )
             return
+        field_specs = {
+            "title": ("Title · large heading by default", 200),
+            "body": ("Message · Discord formatting supported", 3500),
+            "footer_text": ("Footer text", 200),
+            "name": ("Saved name (only administrators see this)", 64),
+        }
         specs = {
+            **{
+                key: [(key, label, draft[key], limit, key == "name")]
+                for key, (label, limit) in field_specs.items()
+            },
             "content": [
                 ("name", "Saved name (only administrators see this)", draft["name"], 64, True),
                 ("title", "Title (optional)", draft["title"], 200, False),
@@ -279,7 +301,7 @@ class EditModal(discord.ui.Modal):
                     True,
                 )
             ],
-            "format": [("text", "Text to format and append to your message", "", 3000, True)],
+            "format": [("text", "New text · appended to the message below", "", 3000, True)],
         }[mode]
         for key, label, value, limit, required in specs:
             field = discord.ui.TextInput(
@@ -361,15 +383,25 @@ class Editor(Base):
                 "message once it can access the channel."
             )
         elif page == "main":
+            self.text(
+                "**DESTINATION CHANNEL**\nDefaults to the channel where this draft was created."
+            )
+            self.channel_picker(s, data, revision)
+            self.panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
+            self.row("**DRAFT NAME**\n" + safe(data["name"]), button("Rename", modal("name")))
             for heading, description, destination in (
-                ("CONTENT", "Title, message, footer text and saved name.", "content"),
                 ("IMAGES", "Optional header and footer images.", "images"),
                 (
-                    "COLOR & FORMATTING",
-                    "Highlight color, special lettering and text styles.",
+                    "CONTENT & TEXT STYLES",
+                    "Add styled text, then edit title, message and footer.",
+                    "content",
+                ),
+                (
+                    "HIGHLIGHT COLOR",
+                    "Choose a preset or custom highlight color.",
                     "style",
                 ),
-                ("CHANNEL & STICKY", "Choose where to post and how often to move it.", "delivery"),
+                ("STICKY DELIVERY", "Choose how often this post moves to the bottom.", "delivery"),
                 (
                     "PREVIEW & PUBLISH",
                     "Review privately, publish updates or delete the embed.",
@@ -386,17 +418,57 @@ class Editor(Base):
                 )
             )
         elif page == "content":
-            summary = safe(data["title"] or "No title yet")
-            self.row(
-                f"**CONTENT**\n{summary}\n-# Message: {len(data['body'])}/3500 characters.",
-                button("Edit text", modal("content")),
-            )
             self.text(
-                "Use Discord formatting directly: **bold**, *italic*, __underline__, "
-                "lists, headings, quotes and links. Decorative symbols and Unicode "
-                "lettering can be pasted into any text field. Role and @everyone pings "
-                "are suppressed when the post is sent."
+                "**ADD STYLED TEXT**\nChoose a style, then add a new passage to your message."
             )
+            select = discord.ui.Select(
+                placeholder="Style for new text",
+                options=[
+                    discord.SelectOption(label=label, value=key, default=key == s.style)
+                    for key, label in STYLES.items()
+                ],
+            )
+
+            async def addition_style(i):
+                s.style = select.values[0]
+                await i.response.defer()
+                await s.show(i, "content")
+
+            select.callback = addition_style
+            self.panel.add_item(discord.ui.ActionRow(select))
+            self.row(
+                "**NEW PASSAGE**\nAppends to Message; existing text stays in place.",
+                button("Add styled text", modal("format")),
+            )
+            self.panel.add_item(discord.ui.Separator())
+            for key, label, style_key in (
+                ("title", "TITLE", "title_style"),
+                ("body", "MESSAGE", "body_style"),
+                ("footer_text", "FOOTER TEXT", "footer_style"),
+            ):
+                self.text(f"**{label} STYLE**\nApplies to this entire field.")
+                style_select = discord.ui.Select(
+                    placeholder=f"Choose {label.lower()} style",
+                    options=[
+                        discord.SelectOption(
+                            label=title,
+                            value=value,
+                            default=value
+                            == data.get(style_key, "large" if key == "title" else "plain"),
+                        )
+                        for value, title in FIELD_STYLES.items()
+                    ],
+                )
+
+                async def field_style(i, select=style_select, style_key=style_key):
+                    await i.response.defer()
+                    await s.save(i, revision, **{style_key: select.values[0]})
+
+                style_select.callback = field_style
+                self.panel.add_item(discord.ui.ActionRow(style_select))
+                value = safe(data[key][:160]) if data[key] else "No text yet"
+                self.row(f"**{label}**\n{value}", button("Edit " + label.lower(), modal(key)))
+            self.text("-# You can also enter Discord Markdown directly. Mentions never ping.")
         elif page == "images":
             for key, title in (("header", "HEADER IMAGE"), ("footer", "FOOTER IMAGE")):
                 self.row(
@@ -435,28 +507,6 @@ class Editor(Base):
 
             palette.callback = choose_color
             self.panel.add_item(discord.ui.ActionRow(palette))
-            self.panel.add_item(discord.ui.Separator())
-            self.text(
-                "**FORMATTING & SPECIAL TEXT**\nChoose a style, then add text to your message."
-            )
-            select = discord.ui.Select(
-                placeholder="Choose a text style",
-                options=[
-                    discord.SelectOption(label=label, value=key, default=key == s.style)
-                    for key, label in STYLES.items()
-                ],
-            )
-
-            async def style(i):
-                s.style = select.values[0]
-                await i.response.defer()
-
-            select.callback = style
-            self.panel.add_item(discord.ui.ActionRow(select))
-            self.row(
-                "**ADD STYLED TEXT**\n-# Appends formatted text to the message.",
-                button("Add text", modal("format")),
-            )
         elif page in {"delivery", "channel"}:
             self.row(
                 "**DESTINATION CHANNEL**\n"
@@ -543,11 +593,29 @@ class Editor(Base):
             )
             self.stop()
 
-        self.row(
-            "**SAVED EMBEDS**\n-# Your drafts are saved automatically.",
-            button("All embeds", library),
-        )
+        if page == "main":
+            self.row(
+                "**SAVED EMBEDS**\n-# Your drafts are saved automatically.",
+                button("All embeds", library),
+            )
+        if page == "main":
+            group_sections(self.panel, "custom_embeds")
         self.finish()
+
+    def channel_picker(self, s, data, revision):
+        select = discord.ui.ChannelSelect(
+            channel_types=[discord.ChannelType.text],
+            placeholder="Choose destination channel",
+            default_values=[discord.Object(id=data["channel"])] if data["channel"] else [],
+        )
+
+        async def choose(i):
+            await i.response.defer()
+            channel = await s.cog.channel(s.guild, select.values[0].id)
+            await s.save(i, revision, channel=channel.id)
+
+        select.callback = choose
+        self.panel.add_item(discord.ui.ActionRow(select))
 
     async def interaction_check(self, i):
         return await self.session.allowed(i)
@@ -606,3 +674,7 @@ class DeleteConfirm(Base):
 
     async def interaction_check(self, i):
         return await self.session.allowed(i)
+
+
+def editor_artwork():
+    return _base_editor_artwork() + strip_files("custom_embeds", "dark_silver")

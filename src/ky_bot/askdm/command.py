@@ -153,8 +153,48 @@ class AskDM(commands.Cog):
         await self.validate_channels(interaction.guild, config)
         return revision, config, sender, recipient
 
+    async def appearance(self, guild_id, view=None):
+        service = getattr(self.bot, "server_settings", None)
+        profile = None
+        if guild_id and service is not None:
+            from ky_bot.design.menu_design import profile_for
+
+            _, profiles = await service.repository.get_designs(guild_id)
+            if "askdm" in profiles:
+                profile = profile_for(profiles, "askdm")
+        if profile is not None and view is not None:
+            from ky_bot.design.collection import COLOURS
+
+            view.panel.accent_colour = int(COLOURS[profile["style"]][1:], 16)
+        return await asyncio.to_thread(uploads, profile) if profile else uploads()
+
+    async def refresh_design(self, guild):
+        async with self.config_lock:
+            _, config = await self.store.config(guild.id)
+            if not config["panel"]:
+                return
+            channel = await self.channel(config["panel_channel"] or config["channel"], guild.id)
+            view = PublicPanel(self)
+            attachments = await self.appearance(guild.id, view)
+            try:
+                await channel.get_partial_message(config["panel"]).edit(
+                    view=view,
+                    attachments=attachments,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            except discord.NotFound:
+                pass
+            finally:
+                for file in attachments:
+                    file.close()
+
     async def send_panel(self, destination, view, *, private=False, edit=False):
-        attachments = uploads()
+        guild_id = (
+            getattr(destination, "guild_id", None)
+            or getattr(getattr(destination, "guild", None), "id", None)
+            or getattr(view, "guild", None)
+        )
+        attachments = await self.appearance(guild_id, view)
         try:
             if edit:
                 return await destination.edit_original_response(
@@ -293,7 +333,7 @@ class AskDM(commands.Cog):
     async def admin(self, i, parent, *, picker=None, notice=None):
         revision, config = await self.store.config(parent.guild_id)
         view = Admin(self, parent, revision, config, picker=picker, notice=notice)
-        attachments = uploads()
+        attachments = await self.appearance(parent.guild_id, view)
         try:
             if parent.panel_manager:
                 await parent.panel_manager.edit(parent, i, view, attachments)
@@ -328,7 +368,7 @@ class AskDM(commands.Cog):
                 except discord.NotFound:
                     pass
             if message:
-                attachments = uploads()
+                attachments = await self.appearance(guild.id, view)
                 try:
                     await message.edit(
                         view=view,
@@ -590,10 +630,11 @@ class AskDM(commands.Cog):
                         await message.delete()
                         receipt["public_removed"] = True
                     elif receipt.get("public_state", "pending") != request["state"]:
-                        files = uploads()
+                        view = RequestPanel(request, data, public=True)
+                        files = await self.appearance(request["guild"], view)
                         try:
                             await message.edit(
-                                view=RequestPanel(request, data, public=True),
+                                view=view,
                                 attachments=files,
                                 allowed_mentions=discord.AllowedMentions.none(),
                             )

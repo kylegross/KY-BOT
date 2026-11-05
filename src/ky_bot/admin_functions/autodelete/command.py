@@ -9,6 +9,7 @@ from discord.ext import commands
 from ky_bot.checklists.board import safe
 from ky_bot.design.menu_design import automation_files, automation_profile, default_profile
 from ky_bot.errors import report_error
+from ky_bot.views.menu_strips import group_sections
 from ky_bot.views.private_style import private_heading
 from ky_bot.views.sections import section_dividers
 
@@ -654,9 +655,13 @@ class Menu(discord.ui.LayoutView):
         actions = (
             (("Close", cancel),)
             if page == "main" and s.command_center is None
-            else (("Back", back), (
-                "Home" if s.command_center and s.command_center.panel_manager else "Close", cancel
-            ))
+            else (
+                ("Back", back),
+                (
+                    "Home" if s.command_center and s.command_center.panel_manager else "Close",
+                    cancel,
+                ),
+            )
         )
         for label, action in actions:
             button = discord.ui.Button(label=label)
@@ -671,6 +676,8 @@ class Menu(discord.ui.LayoutView):
             button.callback = navigate
             navigation.append(button)
         panel.add_item(discord.ui.ActionRow(*navigation))
+        if page == "main":
+            group_sections(panel, "automation")
         section_dividers(panel)
         self.add_item(panel)
 

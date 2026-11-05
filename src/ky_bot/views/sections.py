@@ -2,6 +2,8 @@
 
 import discord
 
+LEFT_NAVIGATION = {"back", "home", "close", "close menu", "all guides", "back to editing", "cancel"}
+
 NAVIGATION_LABELS = {"back", "home", "close", "close menu", "all guides", "all embeds"}
 
 
@@ -24,17 +26,54 @@ def section_dividers(panel: discord.ui.Container) -> None:
     children = list(panel.children)
     for child in children:
         panel.remove_item(child)
+    branded_groups = any(
+        isinstance(child, discord.ui.MediaGallery)
+        and "attachment://ky_strip_" in str(child.to_component_dict())
+        for child in children
+    )
     previous = None
     for child in children:
-        adjacent_sections = isinstance(previous, discord.ui.Section) and isinstance(
-            child, discord.ui.Section
+        adjacent_sections = (
+            not branded_groups
+            and isinstance(previous, discord.ui.Section)
+            and isinstance(child, discord.ui.Section)
         )
         footer_boundary = (
             previous is not None
             and not isinstance(previous, discord.ui.Separator)
             and navigation_item(child)
+            and not (
+                isinstance(previous, discord.ui.MediaGallery)
+                and "attachment://ky_strip_" in str(previous.to_component_dict())
+            )
         )
         if adjacent_sections or footer_boundary:
             panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
-        panel.add_item(child)
-        previous = child
+        if (
+            isinstance(child, discord.ui.Section)
+            and isinstance(child.accessory, discord.ui.Button)
+            and (child.accessory.label or "").casefold() in LEFT_NAVIGATION
+        ):
+            # Action rows start at the left; keep the original button and callback.
+            for text in child.children:
+                panel.add_item(text)
+            navigation = discord.ui.ActionRow(child.accessory)
+            panel.add_item(navigation)
+            previous = navigation
+        else:
+            if isinstance(child, discord.ui.ActionRow) and navigation_item(child):
+                items = list(child.children)
+                for item in items:
+                    child.remove_item(item)
+                items.sort(
+                    key=lambda item: (
+                        not (
+                            isinstance(item, discord.ui.Button)
+                            and (item.label or "").casefold() in LEFT_NAVIGATION
+                        )
+                    )
+                )
+                for item in items:
+                    child.add_item(item)
+            panel.add_item(child)
+            previous = child

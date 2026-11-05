@@ -69,7 +69,7 @@ class HelpTests(unittest.IsolatedAsyncioTestCase):
     async def test_packaged_artwork_available(self):
         attachments = help_files()
         try:
-            self.assertEqual(len(attachments), 2)
+            self.assertEqual(len(attachments), 4)
             self.assertTrue(all(f.fp.read(8) == b"\x89PNG\r\n\x1a\n" for f in attachments))
         finally:
             for f in attachments:
@@ -78,3 +78,4 @@ class HelpTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

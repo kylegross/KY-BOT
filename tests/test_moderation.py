@@ -5,7 +5,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import discord
-
 from ky_bot.admin_functions.settings_view import SettingsView
 from ky_bot.moderation.command import Moderation
 from ky_bot.moderation.service import MAX_TIMEOUT, apply, authorize, parse_duration
@@ -22,6 +21,7 @@ class ModerationTests(unittest.IsolatedAsyncioTestCase):
                 display_name=f"Member {ident}",
                 guild_permissions=discord.Permissions.all(),
                 ban=AsyncMock(),
+                kick=AsyncMock(),
                 timeout=AsyncMock(),
             )
 
@@ -62,7 +62,11 @@ class ModerationTests(unittest.IsolatedAsyncioTestCase):
                 parse_duration(text)
 
     async def test_actor_and_bot_require_action_specific_permissions(self):
-        for action, permission in (("ban", "ban_members"), ("timeout", "moderate_members")):
+        for action, permission in (
+            ("ban", "ban_members"),
+            ("kick", "kick_members"),
+            ("timeout", "moderate_members"),
+        ):
             for member in (self.actor, self.bot_member):
                 setattr(member.guild_permissions, permission, False)
                 with self.assertRaises(ValueError):
@@ -108,6 +112,61 @@ class ModerationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Moderator 1", args["reason"])
         self.assertIn("Repeated violations", args["reason"])
         self.target.timeout.assert_not_awaited()
+
+    async def test_kick_audit_and_fresh_permissions(self):
+        target, until = await apply(self.guild, 1, 2, 3, "kick", reason="Repeated violations")
+        self.assertIs(target, self.target)
+        self.assertIsNone(until)
+        self.target.kick.assert_awaited_once()
+        self.assertIn("Moderator 1", self.target.kick.await_args.kwargs["reason"])
+        self.assertIn("Repeated violations", self.target.kick.await_args.kwargs["reason"])
+        self.target.ban.assert_not_awaited()
+        self.target.timeout.assert_not_awaited()
+        self.target.kick.reset_mock()
+        self.actor.guild_permissions.kick_members = False
+        with self.assertRaises(ValueError):
+            await apply(self.guild, 1, 2, 3, "kick")
+        self.target.kick.assert_not_awaited()
+
+    async def test_kick_hierarchy_and_protected_targets(self):
+        for ident in (1, 3):
+            with self.assertRaises(ValueError):
+                await authorize(self.guild, 1, ident, 3, "kick")
+        self.guild.owner_id = 2
+        with self.assertRaises(ValueError):
+            await authorize(self.guild, 1, 2, 3, "kick")
+        self.guild.owner_id = 99
+        for member in (self.actor, self.bot_member):
+            old = member.top_role
+            member.top_role = 2
+            with self.assertRaises(ValueError):
+                await authorize(self.guild, 1, 2, 3, "kick")
+            member.top_role = old
+
+    async def test_kick_confirmation_and_help_for_kick_only_moderator(self):
+        from ky_bot.moderation.views import Details
+        from ky_bot.views.help import HelpView
+
+        help_view = HelpView(1, 7, kick_members=True)
+        self.assertTrue(help_view.moderator)
+        help_view.show("moderation")
+        self.assertIn("/kick", str(help_view.to_components()))
+        self.assertLessEqual(help_view.total_children_count, 40)
+        help_view.stop()
+        self.assertEqual(Details(Mock(), 1, 7, 2, "kick").title, "Kick details")
+        cog = SimpleNamespace(execute=AsyncMock(return_value=(self.target, None)))
+        view = Confirm(cog, 1, 7, 2, "Member 2", "kick", None, "Reason")
+        self.assertIn("Confirm kick", str(view.to_components()))
+        with patch("ky_bot.moderation.views.display", new=AsyncMock()) as display:
+            await asyncio.gather(view.confirm(self.interaction()), view.confirm(self.interaction()))
+        cog.execute.assert_awaited_once_with(unittest.mock.ANY, 2, "kick", None, "Reason")
+        self.assertIn("MEMBER KICKED", str(display.await_args.args[1].to_components()))
+        cog.execute.reset_mock()
+        view = Confirm(cog, 1, 7, 2, "Member 2", "kick", None, "Reason")
+        with patch("ky_bot.moderation.views.display", new=AsyncMock()):
+            await view.cancel(self.interaction())
+            await view.confirm(self.interaction())
+        cog.execute.assert_not_awaited()
 
     async def test_timeout_is_applied_until_expected_time(self):
         before = discord.utils.utcnow()
@@ -172,6 +231,9 @@ class ModerationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("audit log", str(display.await_args.args[1].to_components()))
 
     async def test_slash_options_and_defaults(self):
+        self.assertTrue(Moderation.kick.default_permissions.kick_members)
+        self.assertEqual([p.name for p in Moderation.kick.parameters], ["member", "reason"])
+        self.assertFalse(Moderation.kick.parameters[1].required)
         self.assertTrue(Moderation.ban.default_permissions.ban_members)
         self.assertTrue(Moderation.timeout.default_permissions.moderate_members)
         self.assertEqual([p.name for p in Moderation.ban.parameters], ["member", "reason"])
@@ -185,6 +247,8 @@ class ModerationTests(unittest.IsolatedAsyncioTestCase):
         parent = SimpleNamespace(owner_id=1, guild_id=7, panel_manager=None)
         for view in (
             Menu(cog, parent),
+            MemberForm(cog, 1, 7, "kick"),
+            Confirm(cog, 1, 7, 2, "Member 2", "kick", None, "Reason"),
             MemberForm(cog, 1, 7, "ban"),
             MemberForm(cog, 1, 7, "timeout"),
             Confirm(cog, 1, 7, 2, "Member 2", "timeout", parse_duration("28d"), "Reason"),

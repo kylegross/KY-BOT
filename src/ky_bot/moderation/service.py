@@ -7,7 +7,7 @@ from decimal import Decimal
 import discord
 
 MAX_TIMEOUT = 28 * 86400
-PERMISSIONS = {"ban": "ban_members", "timeout": "moderate_members"}
+PERMISSIONS = {"ban": "ban_members", "kick": "kick_members", "timeout": "moderate_members"}
 TOKEN = re.compile(
     r"(\d+(?:\.\d+)?)\s*(weeks?|w|days?|d|hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)",
     re.IGNORECASE,
@@ -83,6 +83,9 @@ async def apply(guild, actor_id, target_id, bot_id, action, *, duration=None, re
     if action == "ban":
         # Banning alone does not authorize deleting the member's message history.
         await target.ban(reason=audit, delete_message_seconds=0)
+        return target, None
+    if action == "kick":
+        await target.kick(reason=audit)
         return target, None
     if duration is None or not 1 <= duration.total_seconds() <= MAX_TIMEOUT:
         raise ValueError("Enter a timeout between 1 second and 28 days.")

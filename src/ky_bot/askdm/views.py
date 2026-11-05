@@ -5,12 +5,23 @@ from importlib.resources import files
 import discord
 
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.menu_strips import group_sections, strip_files
 from ky_bot.views.sections import section_dividers
 
 from .store import KINDS
 
 
-def uploads():
+def _base_uploads(profile=None):
+    if profile is not None:
+        import io
+
+        from ky_bot.design.menu_design import render_menu
+
+        header, footer = render_menu(profile, "ASK TO DM/FR")
+        return [
+            discord.File(io.BytesIO(data), filename=name)
+            for data, name in ((header, "ask_header.png"), (footer, "ask_footer.png"))
+        ]
     return [
         discord.File(files("ky_bot.askdm").joinpath("assets", name).open("rb"), filename=name)
         for name in ("ask_header.png", "ask_footer.png")
@@ -219,6 +230,7 @@ class Confirmation(Panel):
 class RequestPanel(Panel):
     def __init__(self, request, data, *, public=False, actor=None):
         super().__init__(timeout=None)
+        self.guild = request["guild"]
         state, rid = request["state"], request["id"]
         sender, recipient = request["sender"], request["recipient"]
         self.text(
@@ -464,7 +476,14 @@ class Admin(Panel):
             self.stop()
 
         self.row("**COMMAND CENTER**\nReturn to the main menu.", button("Home", home))
+        group_sections(self.panel, "askdm")
         self.finish()
 
     async def interaction_check(self, i):
         return await self.parent.interaction_check(i)
+
+
+def uploads(profile=None):
+    return _base_uploads(profile) + strip_files(
+        "askdm", (profile or {}).get("style", "dark_silver")
+    )

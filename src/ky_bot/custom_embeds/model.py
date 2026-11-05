@@ -20,6 +20,7 @@ STYLES = {
     "code": "Monospace",
     "special": "Special lettering · 𝙆𝙔 𝘽𝙊𝙏",
 }
+FIELD_STYLES = {"plain": "Plain text", "large": "Large heading", **STYLES}
 PRESETS = {
     "BDC3CA": "Dark silver",
     "E8C47C": "Gold",
@@ -34,6 +35,9 @@ def defaults():
     return dict(
         name="Untitled embed",
         title="",
+        title_style="large",
+        body_style="plain",
+        footer_style="plain",
         body="",
         footer_text="",
         color="BDC3CA",
@@ -51,12 +55,21 @@ def color(value):
     return value
 
 
+def field_text(data, key):
+    value = data[key]
+    if not value:
+        return ""
+    style_key = {"footer_text": "footer_style"}.get(key, key + "_style")
+    style = data.get(style_key, "large" if key == "title" else "plain")
+    return styled(value, style)
+
+
 def text_content(data):
     parts = []
     if data["title"]:
-        parts.append("## " + data["title"])
+        parts.append(field_text(data, "title"))
     if data["body"]:
-        parts.append(data["body"])
+        parts.append(field_text(data, "body"))
     return "\n\n".join(parts)
 
 
@@ -71,13 +84,16 @@ def validate(data, *, publish=False):
         raise ValueError("Give this saved embed a name.")
     if "\n" in data["title"]:
         raise ValueError("Keep the title on one line; use the message for multiple lines.")
+    for key in ("title_style", "body_style", "footer_style"):
+        if data[key] not in FIELD_STYLES:
+            raise ValueError("Choose a valid text style.")
     data["color"] = color(data["color"])
     if type(data["channel"]) is not int or data["channel"] < 0:
         raise ValueError("Choose a destination channel.")
     every = data["sticky_every"]
     if type(every) is not int or not 0 <= every <= 10000:
         raise ValueError("Use 0 for no sticky, or a message count from 1 to 10,000.")
-    if len(text_content(data)) + len(data["footer_text"]) + 3 > 4000:
+    if len(text_content(data)) + len(field_text(data, "footer_text")) + 3 > 4000:
         raise ValueError("Keep the complete embed under 4,000 characters.")
     if publish:
         if not data["channel"]:
@@ -93,6 +109,10 @@ def validate(data, *, publish=False):
 def styled(text, style):
     if not text.strip():
         raise ValueError("Enter some text to format.")
+    if style == "plain":
+        return text
+    if style == "large":
+        return "\n".join("# " + line for line in text.splitlines())
     if style == "special":
         mapping = {ord(chr(65 + i)): chr(0x1D63C + i) for i in range(26)}
         mapping.update({ord(chr(97 + i)): chr(0x1D656 + i) for i in range(26)})
@@ -152,7 +172,8 @@ def render(data):
             if content:
                 panel.add_item(discord.ui.TextDisplay(content))
             if data["footer_text"]:
-                panel.add_item(discord.ui.TextDisplay("-# " + data["footer_text"]))
+                prefix = "-# " if data["footer_style"] == "plain" else ""
+                panel.add_item(discord.ui.TextDisplay(prefix + field_text(data, "footer_text")))
         if data[key]:
             name = "custom_" + key + ".png"
             attachments.append(discord.File(io.BytesIO(base64.b64decode(data[key])), filename=name))

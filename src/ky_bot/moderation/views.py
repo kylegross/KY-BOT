@@ -101,6 +101,7 @@ class Menu(Panel):
             "confirmation stay private."
         )
         for action, title, description in (
+            ("kick", "KICK A MEMBER", "Remove a member; they can rejoin with an invite."),
             ("ban", "BAN A MEMBER", "Remove a member and prevent them from rejoining."),
             (
                 "timeout",
@@ -115,7 +116,8 @@ class Menu(Panel):
 
             self.row(f"**{title}**\n-# {description}", button("Choose member", open_form))
         self.text(
-            "-# Ban Members or Moderate Members permissions are required. Both your role "
+            "-# Kick Members, Ban Members or Moderate Members permissions are required. "
+            "Both your role "
             "and KY BOT’s role must be above the target. Every action is reviewed first."
         )
 
@@ -141,7 +143,9 @@ class MemberForm(Panel):
         self.cog, self.action, self.target = cog, action, None
         self.text(
             "**"
-            + ("BAN A MEMBER" if action == "ban" else "TIME OUT A MEMBER")
+            + {"ban": "BAN A MEMBER", "kick": "KICK A MEMBER", "timeout": "TIME OUT A MEMBER"}[
+                action
+            ]
             + "**\nChoose a server member. You’ll review the action before it is applied."
         )
         select = discord.ui.UserSelect(placeholder="Choose a member")
@@ -186,7 +190,10 @@ class MemberForm(Panel):
 class Details(discord.ui.Modal):
     def __init__(self, cog, owner, guild, target, action):
         super().__init__(
-            title="Timeout details" if action == "timeout" else "Ban details", timeout=300
+            title={"ban": "Ban details", "kick": "Kick details", "timeout": "Timeout details"}[
+                action
+            ],
+            timeout=300,
         )
         self.cog, self.owner, self.guild, self.target, self.action = (
             cog,
@@ -233,7 +240,7 @@ class Confirm(Panel):
         self.used = False
         self.lock = asyncio.Lock()
         self.text(
-            f"**REVIEW {'BAN' if action == 'ban' else 'TIMEOUT'}**\n"
+            f"**REVIEW {action.upper()}**\n"
             f"**Member:** {safe(name)} · User ID: `{target}`\n"
             + (f"**Duration:** {duration_label(duration)}\n" if duration else "")
             + f"**Reason:** {safe(reason) if reason else 'No reason provided'}"
@@ -241,15 +248,18 @@ class Confirm(Panel):
         self.text(
             "Banning prevents rejoining until unbanned. Existing message history is kept."
             if action == "ban"
+            else "Kicking removes the member. They can rejoin with a valid invite. "
+            "Existing messages are kept."
+            if action == "kick"
             else "The timeout ends automatically. Applying this "
             "replaces any timeout already on this member."
         )
         self.row(
             "**CONFIRM ACTION**\nPermissions and role hierarchy will be checked again.",
             button(
-                "Confirm ban" if action == "ban" else "Confirm timeout",
+                "Confirm " + action,
                 self.confirm,
-                danger=action == "ban",
+                danger=action in {"ban", "kick"},
             ),
         )
         self.row("**CANCEL**\nLeave this member unchanged.", button("Cancel", self.cancel))
@@ -271,6 +281,8 @@ class Confirm(Panel):
                 summary = (
                     f"**MEMBER BANNED**\n{safe(target.display_name)} has been banned."
                     if self.action == "ban"
+                    else f"**MEMBER KICKED**\n{safe(target.display_name)} has been kicked."
+                    if self.action == "kick"
                     else f"**MEMBER TIMED OUT**\n{safe(target.display_name)} · "
                     f"{duration_label(self.duration)}\nEnds {discord.utils.format_dt(until, 'F')}."
                 )

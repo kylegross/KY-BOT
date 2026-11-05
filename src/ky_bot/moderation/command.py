@@ -63,6 +63,23 @@ class Moderation(commands.Cog):
         except ValueError as error:
             await send_private(i, str(error))
 
+    @app_commands.command(name="kick", description="Review and kick a server member.")
+    @app_commands.guild_only()
+    @app_commands.default_permissions(kick_members=True)
+    @app_commands.checks.has_permissions(kick_members=True)
+    @app_commands.describe(member="Server member to kick", reason="Optional audit-log reason")
+    async def kick(
+        self,
+        i: discord.Interaction,
+        member: discord.Member,
+        reason: app_commands.Range[str, 1, 400] | None = None,
+    ):
+        await i.response.defer(ephemeral=True, thinking=True)
+        try:
+            await self.review(i, member.id, "kick", reason=reason)
+        except ValueError as error:
+            await send_private(i, str(error))
+
     @app_commands.command(
         name="timeout", description="Review a custom timeout for a server member."
     )

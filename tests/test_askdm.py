@@ -111,7 +111,7 @@ class ConsentTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_hidden_requests_deliver_and_log_without_public_post(self):
         _, rid = await self.new_request()
-        cog = AskDM(Mock())
+        cog = AskDM(Mock(server_settings=None))
         cog.store = self.store
         channel = SimpleNamespace(
             id=20,
@@ -166,7 +166,7 @@ class ConsentTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failed_delivery_stays_queued_and_receipts_survive(self):
         _, rid = await self.new_request()
-        cog = AskDM(Mock())
+        cog = AskDM(Mock(server_settings=None))
         cog.store = self.store
         channel = SimpleNamespace(
             id=20,
@@ -190,7 +190,7 @@ class ConsentTests(unittest.IsolatedAsyncioTestCase):
         await self.store.checkpoint(event[0], {"public": {"channel": 10, "message": 88}}, True)
         message = SimpleNamespace(delete=AsyncMock())
         channel = SimpleNamespace(fetch_message=AsyncMock(return_value=message))
-        cog = AskDM(Mock())
+        cog = AskDM(Mock(server_settings=None))
         cog.store = self.store
         cog.channel = AsyncMock(return_value=channel)
         await cog.refresh_cards()
@@ -212,7 +212,7 @@ class ConsentTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_all_menu_pages_fit_discord_component_limits(self):
         parent = SimpleNamespace(panel_manager=None, guild_id=1, interaction_check=AsyncMock())
-        cog = AskDM(Mock())
+        cog = AskDM(Mock(server_settings=None))
         for picker in (None, "channel", "log_channel", "roles", *Admin.ROLE_FIELDS):
             view = Admin(cog, parent, self.revision, self.config, picker=picker)
             self.assertLessEqual(view.total_children_count, 40)
@@ -227,7 +227,7 @@ class ConsentTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_nonparticipant_cannot_change_request_in_another_server(self):
         _, rid = await self.new_request()
-        cog = AskDM(Mock())
+        cog = AskDM(Mock(server_settings=None))
         cog.store = self.store
         i = SimpleNamespace(user=SimpleNamespace(id=999), guild_id=1)
         with self.assertRaises(ValueError):
@@ -245,7 +245,7 @@ class ConsentTests(unittest.IsolatedAsyncioTestCase):
             send=AsyncMock(return_value=message),
             fetch_message=AsyncMock(return_value=message),
         )
-        cog = AskDM(Mock())
+        cog = AskDM(Mock(server_settings=None))
         cog.store = self.store
         cog.channel = AsyncMock(return_value=channel)
         cog.check_channel = AsyncMock()
@@ -272,7 +272,7 @@ class ConsentTests(unittest.IsolatedAsyncioTestCase):
             send=AsyncMock(return_value=message),
             fetch_message=AsyncMock(return_value=message),
         )
-        cog = AskDM(Mock())
+        cog = AskDM(Mock(server_settings=None))
         cog.store = self.store
         cog.channel = AsyncMock(return_value=channel)
         cog.check_channel = AsyncMock()
@@ -297,7 +297,7 @@ class ConsentTests(unittest.IsolatedAsyncioTestCase):
         channel = SimpleNamespace(
             id=20, send=AsyncMock(side_effect=[old, new]), fetch_message=AsyncMock(return_value=old)
         )
-        cog = AskDM(Mock())
+        cog = AskDM(Mock(server_settings=None))
         cog.store = self.store
         cog.channel = AsyncMock(return_value=channel)
         cog.check_channel = AsyncMock()

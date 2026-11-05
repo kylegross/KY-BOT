@@ -11,6 +11,7 @@ from ky_bot.errors import report_error, send_private
 from ky_bot.leveling.artwork import announcement, card_file
 from ky_bot.leveling.service import role_allowed
 from ky_bot.leveling.store import MAX_LEVEL, MAX_XP, defaults, level_for, threshold
+from ky_bot.views.menu_strips import group_sections, strip_files
 from ky_bot.views.private_style import private_heading
 from ky_bot.views.sections import section_dividers
 
@@ -26,7 +27,7 @@ HEADINGS = {
 }
 
 
-def artwork(design, page="main"):
+def _base_artwork(design, page="main"):
     profile = dict(design)
     profile["title"] = "COMMAND CENTER 𖥸 " + (profile["title"] or "LEVELING")
     profile["_rotated_divider"] = True
@@ -693,6 +694,8 @@ class Menu(discord.ui.LayoutView):
                 discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://" + NAMES[1]))
             )
         panel.add_item(controls)
+        if page == "main":
+            group_sections(panel, "leveling")
         section_dividers(panel)
         self.add_item(panel)
 
@@ -755,3 +758,7 @@ class CardFormatting(discord.ui.Modal):
 
     async def on_error(self, interaction, error):
         await report_error(interaction, error)
+
+
+def artwork(design, page="main"):
+    return _base_artwork(design, page) + strip_files("leveling", design["style"])

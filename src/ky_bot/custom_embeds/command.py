@@ -258,6 +258,14 @@ class CustomEmbeds(commands.Cog):
     async def ready(self):
         await self.bot.wait_until_ready()
 
+    async def open_editor(self, interaction):
+        from .views import Session, initial_channel
+
+        await self.authorize(interaction)
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        ident = await self.store.create(interaction.guild_id, initial_channel(interaction))
+        await Session(self, interaction.user.id, interaction.guild_id, ident).show(interaction)
+
     async def open_menu(self, interaction, *, command_center=None):
         if command_center is None or not await command_center.interaction_check(interaction):
             return

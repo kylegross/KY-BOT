@@ -12,3 +12,14 @@ Maintenance tools live in this folder's `tools/` directory. The settings-registr
 cleanup tool can change Discord command registrations; use it only for that task.
 
 Python uses `admin_functions` with an underscore; this home folder uses `admin-functions`.
+
+## Moderation and leveling
+
+**Command Center → Moderation** offers Kick, Ban and Timeout, with private member selection,
+optional audit-log reasons, and confirmation. The matching slash commands are `/kick`,
+`/ban`, and `/timeout`. Action-specific permissions and role hierarchy are rechecked before
+execution. Implementation lives in `src/ky_bot/moderation/`.
+
+**Leveling → Level-Up Messages → Edit formatting** customizes the heading, announcement
+message, card height and text sizes. **Preview** shows the current card privately.
+See the main README and `/help` for permissions, placeholders, and usage.

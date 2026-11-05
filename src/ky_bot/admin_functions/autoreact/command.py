@@ -12,6 +12,7 @@ from discord.ext import commands
 from ky_bot.checklists.board import safe
 from ky_bot.checklists.inline import InlineView
 from ky_bot.errors import report_error
+from ky_bot.views.menu_strips import group_sections
 from ky_bot.views.private_style import private_heading
 from ky_bot.views.sections import section_dividers
 
@@ -587,6 +588,8 @@ class Menu(discord.ui.LayoutView):
             if page == "main" and s.command_center is None
             else discord.ui.ActionRow(back, close)
         )
+        if page == "main":
+            group_sections(panel, "automation")
         section_dividers(panel)
         self.add_item(panel)
 
