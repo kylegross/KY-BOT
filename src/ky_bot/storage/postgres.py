@@ -105,6 +105,7 @@ for _name in (
     "move_task",
     "prompt",
     "delete_task",
+    "delete_board",
     "edit_task",
     "rename_category",
     "reorder",

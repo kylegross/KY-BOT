@@ -157,6 +157,10 @@ class ChecklistService:
                 else "Untitled task"
             )
         async with self.lock:
+            # A deletion may have completed while this message waited for the lock.
+            board = self.store.board(message.channel.id)
+            if not board or not admin(message.author, board):
+                return
             if self.store.add(
                 message.channel.id, message.id, message.author.id, title, attachments
             ):

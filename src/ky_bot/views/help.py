@@ -58,6 +58,13 @@ GUIDES = {
                 "reorder tasks, mark them complete and open a private discussion thread.",
             ),
             (
+                "DELETE A CHECKLIST",
+                "Server administrators can select **Delete checklist** at the bottom "
+                "of the board, then confirm in the private prompt. This removes the board "
+                "and its tasks, sub-tasks and categories. The channel, posted logs and "
+                "discussion threads are kept.",
+            ),
+            (
                 "WHO CAN USE IT",
                 "Task actions follow the board’s administrator and authorized-role "
                 "rules. Ask a server administrator for access or to configure a checklist.",

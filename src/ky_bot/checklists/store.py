@@ -296,6 +296,24 @@ class ChecklistStore:
                 (message, revision, channel),
             )
 
+    def delete_board(self, channel, guild, revision, message):
+        """Remove one board atomically; keep completion history and Discord discussions."""
+        with self.db:
+            current = self.board(channel)
+            if not current or current["guild"] != guild:
+                raise ValueError("This checklist is no longer available.")
+            if current["revision"] != revision or current["message"] != message:
+                raise ValueError(
+                    "The checklist changed. Reopen Delete checklist and review it again."
+                )
+            self.db.execute(
+                "DELETE FROM subtasks WHERE task IN (SELECT id FROM tasks WHERE channel=?)",
+                (channel,),
+            )
+            self.db.execute("DELETE FROM tasks WHERE channel=?", (channel,))
+            self.db.execute("DELETE FROM categories WHERE channel=?", (channel,))
+            self.db.execute("DELETE FROM boards WHERE channel=?", (channel,))
+
     def add(self, channel, source, author, title, attachments):
         with self.db:
             cursor = self.db.execute(
