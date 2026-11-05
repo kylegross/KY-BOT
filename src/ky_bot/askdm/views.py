@@ -437,7 +437,8 @@ class Admin(Panel):
         )
         self.text(
             "-# Changing visibility also hides existing public request cards; it does not "
-            "publish previously private requests. The entry panel remains visible."
+            "publish previously private requests. The entry panel remains visible. "
+            "It stays at the bottom while public requests are enabled."
         )
 
         async def publish(i):
