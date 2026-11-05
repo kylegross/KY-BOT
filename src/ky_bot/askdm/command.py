@@ -417,19 +417,36 @@ class AskDM(commands.Cog):
         receipt = json.loads(raw)
         request = await self.store.get(rid)
         data = json.loads(request["data"])
-        # Record every event, even if a newer choice was made before delivery.
-        if not receipt.get("log"):
-            _, current_config = await self.store.config(request["guild"])
+        # Events remain durable history; Discord displays one current log per request.
+        reference = await self.store.log_reference(rid)
+        _, current_config = await self.store.config(request["guild"])
+        message = None
+        if reference:
+            message_id, saved_channel = reference
+            try:
+                channel = await self.channel(saved_channel or data["log_channel"], request["guild"])
+                await self.check_channel(channel, logs=True)
+                message = await channel.fetch_message(message_id)
+            except discord.NotFound:
+                # Recreate only if Discord confirms the original message/channel was deleted.
+                message = None
+        if message is None:
             channel = await self.channel(
                 current_config["log_channel"] or data["log_channel"], request["guild"]
             )
             await self.check_channel(channel, logs=True)
             message = await channel.send(
-                embed=self.record(request, data, state),
+                embed=self.record(request, data, request["state"]),
                 allowed_mentions=discord.AllowedMentions.none(),
             )
-            receipt["log"] = message.id
-            await self.store.checkpoint(eid, receipt)
+        else:
+            await message.edit(
+                embed=self.record(request, data, request["state"]),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        await self.store.save_log_reference(rid, message.id, channel.id)
+        receipt.update(log=message.id, log_channel=channel.id)
+        await self.store.checkpoint(eid, receipt)
         # Do not send stale pending controls after a fast cancellation/expiry.
         current = dict(request, state=request["state"])
         for actor in (request["sender"], request["recipient"]):

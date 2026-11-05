@@ -113,7 +113,11 @@ class ConsentTests(unittest.IsolatedAsyncioTestCase):
         _, rid = await self.new_request()
         cog = AskDM(Mock())
         cog.store = self.store
-        channel = SimpleNamespace(send=AsyncMock(return_value=SimpleNamespace(id=700)))
+        channel = SimpleNamespace(
+            id=20,
+            send=AsyncMock(return_value=SimpleNamespace(id=700)),
+            fetch_message=AsyncMock(return_value=SimpleNamespace(id=700, edit=AsyncMock())),
+        )
         cog.channel = AsyncMock(return_value=channel)
         cog.check_channel = AsyncMock()
         cog.notify = AsyncMock()
@@ -164,7 +168,11 @@ class ConsentTests(unittest.IsolatedAsyncioTestCase):
         _, rid = await self.new_request()
         cog = AskDM(Mock())
         cog.store = self.store
-        channel = SimpleNamespace(send=AsyncMock(return_value=SimpleNamespace(id=700)))
+        channel = SimpleNamespace(
+            id=20,
+            send=AsyncMock(return_value=SimpleNamespace(id=700)),
+            fetch_message=AsyncMock(return_value=SimpleNamespace(id=700, edit=AsyncMock())),
+        )
         cog.channel = AsyncMock(return_value=channel)
         cog.check_channel = AsyncMock()
         cog.notify = AsyncMock(side_effect=ValueError("temporary failure"))
@@ -228,6 +236,86 @@ class ConsentTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await cog.action(i, rid, "accept")
         self.assertEqual((await self.store.get(rid))["state"], "pending")
+
+    async def test_status_changes_edit_original_log_after_restart(self):
+        _, rid = await self.new_request()
+        message = SimpleNamespace(id=700, edit=AsyncMock())
+        channel = SimpleNamespace(
+            id=20,
+            send=AsyncMock(return_value=message),
+            fetch_message=AsyncMock(return_value=message),
+        )
+        cog = AskDM(Mock())
+        cog.store = self.store
+        cog.channel = AsyncMock(return_value=channel)
+        cog.check_channel = AsyncMock()
+        cog.notify = AsyncMock()
+        await cog.process(*(await self.store.events())[0])
+        await self.store.close()
+        self.store = await Store.open(self.path)
+        cog.store = self.store
+        await self.store.transition(rid, 200, "accepted")
+        await cog.process(*(await self.store.events())[0])
+        channel.send.assert_awaited_once()
+        self.assertIn("ACCEPTED", message.edit.await_args.kwargs["embed"].title)
+        await self.store.transition(rid, 200, "revoked")
+        await cog.process(*(await self.store.events())[0])
+        channel.send.assert_awaited_once()
+        self.assertIn("REVOKED", message.edit.await_args.kwargs["embed"].title)
+        self.assertEqual(await self.store.log_reference(rid), (700, 20))
+
+    async def test_denial_edits_log_and_forbidden_does_not_send_duplicate(self):
+        _, rid = await self.new_request()
+        message = SimpleNamespace(id=700, edit=AsyncMock())
+        channel = SimpleNamespace(
+            id=20,
+            send=AsyncMock(return_value=message),
+            fetch_message=AsyncMock(return_value=message),
+        )
+        cog = AskDM(Mock())
+        cog.store = self.store
+        cog.channel = AsyncMock(return_value=channel)
+        cog.check_channel = AsyncMock()
+        cog.notify = AsyncMock()
+        await cog.process(*(await self.store.events())[0])
+        await self.store.transition(rid, 200, "denied", "No thank you")
+        error = discord.Forbidden(SimpleNamespace(status=403, reason="Forbidden"), "No access")
+        channel.fetch_message.side_effect = error
+        with self.assertRaises(discord.Forbidden):
+            await cog.process(*(await self.store.events())[0])
+        channel.send.assert_awaited_once()
+        self.assertEqual(await self.store.pending_count(), 1)
+        channel.fetch_message.side_effect = None
+        await cog.process(*(await self.store.events())[0])
+        self.assertIn("DENIED", message.edit.await_args.kwargs["embed"].title)
+        channel.send.assert_awaited_once()
+
+    async def test_deleted_log_replacement_becomes_the_saved_reference(self):
+        _, rid = await self.new_request()
+        old = SimpleNamespace(id=700, edit=AsyncMock())
+        new = SimpleNamespace(id=701, edit=AsyncMock())
+        channel = SimpleNamespace(
+            id=20, send=AsyncMock(side_effect=[old, new]), fetch_message=AsyncMock(return_value=old)
+        )
+        cog = AskDM(Mock())
+        cog.store = self.store
+        cog.channel = AsyncMock(return_value=channel)
+        cog.check_channel = AsyncMock()
+        cog.notify = AsyncMock()
+        await cog.process(*(await self.store.events())[0])
+        await self.store.transition(rid, 200, "accepted")
+        channel.fetch_message.side_effect = discord.NotFound(
+            SimpleNamespace(status=404, reason="Not Found"), "Unknown Message"
+        )
+        await cog.process(*(await self.store.events())[0])
+        self.assertEqual(await self.store.log_reference(rid), (701, 20))
+        channel.fetch_message.side_effect = None
+        channel.fetch_message.return_value = new
+        await self.store.transition(rid, 200, "revoked")
+        await cog.process(*(await self.store.events())[0])
+        self.assertEqual(channel.send.await_count, 2)
+        channel.fetch_message.assert_awaited_with(701)
+        new.edit.assert_awaited_once()
 
 
 if __name__ == "__main__":

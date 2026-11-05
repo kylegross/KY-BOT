@@ -287,6 +287,34 @@ class Store:
                 "UPDATE ask_events SET data=?,done=? WHERE id=?", (json.dumps(data), int(done), eid)
             )
 
+    async def log_reference(self, rid):
+        async with self.lock:
+            rows = await self.execute(
+                "SELECT data FROM ask_events WHERE request=? ORDER BY created,id",
+                (rid,),
+                many=True,
+            )
+        for (raw,) in rows:
+            receipt = json.loads(raw)
+            if receipt.get("log"):
+                return receipt["log"], receipt.get("log_channel")
+        return None
+
+    async def save_log_reference(self, rid, message, channel):
+        # Keep all event receipts on the same canonical message, including legacy receipts.
+        async with self.transaction(0):
+            rows = await self.execute(
+                "SELECT id,data FROM ask_events WHERE request=?",
+                (rid,),
+                many=True,
+            )
+            for eid, raw in rows:
+                receipt = json.loads(raw) | dict(log=message, log_channel=channel)
+                await self.execute(
+                    "UPDATE ask_events SET data=? WHERE id=?",
+                    (json.dumps(receipt), eid),
+                )
+
     async def pending_count(self):
         async with self.lock:
             return (await self.execute("SELECT COUNT(*) FROM ask_events WHERE done=0"))[0]
