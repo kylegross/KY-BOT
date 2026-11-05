@@ -24,6 +24,7 @@ where = ["src"]
 "ky_bot.design" = ["assets/footer/*.png", "assets/header/*.png", "assets/welcome/*.png"]
 "ky_bot.checklists" = ["assets/*.png"]
 "ky_bot.storage" = ["schema.sql"]
+"ky_bot.askdm" = ["assets/*.png"]
 
 [tool.ruff]
 target-version = "py311"

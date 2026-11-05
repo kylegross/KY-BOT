@@ -614,3 +614,45 @@ After deploying this command addition, register `/xp` with a **global** command
 sync (`COMMAND_SYNC=global`). Guild-only/test-server sync is not needed. This does
 not change the server-scoped nature of XP: global commands operate on the server
 where the administrator runs them.
+
+
+## Ask to DM/FR
+
+Open **Command Center ??? Ask to DM/FR ??? Manage**. Choose the member request channel
+and a separate staff-only log channel, configure role permissions, publish the member panel,
+then enable requests. No separate setup slash command is needed.
+
+The dark silver **ASK TO DM/FR** panel uses KY BOT header/footer artwork and inline buttons.
+Members select a person, DM/friend/roleplay request type, and optional private reason,
+then confirm before anything is sent. Requesters can cancel unanswered requests;
+recipients can accept, decline with an optional reason, or withdraw accepted permission.
+Unanswered requests expire after 48 hours. This records consent; it does not send a friend
+request or grant access automatically.
+
+**Channel request visibility** controls public request cards, independently of staff logs.
+Hidden requests still deliver privately and log normally. Switching to Hidden removes known
+public cards on the next delivery cycle (normally within 20 seconds). It cannot erase a card
+someone already saw. Private reasons never appear on public cards. Switching back to Shown
+does not publish requests originally submitted privately. The member entry panel stays visible.
+
+**Role permissions & restrictions** has separate allowed sender/recipient role lists and
+blocked sender/recipient role lists (up to ten roles each). An empty allow list permits all
+members; any matching blocked role overrides allowed roles, including for administrators.
+Roles and current membership are rechecked before recording a request and on acceptance.
+Cancellation and withdrawal remain available even if new requests are disabled.
+Only server administrators can change settings, through the Command Center.
+
+Both channels require View Channel, Send Messages, Embed Links, Attach Files and Read Message
+History. The request channel additionally needs Create Private Threads, Send Messages in
+Threads and Manage Threads. Configure the log channel as staff-only. DMs blocked by Discord
+fall back to a private thread with only that member invited; staff with Manage Threads can
+access it. Resolved fallback threads lock/archive after 24 hours. Do not use a public thread
+as a substitute. Pending deliveries retry every 20 seconds without posting public failure notices.
+
+Settings, confirmation drafts, requests, outcomes and delivery checkpoints persist in the
+configured settings database (SQLite or DATABASE_URL PostgreSQL). Stable button IDs recover
+after restart. Retried confirmations and competing decisions are transactional; a confirmed
+draft cannot create two requests. Discord sends and database receipts cannot commit together,
+so a crash immediately after a successful send may produce a repeated notification on retry.
+Ten requests per member per server per hour limits spam. No VICE IDs, historical log rebuilds
+or old channel cleanup jobs are imported.

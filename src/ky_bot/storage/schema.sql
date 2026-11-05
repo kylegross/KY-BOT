@@ -73,3 +73,11 @@ CREATE TABLE IF NOT EXISTS leveling_adjustments (
     before_xp BIGINT NOT NULL, after_xp BIGINT NOT NULL,
     created DOUBLE PRECISION NOT NULL, PRIMARY KEY(guild,operation)
 );
+
+-- Ask to DM/FR consent workflow.
+CREATE TABLE IF NOT EXISTS ask_settings (guild BIGINT PRIMARY KEY, revision TEXT NOT NULL, settings TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS ask_requests (id TEXT PRIMARY KEY, guild BIGINT NOT NULL, sender BIGINT NOT NULL, recipient BIGINT NOT NULL, kind TEXT NOT NULL, state TEXT NOT NULL, created DOUBLE PRECISION NOT NULL, data TEXT NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS ask_active_pair ON ask_requests(guild,sender,recipient,kind) WHERE state IN ('pending','accepted');
+CREATE TABLE IF NOT EXISTS ask_drafts (id TEXT PRIMARY KEY, guild BIGINT NOT NULL, sender BIGINT NOT NULL, created DOUBLE PRECISION NOT NULL, request TEXT, data TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS ask_events (id TEXT PRIMARY KEY, request TEXT NOT NULL, state TEXT NOT NULL, created DOUBLE PRECISION NOT NULL, done BIGINT NOT NULL DEFAULT 0, data TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS ask_event_queue ON ask_events(done,created);

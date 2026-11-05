@@ -179,6 +179,11 @@ class SettingsView(discord.ui.LayoutView):
             )
             separator()
             row(
+                "**ASK TO DM/FR**\n-# Consent requests, role restrictions, channels and logs.",
+                self.automation_navigation("AskDM"),
+            )
+            separator()
+            row(
                 "**SERVER ACTIVITY**\n-# Moderation logs · "
                 + ("Enabled" if self.settings.log_channel_id
                    or self.settings.member_log_channel_id else "Disabled"),
