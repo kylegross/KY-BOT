@@ -96,7 +96,27 @@ class Base(discord.ui.LayoutView):
 
     def finish(self):
         group_sections(self.panel, self.strip_menu)
-        section_dividers(self.panel, back_on_right=True)
+        children = list(self.panel.children)
+        for index, child in enumerate(children):
+            if (
+                isinstance(child, discord.ui.Section)
+                and child.children[0].content.startswith("**DELETE EMBED**")
+                and index > 0
+                and isinstance(children[index - 1], discord.ui.ActionRow)
+                and any(
+                    isinstance(item, discord.ui.Select) for item in children[index - 1].children
+                )
+            ):
+                children.insert(
+                    index,
+                    discord.ui.Separator(visible=False, spacing=discord.SeparatorSpacing.large),
+                )
+                break
+        for child in list(self.panel.children):
+            self.panel.remove_item(child)
+        for child in children:
+            self.panel.add_item(child)
+        section_dividers(self.panel, navigation_on_right=True)
         self.panel.add_item(
             discord.ui.MediaGallery(
                 discord.MediaGalleryItem("attachment://ky_footer_create_embed.png")
@@ -223,7 +243,7 @@ class Library(Base):
         if rows and not deleting:
             self.row(
                 "**DELETE EMBED**\nChoose a saved embed to remove, then confirm.",
-                button("Delete embed", choose_delete, danger=True),
+                button("Delete embed", choose_delete),
             )
 
         if len(rows) > 25:
@@ -302,7 +322,7 @@ class SavedEmbed(Base):
         )
         self.row(
             "**DELETE EMBED**\nRemove this draft and its published copy.",
-            button("Delete embed", delete, danger=True),
+            button("Delete embed", delete),
         )
         self.row("**SAVED EMBEDS**\nReturn to the saved embed list.", button("All embeds", back))
         self.finish()
@@ -859,7 +879,7 @@ class Editor(Base):
             )
             self.row(
                 "**DELETE EMBED**\nRemove the saved embed and its posted message.",
-                button("Delete", delete, danger=True),
+                button("Delete", delete),
             )
         if page != "main" and not row["deleted"]:
             self.row("**EMBED EDITOR**\n-# Return to editing options.", button("Back", go("main")))
@@ -945,7 +965,7 @@ class DeleteConfirm(Base):
 
         self.row(
             "**CONFIRM DELETION**\nPermanently remove this embed.",
-            button("Delete embed", confirm, danger=True),
+            button("Delete embed", confirm),
         )
         self.row("**KEEP EMBED**\nReturn without deleting anything.", button("Cancel", cancel))
         self.finish()

@@ -409,6 +409,56 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
             self.assertLessEqual(parent.total_children_count, 40)
         parent.stop()
 
+    async def test_all_manage_embed_footer_controls_are_right_and_neutral(self):
+        rows = await self.store.listing(1)
+        session = Session(self.cog, 50, 1, self.ident)
+        session.row = await self.store.get(1, self.ident)
+        from ky_bot.custom_embeds.views import SavedEmbed
+
+        views = [
+            Library(self.cog, 50, 1, rows),
+            SavedEmbed(session),
+            DeleteConfirm(session, session.row["revision"]),
+        ]
+        for page in (
+            "main",
+            "content",
+            "formatting",
+            "sections",
+            "images",
+            "style",
+            "delivery",
+            "channel",
+            "publish",
+        ):
+            session.page = page
+            views.append(Editor(session))
+        for view in views:
+            for item in view.walk_children():
+                if isinstance(item, discord.ui.Button):
+                    self.assertNotEqual(item.style, discord.ButtonStyle.danger)
+                    if item.label in {"Back", "Close", "Cancel", "All embeds", "Home"}:
+                        self.assertTrue(
+                            any(
+                                isinstance(section, discord.ui.Section)
+                                and section.accessory is item
+                                for section in view.panel.children
+                            ),
+                            item.label,
+                        )
+            view.stop()
+        library = views[0]
+        children = list(library.panel.children)
+        delete = next(
+            index
+            for index, item in enumerate(children)
+            if isinstance(item, discord.ui.Section)
+            and item.children[0].content.startswith("**DELETE EMBED**")
+        )
+        self.assertIsInstance(children[delete - 1], discord.ui.Separator)
+        self.assertFalse(children[delete - 1].visible)
+        self.assertEqual(children[delete - 1].spacing, discord.SeparatorSpacing.large)
+
     async def test_manage_embeds_selection_exposes_edit_and_confirmed_delete(self):
         from ky_bot.custom_embeds.views import SavedEmbed, editor_artwork
 

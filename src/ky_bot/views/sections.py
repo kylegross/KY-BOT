@@ -21,11 +21,9 @@ def navigation_item(item):
     )
 
 
-def section_dividers(panel: discord.ui.Container, *, back_on_right: bool = False) -> None:
+def section_dividers(panel: discord.ui.Container, *, navigation_on_right: bool = False) -> None:
     """Space introductions, adjacent sections and navigation without doubling rules."""
-    left_navigation = (
-        LEFT_NAVIGATION - {"back", "back to editing"} if back_on_right else LEFT_NAVIGATION
-    )
+    left_navigation = set() if navigation_on_right else LEFT_NAVIGATION
     # Home always belongs beside its destination text, as a right-side accessory.
     home_text = "**COMMAND CENTER**\nReturn to the main menu."
     for child in list(panel.children):
