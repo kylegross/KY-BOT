@@ -36,6 +36,19 @@ TARGETS = {
 }
 
 
+def checklist_target(key):
+    return key == "checklist" or key.startswith("checklist:")
+
+
+def validate_scope(values):
+    if any(checklist_target(key) for key in values) and any(
+        not checklist_target(key) for key in values
+    ):
+        raise ValueError(
+            "Edit checklists separately from other menus. Select only checklist targets."
+        )
+
+
 class DesignSession:
     def __init__(self, interaction, service, revision, profiles):
         self.owner, self.guild_id = interaction.user.id, interaction.guild_id
@@ -74,6 +87,7 @@ class DesignSession:
         return False
 
     async def select(self, values):
+        validate_scope(values)
         if any(key not in self.targets for key in values):
             raise ValueError("Select menus from this server's design menu.")
         if "welcome_image" in values and len(values) > 1:
@@ -253,6 +267,7 @@ class DesignSession:
             sample.stop()
 
     async def apply(self, interaction):
+        validate_scope(self.selected)
         if not self.selected:
             raise ValueError("Select at least one menu.")
         # Render all selected drafts before writing anything; font/image errors stay in draft.
@@ -307,7 +322,7 @@ class DesignSession:
 
 
 class AppearanceModal(discord.ui.Modal):
-    def __init__(self, session, upload=None):
+    def __init__(self, session, upload=None, *, formatting=False):
         super().__init__(title="Upload design image" if upload else "Edit appearance")
         self.session, self.generation, self.upload_key = session, session.generation, upload
         profile = session.drafts[session.selected[0]]
@@ -336,6 +351,15 @@ class AppearanceModal(discord.ui.Modal):
                     ("footer_text", "Footer text (blank uses icon)", profile["footer_text"], 80),
                 ]
             )
+            if formatting:
+                specs = [
+                    (
+                        "text_color",
+                        "Text color · #RRGGBB (blank follows finish)",
+                        profile.get("text_color") or "",
+                        7,
+                    )
+                ]
             for key, label, value, limit in specs:
                 field = discord.ui.TextInput(
                     label=label, default=value, required=key in ("height", "dim"), max_length=limit
@@ -373,7 +397,12 @@ class AppearanceModal(discord.ui.Modal):
                             raise ValueError(f"Enter a number from {low} to {high}.")
                 if any(any(ord(c) < 32 for c in v) for v in values.values() if isinstance(v, str)):
                     raise ValueError("Use single-line text.")
-                values["title"] = values.get("title") or None
+                if "text_color" in values:
+                    from ky_bot.design.text_colour import text_colour
+
+                    values["text_color"] = text_colour(values["text_color"])
+                if "title" in values:
+                    values["title"] = values["title"] or None
                 s.change(**values)
             await s.show(interaction)
 
@@ -441,7 +470,9 @@ class Editor(discord.ui.LayoutView):
                     if not await s.allowed(i, self.generation):
                         return
                     if isinstance(action, tuple):
-                        await i.response.send_modal(AppearanceModal(s, action[0]))
+                        await i.response.send_modal(
+                            AppearanceModal(s, action[0], formatting=len(action) > 1)
+                        )
                     else:
                         await i.response.defer()
                         await action(i)
@@ -493,7 +524,7 @@ class Editor(discord.ui.LayoutView):
                 selector = discord.ui.Select(
                     min_values=0,
                     max_values=len(batch),
-                    placeholder="Select menus to customize together",
+                    placeholder="Choose checklists OR other menus",
                     options=[
                         discord.SelectOption(
                             label=label[:100], value=key, default=key in s.selected
@@ -508,9 +539,16 @@ class Editor(discord.ui.LayoutView):
                             return
                         await i.response.defer()
                         keys = {key for key, _ in batch}
-                        await s.select(
-                            [key for key in s.selected if key not in keys] + selector.values
-                        )
+                        values = [key for key in s.selected if key not in keys] + selector.values
+                        added = set(selector.values) - set(s.selected)
+                        new_checklists = any(checklist_target(key) for key in added)
+                        new_menus = any(not checklist_target(key) for key in added)
+                        # Switching scope also clears selections hidden on other pages.
+                        if new_checklists and not new_menus:
+                            values = [key for key in values if checklist_target(key)]
+                        elif new_menus and not new_checklists:
+                            values = [key for key in values if not checklist_target(key)]
+                        await s.select(values)
                         await s.show(i, "targets")
 
                 selector.callback = chosen
@@ -584,6 +622,13 @@ class Editor(discord.ui.LayoutView):
                 disabled=not active,
             )
             if not welcome:
+                row(
+                    "FORMATTING",
+                    "Decorative text color: " + (current.get("text_color") or "Follow finish"),
+                    "Text color",
+                    (None, "formatting"),
+                    disabled=not active,
+                )
                 row(
                     "FOOTER BACKGROUND",
                     "Replace the background image.",

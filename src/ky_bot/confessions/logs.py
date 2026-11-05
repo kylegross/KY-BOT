@@ -7,6 +7,7 @@ import discord
 from discord.ext import commands
 
 from ky_bot.errors import send_private
+from ky_bot.views.menu_strips import add_strip, filename
 from ky_bot.views.sections import section_dividers
 
 from .cards import uploads
@@ -118,13 +119,18 @@ class LogMenu(discord.ui.LayoutView):
                     feature(name),
                 )
         else:
-            panel.add_item(discord.ui.TextDisplay("**SERVER ACTIVITY**"))
+            add_strip(panel, "SERVER ACTIVITY")
             row(
                 "SERVER EVENTS & MEMBERS",
                 "Messages, members, roles, bans and invites.",
                 server_activity,
             )
-            panel.add_item(discord.ui.TextDisplay("**OTHER LOGS**"))
+            add_strip(panel, "OTHER LOGS")
+            row(
+                "NSFW FLASH LOGS",
+                "Age restriction, optional spoilers and private text-only channel logs.",
+                feature("NSFWFlashLogs"),
+            )
             row(
                 "CONFESSIONS",
                 "Per-channel author logs and administrator review/report destinations.",
@@ -158,6 +164,20 @@ class LogMenu(discord.ui.LayoutView):
         section_dividers(panel)
         self.add_item(panel)
         attachments = uploads(config)
+        if not automation:
+            import io
+
+            attachments.extend(
+                discord.File(
+                    io.BytesIO(
+                        files("ky_bot.design")
+                        .joinpath("assets", "strips", "silver_neon_" + filename(title))
+                        .read_bytes()
+                    ),
+                    filename=filename(title),
+                )
+                for title in ("SERVER ACTIVITY", "OTHER LOGS")
+            )
         try:
             await i.edit_original_response(
                 view=self,

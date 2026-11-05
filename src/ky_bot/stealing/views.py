@@ -118,14 +118,14 @@ class Batch(discord.ui.LayoutView):
 
     def build(self):
         self.clear_items()
-        panel = discord.ui.Container(accent_colour=0xBDC3CA)
+        panel = discord.ui.Container(accent_colour=0xD6E2F3)
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://ky_header_steal.png"))
         )
         add_strip(panel, "DESTINATION")
         panel.add_item(
             discord.ui.TextDisplay(
-                f"**DESTINATION**\n{safe(self.guild_name)} · Server ID: `{self.destination}`\n"
+                f"{safe(self.guild_name)} · Server ID: `{self.destination}`\n"
                 "Choose the items to copy. The checkmarks in the dropdown control your selection. "
                 "All items start selected; uncheck anything you do not want."
             )
@@ -212,7 +212,7 @@ class Batch(discord.ui.LayoutView):
             add_strip(panel, "CUSTOM NAMES")
             panel.add_item(
                 discord.ui.Section(
-                    "**CUSTOM NAMES**\nLeave an item unchanged to keep its original name.",
+                    "Leave an item unchanged to keep its original name.",
                     accessory=button("Rename one", rename, disabled=not available),
                 )
             )
@@ -343,4 +343,4 @@ class Batch(discord.ui.LayoutView):
 
 
 def artwork():
-    return _base_artwork() + strip_files("steal", "dark_silver")
+    return _base_artwork() + strip_files("steal", "silver_neon")

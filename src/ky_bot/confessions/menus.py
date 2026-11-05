@@ -12,6 +12,7 @@ from ky_bot.views.sections import section_dividers
 
 from .cards import Card, post_card, safe, uploads
 from .command import Action, administrator, destination
+from .headings import title_image
 
 
 class ChannelChooser(discord.ui.View):
@@ -82,6 +83,7 @@ class Edit(discord.ui.Modal):
             "text": (
                 ("panel_title", "Submission panel heading", 80),
                 ("panel_text", "Submission panel message", 1000),
+                ("submit_label", "Submit button label", 80),
             ),
             "limits": (
                 ("cooldown", "Cooldown in seconds (0–86400)", 5),
@@ -280,26 +282,28 @@ class Admin(discord.ui.LayoutView):
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_header.png"))
         )
+        heading = {
+            "channels": "CHANNELS",
+            "channel": "CHANNEL SETTINGS",
+            "behavior": "SUBMISSIONS & DELIVERY",
+            "logging": "LOGGING & REVIEW",
+            "appearance": "APPEARANCE",
+            "permissions": "ROLE ACCESS",
+            "queue": "PENDING APPROVALS",
+            "reports": "REPORTS",
+            "bans": "CONFESSION BANS",
+        }[page]
+        self.title_art = title_image(heading)
+        panel.add_item(
+            discord.ui.MediaGallery(
+                discord.MediaGalleryItem("attachment://confession_title.png", description=heading)
+            )
+        )
         panel.add_item(
             discord.ui.TextDisplay(
-                "**CONFESSIONS · "
-                + {
-                    "channels": "CHANNELS",
-                    "channel": "CHANNEL SETTINGS",
-                    "behavior": "SUBMISSIONS & DELIVERY",
-                    "logging": "LOGGING & REVIEW",
-                    "appearance": "APPEARANCE",
-                    "permissions": "ROLE ACCESS",
-                    "queue": "PENDING APPROVALS",
-                    "reports": "REPORTS",
-                    "bans": "CONFESSION BANS",
-                }[page]
-                + "**\n"
-                + (
-                    f"Configure <#{self.channel}>. Changes are saved per channel."
-                    if self.channel
-                    else "Anonymous member submissions. Configure each channel independently."
-                )
+                f"Configure <#{self.channel}>. Changes are saved per channel."
+                if self.channel
+                else "Anonymous member submissions. Configure each channel independently."
             )
         )
         if notice:
@@ -526,9 +530,9 @@ class Admin(discord.ui.LayoutView):
                     config["panel_title"],
                     config["panel_text"],
                     detail="Private preview · No submission will be sent.",
-                    buttons=[discord.ui.Button(label="Submit confession", disabled=True)],
+                    buttons=[discord.ui.Button(label=config["submit_label"], disabled=True)],
                 )
-                files = uploads(config)
+                files = uploads(config, view)
                 try:
                     await event.followup.send(view=view, files=files, ephemeral=True)
                 finally:
@@ -632,7 +636,7 @@ class Admin(discord.ui.LayoutView):
                                 )
                             )
                         )
-                    files = uploads(config)
+                    files = uploads(config, view)
                     try:
                         await event.response.send_message(
                             view=view,
@@ -696,7 +700,7 @@ class Admin(discord.ui.LayoutView):
         )
         section_dividers(panel)
         self.add_item(panel)
-        files = uploads(config)
+        files = uploads(config, self)
         try:
             await i.edit_original_response(
                 content=None,

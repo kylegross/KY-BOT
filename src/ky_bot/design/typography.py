@@ -5,6 +5,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+SECTION_HEADING_LEFT = 3
+
 TAGLINE = "POWERFUL BY NATURE. SIMPLE BY DESIGN."
 ROLES = {
     "display": ("Bold", 64, 0.01),
@@ -49,8 +51,17 @@ def divided_title_mask(text, divider, *, size, min_size, max_width, font_path=No
     """Set upright VONCA text around an independently rotated ornamental divider."""
     left, right = text.split(" 𖥸 ", 1)
     for pixels in range(size, min_size - 1, -1):
-        parts = [text_mask(part, role="display", font_path=font_path, size=pixels,
-                           min_size=pixels, max_width=10000) for part in (left, right)]
+        parts = [
+            text_mask(
+                part,
+                role="display",
+                font_path=font_path,
+                size=pixels,
+                min_size=pixels,
+                max_width=10000,
+            )
+            for part in (left, right)
+        ]
         height = max(part.height for part in parts)
         ornament = divider.convert("L").transpose(Image.Transpose.ROTATE_180)
         ornament = ornament.resize(

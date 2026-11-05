@@ -156,12 +156,26 @@ class Activity(commands.Cog):
         logger = self.logger()
         if not member_event and source_channel_id is not None:
             source = guild.get_channel_or_thread(source_channel_id)
+            if source is None and settings.log_excluded_channel_ids:
+                try:
+                    source = await self.bot.fetch_channel(source_channel_id)
+                except (discord.NotFound, discord.Forbidden):
+                    return
             ids = {
                 source_channel_id,
                 getattr(source, "parent_id", None),
                 getattr(source, "category_id", None),
             }
             parent = getattr(source, "parent", None)
+            if (
+                isinstance(source, discord.Thread)
+                and parent is None
+                and settings.log_excluded_channel_ids
+            ):
+                try:
+                    parent = await self.bot.fetch_channel(source.parent_id)
+                except (discord.NotFound, discord.Forbidden):
+                    return
             ids.add(getattr(parent, "category_id", None))
             if ids & set(settings.log_excluded_channel_ids):
                 return

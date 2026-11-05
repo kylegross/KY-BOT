@@ -2,7 +2,7 @@
 
 import discord
 
-LEFT_NAVIGATION = {"back", "home", "close", "close menu", "all guides", "back to editing", "cancel"}
+LEFT_NAVIGATION = {"back", "close", "close menu", "all guides", "back to editing", "cancel"}
 
 NAVIGATION_LABELS = {"back", "home", "close", "close menu", "all guides", "all embeds"}
 
@@ -23,8 +23,32 @@ def navigation_item(item):
 
 def section_dividers(panel: discord.ui.Container) -> None:
     """Space introductions, adjacent sections and navigation without doubling rules."""
-    children = list(panel.children)
-    for child in children:
+    # Home always belongs beside its destination text, as a right-side accessory.
+    home_text = "**COMMAND CENTER**\nReturn to the main menu."
+    for child in list(panel.children):
+        if (
+            isinstance(child, discord.ui.Section)
+            and isinstance(child.accessory, discord.ui.Button)
+            and (child.accessory.label or "").casefold() == "home"
+        ):
+            child.children[0].content = home_text
+    children = []
+    for child in panel.children:
+        if isinstance(child, discord.ui.ActionRow):
+            homes = [
+                button
+                for button in child.children
+                if isinstance(button, discord.ui.Button)
+                and (button.label or "").casefold() == "home"
+            ]
+            for button in homes:
+                child.remove_item(button)
+            if child.children:
+                children.append(child)
+            children.extend(discord.ui.Section(home_text, accessory=button) for button in homes)
+        else:
+            children.append(child)
+    for child in panel.children:
         panel.remove_item(child)
     branded_groups = any(
         isinstance(child, discord.ui.MediaGallery)
@@ -36,9 +60,7 @@ def section_dividers(panel: discord.ui.Container) -> None:
     for child in children:
         is_control = isinstance(child, (discord.ui.Section, discord.ui.ActionRow))
         intro_boundary = (
-            not seen_control
-            and is_control
-            and isinstance(previous, discord.ui.TextDisplay)
+            not seen_control and is_control and isinstance(previous, discord.ui.TextDisplay)
         )
         adjacent_sections = (
             not branded_groups

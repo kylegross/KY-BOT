@@ -317,6 +317,81 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
             self.assertLessEqual(parent.total_children_count, 40)
         parent.stop()
 
+    async def test_library_picker_follows_saved_embeds_heading_and_home_is_right(self):
+        from ky_bot.views.menu_strips import heading
+
+        parent = SimpleNamespace(panel_manager=Mock())
+        view = Library(self.cog, 50, 1, [("one", "Example", 10, 200, 0)], parent=parent)
+        children = view.panel.children
+        picker = next(
+            n
+            for n, item in enumerate(children)
+            if isinstance(item, discord.ui.ActionRow)
+            and any(isinstance(x, discord.ui.Select) for x in item.children)
+        )
+        self.assertIsNone(heading(children[picker - 1]))
+        self.assertIn("Refresh after", children[picker - 1].children[0].content)
+        self.assertFalse(
+            any(heading(item) in {"CREATE EMBED", "SAVED EMBEDS"} for item in children)
+        )
+        home = next(
+            x
+            for x in view.walk_children()
+            if isinstance(x, discord.ui.Section)
+            and isinstance(x.accessory, discord.ui.Button)
+            and x.accessory.label == "Home"
+        )
+        self.assertEqual(home.children[0].content, "**COMMAND CENTER**\nReturn to the main menu.")
+        view.stop()
+
+    async def test_every_embed_submenu_has_matching_silver_artwork_and_fits(self):
+        from ky_bot.custom_embeds.views import DeleteConfirm, editor_artwork
+
+        await self.save(
+            header=image_upload(self.png()),
+            footer=image_upload(self.png()),
+            sections=[{"heading": "Example", "body": "Section text"}],
+        )
+        session = Session(self.cog, 50, 1, self.ident)
+        session.row = await self.store.get(1, self.ident)
+        for page in (
+            "main",
+            "content",
+            "formatting",
+            "sections",
+            "images",
+            "style",
+            "delivery",
+            "channel",
+            "publish",
+            "delete",
+            "library",
+        ):
+            session.page = page
+            if page == "delete":
+                view = DeleteConfirm(session, session.row["revision"])
+            elif page == "library":
+                view = Library(self.cog, 50, 1, [])
+            else:
+                view = Editor(session, "Draft saved.")
+            galleries = [x for x in view.walk_children() if isinstance(x, discord.ui.MediaGallery)]
+            refs = {
+                item.media.url.removeprefix("attachment://")
+                for gallery in galleries
+                for item in gallery.items
+            }
+            self.assertTrue(any(name.startswith("ky_strip_") for name in refs), page)
+            attachments = editor_artwork(view)
+            try:
+                self.assertLessEqual(len(attachments), 10)
+                self.assertTrue(refs <= {x.filename for x in attachments}, page)
+                self.assertLessEqual(view.total_children_count, 40, page)
+                view.to_components()
+            finally:
+                for attachment in attachments:
+                    attachment.close()
+                view.stop()
+
     async def test_content_styles_apply_once_and_titles_default_to_large(self):
         from ky_bot.custom_embeds.model import text_content
 

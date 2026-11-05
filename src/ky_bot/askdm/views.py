@@ -485,5 +485,5 @@ class Admin(Panel):
 
 def uploads(profile=None):
     return _base_uploads(profile) + strip_files(
-        "askdm", (profile or {}).get("style", "dark_silver")
+        "askdm", (profile or {}).get("style", "dark_silver"), (profile or {}).get("text_color")
     )

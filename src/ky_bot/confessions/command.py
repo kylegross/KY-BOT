@@ -58,7 +58,7 @@ class Action(
         "port|approve|reject|remove|ban|dismiss)"
     ),
 ):
-    def __init__(self, token, action):
+    def __init__(self, token, action, *, label=None):
         self.token, self.action = str(token), action
         labels = dict(
             submit="Submit confession",
@@ -72,7 +72,7 @@ class Action(
         )
         super().__init__(
             discord.ui.Button(
-                label=labels[action],
+                label=label or labels[action],
                 style=discord.ButtonStyle.secondary,
                 custom_id=f"ky:conf:{token}:{action}",
             )
@@ -80,7 +80,7 @@ class Action(
 
     @classmethod
     async def from_custom_id(cls, interaction, item, match):
-        return cls(match["token"], match["action"])
+        return cls(match["token"], match["action"], label=item.label)
 
     async def callback(self, interaction):
         cog = interaction.client.get_cog("Confessions")
@@ -92,6 +92,29 @@ class Action(
             await send_private(interaction, str(error))
         except Exception as error:
             await report_error(interaction, error)
+
+
+class ModalEntry(Card):
+    """A styled private submenu before Discord's native input popup."""
+
+    def __init__(self, config, form, title, body, label, detail=None):
+        button = discord.ui.Button(label=label)
+
+        async def write(interaction):
+            if interaction.user.id != form.owner or interaction.guild_id != form.guild:
+                return await send_private(interaction, "Open your own confession submenu.")
+            await interaction.response.send_modal(form)
+
+        button.callback = write
+        super().__init__(
+            config,
+            title,
+            body,
+            detail=detail,
+            buttons=[button],
+            timeout=600,
+            show_footer_text=False,
+        )
 
 
 class Submission(discord.ui.Modal):
@@ -111,28 +134,27 @@ class Submission(discord.ui.Modal):
         if interaction.user.id != self.owner or interaction.guild_id != self.guild:
             return await send_private(interaction, "Open your own confession form.")
         # The final privacy notice precedes the action that actually submits content.
-        await interaction.response.send_message(
-            view=ReviewSubmission(self, str(self.text)),
-            ephemeral=True,
-            allowed_mentions=discord.AllowedMentions.none(),
-        )
+        view = ReviewSubmission(self, str(self.text))
+        files = uploads(self.config, view)
+        try:
+            await interaction.response.send_message(
+                view=view,
+                files=files,
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        finally:
+            for file in files:
+                file.close()
 
     async def on_error(self, interaction, error):
         await report_error(interaction, error)
 
 
-class ReviewSubmission(discord.ui.LayoutView):
+class ReviewSubmission(Card):
     def __init__(self, form, body):
-        super().__init__(timeout=600)
         self.used = False
         self.lock = asyncio.Lock()
-        panel = discord.ui.Container(accent_colour=int(form.config["color"], 16))
-        panel.add_item(
-            discord.ui.TextDisplay(
-                "**REVIEW YOUR " + ("REPLY" if form.parent else "CONFESSION") + "**\n" + safe(body)
-            )
-        )
-        panel.add_item(discord.ui.TextDisplay(privacy(form.config)))
         submit = discord.ui.Button(
             label="Submit for approval" if form.config["approval"] else "Publish anonymously"
         )
@@ -176,8 +198,15 @@ class ReviewSubmission(discord.ui.LayoutView):
                 self.stop()
 
         submit.callback, cancel.callback = confirm, discard
-        panel.add_item(discord.ui.ActionRow(submit, cancel))
-        self.add_item(panel)
+        super().__init__(
+            form.config,
+            "REVIEW YOUR REPLY" if form.parent else "REVIEW YOUR CONFESSION",
+            body,
+            detail=privacy(form.config),
+            buttons=[submit, cancel],
+            timeout=600,
+            show_footer_text=False,
+        )
 
 
 class Reason(discord.ui.Modal):
@@ -236,7 +265,7 @@ class Confessions(commands.Cog):
         await self.store.close()
 
     async def send_card(self, channel, config, view, **kwargs):
-        attachments = uploads(config)
+        attachments = uploads(config, view)
         try:
             return await channel.send(
                 view=view,
@@ -288,9 +317,26 @@ class Confessions(commands.Cog):
             raise ValueError("Confessions are paused in this channel.")
         if parent and not config["replies"]:
             raise ValueError("Anonymous replies are disabled.")
-        await interaction.response.send_modal(
-            Submission(self, member.id, interaction.guild_id, channel, revision, config, parent)
+        form = Submission(self, member.id, interaction.guild_id, channel, revision, config, parent)
+        view = ModalEntry(
+            config,
+            form,
+            "ANONYMOUS REPLY" if parent else "SUBMIT CONFESSION",
+            "Your words get the spotlight—your name stays off the public post.",
+            "Write reply" if parent else "Write confession",
+            detail=privacy(config),
         )
+        files = uploads(config, view)
+        try:
+            await interaction.response.send_message(
+                view=view,
+                files=files,
+                ephemeral=True,
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+        finally:
+            for file in files:
+                file.close()
 
     async def submit(self, interaction, channel, revision, body, parent):
         _, config = await self.store.config(interaction.guild_id, channel)
@@ -416,10 +462,11 @@ class Confessions(commands.Cog):
                 guild, post["data"].get("queue_channel", config["queue_channel"]), private=True
             )
             message = channel.get_partial_message(post["data"]["queue"])
-            files = uploads(config)
+            view = post_card(config, post, staff=True)
+            files = uploads(config, view)
             try:
                 await message.edit(
-                    view=post_card(config, post, staff=True),
+                    view=view,
                     attachments=files,
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
@@ -445,7 +492,27 @@ class Confessions(commands.Cog):
                 raise ValueError("Reporting is disabled for this channel.")
         else:
             await administrator(interaction)
-        if action in {"report", "reject", "ban", "remove"}:
+        if action == "report":
+            form = Reason(self, token, action, interaction.user.id, interaction.guild_id)
+            view = ModalEntry(
+                config,
+                form,
+                "REPORT CONFESSION",
+                "Tell administrators what needs reviewing. Your report stays private.",
+                "Write report",
+            )
+            files = uploads(config, view)
+            try:
+                return await interaction.response.send_message(
+                    view=view,
+                    files=files,
+                    ephemeral=True,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+            finally:
+                for file in files:
+                    file.close()
+        if action in {"reject", "ban", "remove"}:
             return await interaction.response.send_modal(
                 Reason(self, token, action, interaction.user.id, interaction.guild_id)
             )
@@ -582,10 +649,9 @@ class Confessions(commands.Cog):
                 config["panel_title"],
                 config["panel_text"],
                 detail=(
-                    "Use **Submit confession** or `/confess`. Review the privacy notice "
-                    "before sending."
+                    "Use the button below or `/confess`."
                 ),
-                buttons=[Action(channel_id, "submit")],
+                buttons=[Action(channel_id, "submit", label=config["submit_label"])],
             )
             message = await self.send_card(channel, config, view)
             _, _, retired = await self.store.panel(*key, message=message.id, clear=True)

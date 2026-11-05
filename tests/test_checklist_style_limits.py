@@ -2,7 +2,7 @@
 
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import discord
 
@@ -53,3 +53,47 @@ class ChecklistStyleLimitTests(unittest.IsolatedAsyncioTestCase):
             self.assertLessEqual(view.total_children_count, 40)
             view.to_components()
             view.stop()
+
+    async def test_checklist_and_menu_targets_cannot_be_saved_together(self):
+        session = self.session
+        with self.assertRaises(ValueError):
+            await session.select(["checklist", "settings:general"])
+        self.assertEqual(session.selected, ["checklist"])
+        session.selected = ["checklist", "settings:general"]
+        with self.assertRaises(ValueError):
+            await session.apply(SimpleNamespace())
+        session.service.repository.apply_designs.assert_not_called()
+
+    async def test_checklist_apply_preserves_every_non_checklist_profile(self):
+        session = self.session
+        original = {
+            "settings:general": {"style": "dark_silver", "footer_text": "Keep me"},
+            "askdm": {"style": "dark_silver", "height": 280},
+        }
+        session.profiles = original
+        session.service.repository.apply_designs = AsyncMock(return_value="next")
+        session.show = AsyncMock()
+        session.change(style="gold", footer_text="Checklist only")
+        with patch("ky_bot.design.menu_design.render_menu", return_value=(b"header", b"footer")):
+            await session.apply(SimpleNamespace(user=SimpleNamespace(id=1)))
+        saved = session.service.repository.apply_designs.await_args.args[1]
+        self.assertEqual(saved["settings:general"], original["settings:general"])
+        self.assertEqual(saved["askdm"], original["askdm"])
+        self.assertEqual(saved["checklist"]["footer_text"], "Checklist only")
+
+    async def test_picker_clears_previous_menu_selections_when_checklist_added(self):
+        session = self.session
+        await session.select(["settings:general"])
+        view = Editor(session, "targets")
+        picker = next(x for x in view.walk_children() if isinstance(x, discord.ui.Select))
+        picker._values = ["settings:general", "checklist"]
+        session.show = AsyncMock()
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=1),
+            guild_id=1,
+            permissions=SimpleNamespace(administrator=True),
+            response=SimpleNamespace(defer=AsyncMock()),
+        )
+        await picker.callback(interaction)
+        self.assertEqual(session.selected, ["checklist"])
+        view.stop()

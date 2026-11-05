@@ -4,12 +4,17 @@ from importlib.resources import files
 
 from PIL import Image, ImageOps
 
-COLOURS = {"dark_silver": "#BDC3CA", "gold": "#E8C47C", "silver_neon": "#D6E2F3"}
+COLOURS = {
+    "dark_silver": "#BDC3CA",
+    "gold": "#E8C47C",
+    "silver_neon": "#D6E2F3",
+    "red_iridescent": "#BC344F",
+}
 
 
 def floral_background(style: str, size: tuple[int, int]) -> Image.Image:
     if style not in COLOURS:
-        raise ValueError("Choose dark silver, gold, or silver neon.")
+        raise ValueError("Choose dark silver, gold, silver neon, or iridescent red.")
     with (
         files("ky_bot.design")
         .joinpath("assets", "header", f"floral_{style}_background.png")

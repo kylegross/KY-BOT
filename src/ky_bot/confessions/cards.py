@@ -8,6 +8,8 @@ import discord
 
 from ky_bot.views.sections import section_dividers
 
+from .headings import DIVIDER, title_image
+
 
 def safe(text):
     return discord.utils.escape_mentions(str(text))
@@ -34,7 +36,7 @@ def privacy(config):
     return "\n".join(parts)
 
 
-def uploads(config):
+def uploads(config, view=None):
     result = []
     for key in ("header", "footer"):
         data = (
@@ -43,22 +45,32 @@ def uploads(config):
             else files("ky_bot.confessions").joinpath("assets", key + ".png").read_bytes()
         )
         result.append(discord.File(io.BytesIO(data), filename="confession_" + key + ".png"))
+    if view is not None and getattr(view, "title_art", None):
+        result.append(discord.File(io.BytesIO(view.title_art), filename="confession_title.png"))
     return result
 
 
 class Card(discord.ui.LayoutView):
-    def __init__(self, config, title, body, *, detail=None, buttons=(), timeout=None):
+    def __init__(
+        self, config, title, body, *, detail=None, buttons=(), timeout=None, show_footer_text=True
+    ):
         super().__init__(timeout=timeout)
         panel = discord.ui.Container(accent_colour=int(config["color"], 16))
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_header.png"))
         )
-        panel.add_item(discord.ui.TextDisplay("**" + safe(title) + "**\n" + safe(body)))
+        self.title_art = title_image(title)
+        panel.add_item(
+            discord.ui.MediaGallery(
+                discord.MediaGalleryItem("attachment://confession_title.png", description=title)
+            )
+        )
+        panel.add_item(discord.ui.TextDisplay(safe(body)))
         if detail:
             panel.add_item(discord.ui.TextDisplay(detail))
         if buttons:
             panel.add_item(discord.ui.ActionRow(*buttons))
-        if config["footer_text"]:
+        if show_footer_text and config["footer_text"]:
             panel.add_item(discord.ui.TextDisplay("-# " + safe(config["footer_text"])))
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_footer.png"))
@@ -68,9 +80,9 @@ class Card(discord.ui.LayoutView):
 
 
 def post_card(config, post, *, staff=False, buttons=()):
-    title = config["title"] + " · " + post["id"][:8].upper()
+    title = config["title"] + DIVIDER + post["id"][:8].upper()
     if post["parent"]:
-        title = "ANONYMOUS REPLY · " + post["id"][:8].upper()
+        title = "ANONYMOUS REPLY" + DIVIDER + post["id"][:8].upper()
     details = []
     if post["parent"]:
         details.append("Reply to confession **" + post["parent"][:8].upper() + "**")
@@ -93,4 +105,11 @@ def post_card(config, post, *, staff=False, buttons=()):
             f"{post['data']['message']}"
         )
         details.append(f"[View confession]({url})")
-    return Card(config, title, post["body"], detail="\n".join(details) or None, buttons=buttons)
+    return Card(
+        config,
+        title,
+        post["body"],
+        detail="\n".join(details) or None,
+        buttons=buttons,
+        show_footer_text=staff,
+    )

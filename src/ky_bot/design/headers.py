@@ -7,12 +7,12 @@ from pathlib import Path
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
 from ky_bot.design.collection import COLOURS
-from ky_bot.design.footers import FooterError, read_upload, rectangular_frame
+from ky_bot.design.footers import FooterError, metal, read_upload, rectangular_frame
 from ky_bot.design.typography import TypographyError, divided_title_mask, text_mask
 
 SIZE = (1600, 520)
-STYLES = ("gold", "silver_neon", "dark_silver")
-DESIGNS = ("dark_silver", "gold", "silver_neon")
+STYLES = ("gold", "silver_neon", "dark_silver", "red_iridescent")
+DESIGNS = ("dark_silver", "gold", "silver_neon", "red_iridescent")
 
 
 def asset(name: str) -> Image.Image:
@@ -29,7 +29,7 @@ def background_mask(*, framed: bool = True, height: int = SIZE[1]) -> Image.Imag
 
 def overlay(style: str, *, framed: bool = True, height: int = SIZE[1]) -> Image.Image:
     if style not in STYLES:
-        raise FooterError("Choose metallic gold, iridescent silver, or dark metallic silver.")
+        raise FooterError("Choose gold, iridescent silver, dark silver, or iridescent red.")
     result = asset(f"{style}_brand.png")
     if framed:
         # The brand sits above the frame, within the top-left interior safe area.
@@ -56,9 +56,16 @@ def render_header(
     font_path: Path | None = None,
     height: int = SIZE[1],
     rotated_divider: bool = False,
+    text_color: str | None = None,
 ) -> bytes:
     if not isinstance(height, int) or isinstance(height, bool) or not 240 <= height <= 800:
         raise FooterError("Header height must be between 240 and 800 pixels.")
+    from ky_bot.design.text_colour import text_colour
+
+    try:
+        text_color = text_colour(text_color)
+    except ValueError as exc:
+        raise FooterError(str(exc)) from None
     size = (SIZE[0], height)
     if not all(0 <= value <= 100 for value in (crop_x, crop_y)) or not 0 <= dim <= 80:
         raise FooterError("Crop positions must be 0–100 and dimming must be 0–80.")
@@ -97,7 +104,7 @@ def render_header(
         rule_left = (SIZE[0] - rule_width) // 2
         gap = min(28, round(height * 28 / 520))
         top, bottom = y - gap, y + mask.height + gap
-        colour = COLOURS[style]
+        colour = text_color or COLOURS[style]
         # A feathered contrast area retains the background texture without a boxed title.
         shade = Image.new("L", size)
         ImageDraw.Draw(shade).rounded_rectangle(
@@ -111,8 +118,11 @@ def render_header(
         pen = ImageDraw.Draw(image)
         for rule_y in (top, bottom):
             pen.line((rule_left, rule_y, rule_left + rule_width, rule_y), fill=colour, width=3)
-        text = Image.new("RGBA", mask.size, colour)
-        text.putalpha(mask)
+        if style == "red_iridescent" and not text_color:
+            text = metal(mask, style)
+        else:
+            text = Image.new("RGBA", mask.size, colour)
+            text.putalpha(mask)
         image.alpha_composite(text, (x, y))
     output = io.BytesIO()
     image.save(output, format="PNG")

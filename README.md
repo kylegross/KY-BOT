@@ -534,7 +534,7 @@ Saved designs persist in SQLite or the shared PostgreSQL database. Existing chec
 
 `/autodelete` opens the compact multicolor silver Command Center menu with inline controls. Choose destinations, configure message/media/thread content and bot-media overrides, choose an age from one minute to one year, then review and save. Saved rules can be edited, paused, resumed or removed. The separate one-time cleanup supports Within the past or Older than age windows, scan limits and explicit confirmation. Opening the command activates nothing. AutoDelete requires Manage Server, with View Channel, Read Message History, Manage Messages and/or Manage Threads checked for each operation. Original start boundaries protect earlier channel history.
 
-Activity Logs is opt-in for enabled AutoDelete sources, with a separate destination and selectable event types. It retains no image/video contents or URLs, groups linked replies and member activity, and expires its own log messages after 15 days. No VICE guild IDs or roles are seeded. Database storage uses shared PostgreSQL when DATABASE_URL is set, otherwise ky-autodelete.sqlite3. Global command sync must run after deploying this new extension; a deployment with COMMAND_SYNC=none will not register the command. Header/footer styles are edited solely in /settings > Embed Design.
+Activity Logs is opt-in for enabled AutoDelete sources, with a separate destination and selectable event types. It retains no image/video contents or URLs, groups linked replies and member activity, and keeps posted logs until staff delete them; confirmed working copies are compacted. No VICE guild IDs or roles are seeded. Database storage uses shared PostgreSQL when DATABASE_URL is set, otherwise ky-autodelete.sqlite3. Global command sync must run after deploying this new extension; a deployment with COMMAND_SYNC=none will not register the command. Header/footer styles are edited solely in /settings > Embed Design.
 
 General Settings in the /settings Command Center opens a directory for AutoDelete, AutoThread and AutoReact. Each inline Manage button navigates within the same Command Center panel. Back returns to General Settings; Close exits the Command Center. The General Settings panel uses the Command Center artwork and can be customized under Embed Design.
 
@@ -854,3 +854,55 @@ resubmit blindly. SQLite and PostgreSQL schemas are created when this extension 
 
 Deployment requires a normal bot restart and one deliberate command sync to register
 `/confess`. No command sync or production posting is performed while reviewing the preview.
+
+
+## NSFW Flash Logs and log grouping
+
+Administrators can use Command Center > Logs > NSFW Flash Logs or
+`/nsfw toggle [channel] [enabled] [logs] [log_channel] [require_spoilers]`.
+With no channel option, the command uses its current text channel. With no enabled
+option, it toggles Discord's Age-Restricted Channel setting. Set enabled explicitly
+when changing only logging or spoiler preferences. Each source has independent
+log destination/event choices. Logging is optional and does not need an AutoDelete
+rule. Source and destination must be separate; the log destination must also be
+age-restricted. KY BOT needs Manage Channels for age changes and View Channel,
+Read Message History, Send Messages and Embed Links for log delivery.
+
+Spoiler enforcement is optional (off by default). Image/video uploads and recognized
+media links must have spoiler tags when enabled. The whole noncompliant post is
+removed and its author is asked to repost with spoilers. The bot does not download
+or repost media. Manage Messages is required; these bot removals are suppressed
+in deletion logs. Disabling age restriction also disables flash logging.
+
+Opt-in events: text/captions; image/video upload notices; before/after text edits;
+manual deletions; removed/cleared reactions; optional Tenor/Giphy provider-page
+links without previews. No image/video bytes, filenames, direct media URLs or
+previews are retained. Capture begins when enabled; no history is backfilled.
+Discord does not identify the actor behind a manual deletion. Exact KY BOT cleanup
+receipts suppress AutoDelete removals; VICE's 300-330 second heuristic for enabled
+five-minute rules is retained and can also omit a member deletion in that interval.
+
+Flash activity groups by source/destination/member for one minute. Linked replies
+use a same-channel conversation group. Pages update existing Discord messages;
+large groups continue on additional pages. Server-event logs now use the same
+queue, grouping related changes by subject and source, including multiple role
+updates for the same member. Join/leave cards keep their existing dedicated layout.
+Server Events includes a persistent channel/category exclusion dropdown, including
+threads under excluded parents/categories; it does not disable separate flash logs.
+
+VICE storage behavior: posted activity logs remain until staff delete them. Legacy
+automatic log-expiry jobs are retired. After the two-minute batching guard, fully
+confirmed batches discard duplicate delivered text while retaining delivery and
+deduplication receipts. Pending/sending/partially delivered pages keep their retry
+payloads. Live source snapshots remain for edits/deletions and reply context. SQLite
+and the existing PostgreSQL activity-log adapter use the same behavior. Existing
+posts are not rebuilt or regrouped. Register /nsfw with one command sync after deployment.
+
+
+### Iridescent red finish
+
+Iridescent red (`red_iridescent`) is the fourth standard header/footer and Menu Appearance
+finish. It preserves the existing floral artwork, charcoal texture, proportions and
+branding with ruby, rose and violet highlights. Standard, compact, framed and borderless
+variants are included. `/header` and `/footer` expose the same finish after command sync;
+Menu Appearance uses its existing controls. The other three finishes are unchanged.

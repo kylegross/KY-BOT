@@ -1,6 +1,7 @@
 """Independent age-restriction switches and opt-in VICE-style flash logging."""
 
 import asyncio
+import io
 import json
 from importlib.resources import files
 
@@ -10,6 +11,7 @@ from discord.ext import commands
 
 from ky_bot.admin_functions.autodelete.autodelete_logging import TYPES
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.menu_strips import group_sections, strip_files
 from ky_bot.views.sections import section_dividers
 
 PRIVACY = (
@@ -19,7 +21,9 @@ PRIVACY = (
     "**HOW IT WORKS**\nActivity from the same member/channel is grouped for one minute and "
     "updates the same staff-log embed. Linked replies use a conversation summary. "
     "Long summaries continue in another embed. KY BOT AutoDelete removals are suppressed; "
-    "Discord does not identify who manually deleted a message.\n\n"
+    "Discord does not identify who manually deleted a message. "
+    "Like VICE, the five-minute cleanup timing filter can also omit a manual deletion "
+    "in the same 300–330 second window.\n\n"
     "**IMAGES AND VIDEOS ARE NOT SAVED.**\nNo image/video files, filenames, direct media URLs "
     "or previews are copied to these logs. Logging starts after you enable it; it does not "
     "scan old channel history. Posted logs remain until staff delete them."
@@ -29,13 +33,14 @@ PRIVACY = (
 def uploads():
     return [
         discord.File(
-            files("ky_bot.design").joinpath("assets", directory, name).open("rb"), filename=name
+            io.BytesIO(files("ky_bot.design").joinpath("assets", directory, name).read_bytes()),
+            filename=name,
         )
         for directory, name in (
             ("header", "ky_header_nsfw_flash.png"),
             ("footer", "ky_footer_nsfw_flash.png"),
         )
-    ]
+    ] + strip_files("nsfw", "silver_neon")
 
 
 class NSFWFlashLogs(commands.Cog):
@@ -89,7 +94,16 @@ class NSFWFlashLogs(commands.Cog):
         return channel
 
     async def apply(
-        self, i, source_id, *, adult=None, logging=None, destination=None, types=None, expected=None
+        self,
+        i,
+        source_id,
+        *,
+        adult=None,
+        logging=None,
+        destination=None,
+        types=None,
+        expected=None,
+        require_spoilers=None,
     ):
         await self.authorize(i)
         lock = self.locks.setdefault((i.guild_id, source_id), asyncio.Lock())
@@ -100,13 +114,24 @@ class NSFWFlashLogs(commands.Cog):
                 raise ValueError("These settings changed. Reopen the menu before saving.")
             desired = source.is_nsfw() if adult is None else adult
             if (
-                require_spoilers is True
+                desired
+                and (
+                    self.logs.spoiler_required(i.guild_id, source.id)
+                    if require_spoilers is None
+                    else require_spoilers
+                )
                 and not source.permissions_for(source.guild.me).manage_messages
             ):
                 raise ValueError("KY BOT needs Manage Messages to require spoilered media.")
             log_enabled = bool(old and old["enabled"]) if logging is None else logging
             if not desired:
                 log_enabled = False
+            if log_enabled:
+                permissions = source.permissions_for(source.guild.me)
+                if not (permissions.view_channel and permissions.read_message_history):
+                    raise ValueError(
+                        "KY BOT needs View Channel and Read Message History in the source channel."
+                    )
             dest = destination if destination is not None else old["destination"] if old else 0
             choices = (
                 types if types is not None else json.loads(old["types"]) if old else list(TYPES)
@@ -139,7 +164,7 @@ class NSFWFlashLogs(commands.Cog):
         enabled="Set age restriction explicitly; leave blank to toggle it",
         logs="Enable or disable text-only flash logging for this channel",
         log_channel="Separate age-restricted staff channel for the flash logs",
-        require_spoilers="Require spoiler tags; remove noncompliant image/video posts and ask members to repost",
+        require_spoilers="Require spoiler tags; remove unspoilered media posts and ask for reposts",
     )
     async def toggle(
         self,
@@ -205,7 +230,7 @@ class Menu(discord.ui.LayoutView):
     def __init__(self, cog, owner, guild, source, notice=None):
         super().__init__(timeout=600)
         self.cog, self.owner, self.guild = cog, owner, guild
-        panel = discord.ui.Container(accent_colour=0xBDC3CA)
+        panel = discord.ui.Container(accent_colour=0xD6E2F3)
         panel.add_item(
             discord.ui.MediaGallery(
                 discord.MediaGalleryItem("attachment://ky_header_nsfw_flash.png")
@@ -263,8 +288,10 @@ class Menu(discord.ui.LayoutView):
             )
             panel.add_item(
                 discord.ui.TextDisplay(
-                    "-# When required, image/video uploads and recognized media links must be spoilered. "
-                    "Unspoilered posts are removed as whole messages and the author is asked to repost. "
+                    "-# When required, image/video uploads and recognized media links "
+                    "must be spoilered. "
+                    "Unspoilered posts are removed as whole messages; "
+                    "the author is asked to repost. "
                     "Media is never downloaded or reposted; these removals are not logged."
                 )
             )
@@ -323,6 +350,7 @@ class Menu(discord.ui.LayoutView):
                 "**PRIVATE ADMIN CONTROLS**\nOnly you can use this menu.", accessory=item
             )
         )
+        group_sections(panel, "nsfw")
         section_dividers(panel)
         panel.add_item(
             discord.ui.MediaGallery(

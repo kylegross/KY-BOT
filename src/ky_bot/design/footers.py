@@ -11,7 +11,7 @@ from ky_bot.design.typography import TAGLINE, TypographyError, text_mask
 
 SIZE = (2176, 320)
 SLOGAN = TAGLINE
-STYLES = ("silver_neon", "gold", "dark_silver")
+STYLES = ("silver_neon", "gold", "dark_silver", "red_iridescent")
 MAX_UPLOAD = 8 * 1024 * 1024
 MAX_PIXELS = 16_000_000
 
@@ -70,7 +70,7 @@ def rectangular_frame(
     from ky_bot.design.collection import COLOURS
 
     if style not in STYLES:
-        raise FooterError("Choose silver neon, gold, or dark silver.")
+        raise FooterError("Choose silver neon, gold, dark silver, or iridescent red.")
     frame = Image.new("RGBA", size)
     width, height = size
     ImageDraw.Draw(frame).rounded_rectangle(
@@ -88,6 +88,7 @@ def metal(mask: Image.Image, style: str, *, sheen: float = 1.0) -> Image.Image:
         "gold": ("#704009", "#e9b64e", "#fff4cf"),
         "dark_silver": ("#030303", "#22201e", "#dededc"),
         "silver_neon": ("#677b99", "#d5e1f0", "#ffffff"),
+        "red_iridescent": ("#240A35", "#961B4A", "#DB8EB4"),
     }
     low, mid, high = palettes[style]
     high = tuple(
@@ -106,7 +107,7 @@ def metal(mask: Image.Image, style: str, *, sheen: float = 1.0) -> Image.Image:
                 break
     ramp.putdata(values)
     colored = ImageOps.colorize(ramp.resize(mask.size), low, high, mid=mid).convert("RGBA")
-    if style == "silver_neon":
+    if style in {"silver_neon", "red_iridescent"}:
         stops = [
             (255, 184, 221),
             (206, 184, 255),
@@ -115,6 +116,16 @@ def metal(mask: Image.Image, style: str, *, sheen: float = 1.0) -> Image.Image:
             (255, 236, 172),
             (255, 184, 221),
         ]
+        if style == "red_iridescent":
+            stops = [
+                (95, 24, 115),
+                (184, 29, 68),
+                (125, 43, 142),
+                (218, 87, 128),
+                (83, 30, 112),
+                (179, 37, 87),
+                (211, 119, 157),
+            ]
         tint = Image.new("RGBA", (mask.width, 1))
         values = []
         for x in range(mask.width):
@@ -155,9 +166,10 @@ def overlay(
     right_icon: bytes | None = None,
     icon_scale: int = 100,
     font_path: Path | None = None,
+    text_color: str | None = None,
 ) -> Image.Image:
     if style not in STYLES:
-        raise FooterError("Choose silver neon, gold, or dark silver.")
+        raise FooterError("Choose silver neon, gold, dark silver, or iridescent red.")
     if not 60 <= icon_scale <= 120:
         raise FooterError("Icon size must be between 60 and 120 percent.")
     result = rectangular_frame(style, SIZE)
@@ -177,13 +189,29 @@ def overlay(
         layer = Image.new("L", SIZE)
         layer.paste(mask, (cx - mask.width // 2, 160 - mask.height // 2))
         result.alpha_composite(metal(layer, style))
+    from ky_bot.design.text_colour import text_colour
+
+    try:
+        text_color = text_colour(text_color)
+    except ValueError as exc:
+        raise FooterError(str(exc)) from None
     if slogan == SLOGAN:
-        result.alpha_composite(asset(f"{style}_slogan.png").convert("RGBA"))
+        lettering = asset(f"{style}_slogan.png").convert("RGBA")
+        if text_color:
+            tinted = Image.new("RGBA", lettering.size, text_color)
+            tinted.putalpha(lettering.getchannel("A"))
+            lettering = tinted
+        result.alpha_composite(lettering)
         return result
     mask = slogan_mask(slogan, font_path)
     layer = Image.new("L", SIZE)
     layer.paste(mask, ((SIZE[0] - mask.width) // 2, (SIZE[1] - mask.height) // 2))
-    result.alpha_composite(metal(layer, style))
+    if text_color:
+        lettering = Image.new("RGBA", SIZE, text_color)
+        lettering.putalpha(layer)
+        result.alpha_composite(lettering)
+    else:
+        result.alpha_composite(metal(layer, style))
     return result
 
 
@@ -223,6 +251,12 @@ def render_footer(
     image.alpha_composite(Image.new("RGBA", image.size, (0, 0, 0, round(255 * dim / 100))))
     result = Image.new("RGBA", SIZE)
     result.alpha_composite(image, (0, 0))
+    from ky_bot.design.text_colour import text_colour
+
+    try:
+        branding["text_color"] = text_colour(branding.get("text_color"))
+    except ValueError as exc:
+        raise FooterError(str(exc)) from None
     result.putalpha(ImageChops.multiply(result.getchannel("A"), capsule()))
     result.alpha_composite(
         centered_overlay(style, SIZE, framed=framed, icon_scale=branding.get("icon_scale", 100))

@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import discord
+
 from ky_bot.confessions.cards import post_card, privacy
 from ky_bot.confessions.command import Confessions, administrator
 from ky_bot.confessions.menus import Admin
@@ -31,7 +32,7 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
     async def test_logging_off_does_not_retain_identifying_author(self):
         post = await self.submit()
         self.assertIsNone(post["author"])
-        self.assertNotIn("123", str(post_card(self.config, post).to_components()))
+        self.assertNotIn("<@123>", str(post_card(self.config, post).to_components()))
         self.assertNotIn(post["author_key"], str(post_card(self.config, post).to_components()))
 
     async def test_approval_names_author_but_public_post_never_does(self):
@@ -39,8 +40,8 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
         post = await self.submit()
         self.assertEqual(post["state"], "pending")
         self.assertEqual(post["author"], 123)
-        self.assertIn("123", str(post_card(self.config, post, staff=True).to_components()))
-        self.assertNotIn("123", str(post_card(self.config, post).to_components()))
+        self.assertIn("<@123>", str(post_card(self.config, post, staff=True).to_components()))
+        self.assertNotIn("<@123>", str(post_card(self.config, post).to_components()))
         self.assertIn("Administrators", privacy(self.config))
         await self.store.transition(post["id"], {"pending"}, "ready")
         await self.store.transition(post["id"], {"ready"}, "publishing")
@@ -220,6 +221,45 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
             self.assertLessEqual(menu.total_children_count, 40, page)
             menu.to_components()
         menu.stop()
+
+    async def test_logs_hub_uses_existing_feature_settings_and_fits(self):
+        from ky_bot.confessions.checklist_logs import ChecklistLogs
+        from ky_bot.confessions.logs import LogMenu
+        from ky_bot.confessions.menus import BanMember
+
+        permissions = discord.Permissions(administrator=True)
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=7),
+            guild_id=1,
+            guild=SimpleNamespace(
+                fetch_member=AsyncMock(return_value=SimpleNamespace(guild_permissions=permissions))
+            ),
+            edit_original_response=AsyncMock(),
+        )
+        feature = SimpleNamespace(open_menu=AsyncMock())
+        parent = SimpleNamespace()
+        cog = SimpleNamespace(bot=SimpleNamespace(get_cog=lambda name: feature))
+        menu = LogMenu(cog, 7, 1, parent)
+        await menu.show(interaction)
+        self.assertLessEqual(menu.total_children_count, 40)
+        self.assertIn("OTHER LOGS", str(menu.to_components()))
+        section = next(
+            child
+            for child in menu.children[0].children
+            if isinstance(child, discord.ui.Section)
+            and child.children[0].content.startswith("**CONFESSIONS**")
+        )
+        await section.accessory.callback(interaction)
+        feature.open_menu.assert_awaited_once_with(interaction, command_center=parent, logs=True)
+        await menu.show(interaction, True)
+        self.assertLessEqual(menu.total_children_count, 40)
+        menu.stop()
+        modal = BanMember(SimpleNamespace())
+        self.assertIsInstance(modal.member, discord.ui.UserSelect)
+        modal.to_dict()
+        picker = ChecklistLogs(SimpleNamespace(), 7, 1)
+        picker.to_components()
+        picker.stop()
 
     def test_invalid_settings(self):
         for changes in (

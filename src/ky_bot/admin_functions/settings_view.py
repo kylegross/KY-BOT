@@ -238,11 +238,6 @@ class SettingsView(discord.ui.LayoutView):
                         "AutoThread",
                     ),
                     ("AUTOREACT", "Add selected emoji reactions to matching posts.", "AutoReact"),
-                    (
-                        "NSFW FLASH LOGS",
-                        "Age restriction and optional text-only channel logs.",
-                        "NSFWFlashLogs",
-                    ),
                 )
             ):
                 if index:
@@ -761,5 +756,7 @@ class WelcomeStyleModal(WelcomeDesignModal):
 
 def settings_files(section: str, design=None):
     return _base_settings_files(section, design) + strip_files(
-        "settings:" + section, (design or {}).get("style", "silver_neon")
+        "settings:" + section,
+        (design or {}).get("style", "silver_neon"),
+        (design or {}).get("text_color"),
     )

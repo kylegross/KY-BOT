@@ -13,6 +13,47 @@ from ky_bot.views.sections import section_dividers
 log = logging.getLogger(__name__)
 
 GUIDES = {
+    "nsfw": (
+        "NSFW FLASH LOGS",
+        (
+            (
+                "AGE RESTRICTION & SPOILERS",
+                "`/nsfw toggle` toggles Discord's Age-Restricted setting in "
+                "the current text channel. Optional channel, enabled, logs, "
+                "log_channel and require_spoilers "
+                "options let administrators configure it directly. Command Center → Logs → "
+                "NSFW Flash Logs offers the same controls. Spoiler enforcement "
+                "removes whole unspoilered "
+                "media posts and asks the author to repost; bot removals are "
+                "suppressed in deletion logs.",
+            ),
+            (
+                "TEXT-ONLY CHANNEL LOGS",
+                "Choose source and separate age-restricted staff log channels, "
+                "then select text/captions, media notices, edit/delete events, "
+                "reaction removals/clears "
+                "or provider GIF links. **Images/videos, filenames, direct media "
+                "URLs and previews are not saved.**",
+            ),
+            (
+                "GROUPING & STORAGE",
+                "One-minute member/conversation summaries update in place; long "
+                "summaries use continuation embeds. KY BOT AutoDelete removals are "
+                "suppressed, including "
+                "VICE's five-minute cleanup timing rule. Posted logs remain in "
+                "Discord. Confirmed delivered "
+                "payload copies are compacted after two minutes; retry payloads, receipts and live "
+                "source snapshots for edits/deletions remain available.",
+            ),
+            (
+                "SERVER-EVENT EXCLUSIONS",
+                "Server Events settings include a channel/category exclusion "
+                "dropdown. Threads inherit parent/category exclusions. This excludes "
+                "server-event logs, "
+                "while separately enabled NSFW Flash Logs keep their own configuration.",
+            ),
+        ),
+    ),
     "requests": (
         "ASK TO DM/FR",
         (
@@ -108,7 +149,8 @@ GUIDES = {
                 "APPROVAL & AUTHOR LOGS",
                 "Channels can require administrator approval. In that "
                 "mode, administrators see the author in the private queue even when ongoing author "
-                "logging is off. Optional author logs also name the sender in a private log channel. "
+                "logging is off. Optional author logs also name the sender "
+                "in a private log channel. "
                 "The confirmation tells you which settings apply before you submit.",
             ),
             (
@@ -120,13 +162,15 @@ GUIDES = {
             (
                 "CHANNEL SETTINGS",
                 "Administrators use Command Center → Confessions to configure "
-                "multiple channels independently: color, uploaded header/footer artwork, panel text, "
+                "multiple channels independently: color, uploaded header/footer artwork, "
+                "panel text, "
                 "replies, reports, role access, cooldown, character limits and confession bans.",
             ),
             (
                 "STICKY PANEL & LOGS",
                 "Sticky settings move only the submission panel after the "
-                "configured number of member messages. Confessions stay in order. Logs → Other Logs "
+                "configured number of member messages. Confessions stay in order. "
+                "Logs → Other Logs "
                 "→ Confessions opens the same per-channel log and administrator-review settings.",
             ),
         ),
@@ -355,7 +399,7 @@ GUIDES = {
             ),
             (
                 "MENU APPEARANCE",
-                "Command Center → General Settings → Menu Appearance manages the shared design "
+                "Command Center → Logs → Menu Appearance manages the shared design "
                 "of KY BOT menus. Preview the selected finishes and apply them together.",
             ),
             (
@@ -415,7 +459,7 @@ class HelpView(discord.ui.LayoutView):
         return self.button(label, navigate)
 
     def show(self, page):
-        if page in {"admin", "embeds", "server"} and not self.administrator:
+        if page in {"admin", "embeds", "server", "nsfw"} and not self.administrator:
             page = "home"
         if page == "automation" and not self.manage_guild:
             page = "home"
@@ -423,7 +467,7 @@ class HelpView(discord.ui.LayoutView):
             page = "home"
         self.page = page
         self.clear_items()
-        panel = discord.ui.Container(accent_colour=0xBDC3CA)
+        panel = discord.ui.Container(accent_colour=0xD6E2F3)
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://ky_header_help.png"))
         )
@@ -475,6 +519,13 @@ class HelpView(discord.ui.LayoutView):
                     )
                 )
             if self.administrator:
+                entries.append(
+                    (
+                        "NSFW FLASH LOGS",
+                        "Age restriction, spoiler policy and private text-only logs.",
+                        "nsfw",
+                    )
+                )
                 entries.append(
                     ("COMMAND CENTER", "Channels, roles, logs and feature settings.", "admin")
                 )
@@ -571,4 +622,4 @@ class HelpView(discord.ui.LayoutView):
 
 
 def help_files():
-    return _base_help_files() + strip_files("help", "dark_silver")
+    return _base_help_files() + strip_files("help", "silver_neon")

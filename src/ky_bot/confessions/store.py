@@ -65,8 +65,11 @@ def defaults():
         cooldown=60,
         max_length=2000,
         title="ANONYMOUS CONFESSION",
-        panel_title="CONFESSIONS",
-        panel_text="Something on your mind? Share it anonymously.",
+        panel_title="GOT A SECRET, A HOT TAKE, OR A THOUGHT YOU CAN'T SAY OUTLOUD?",
+        panel_text=(
+            "Drop it here. Your words get the spotlight—your name stays off the public post."
+        ),
+        submit_label="Spill a secret",
         footer_text="KY BOT · Confessions",
         header=None,
         footer=None,
@@ -102,6 +105,7 @@ def validate(config):
         ("title", 80),
         ("panel_title", 80),
         ("panel_text", 1000),
+        ("submit_label", 80),
         ("footer_text", 200),
     ):
         if not isinstance(result[key], str) or len(result[key]) > limit:

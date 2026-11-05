@@ -761,4 +761,6 @@ class CardFormatting(discord.ui.Modal):
 
 
 def artwork(design, page="main"):
-    return _base_artwork(design, page) + strip_files("leveling", design["style"])
+    return _base_artwork(design, page) + strip_files(
+        "leveling", design["style"], design.get("text_color")
+    )

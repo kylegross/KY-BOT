@@ -67,7 +67,7 @@ class CustomEmbeds(commands.Cog):
         return channel
 
     async def post(self, channel, data, *, message=None, private=False):
-        view, attachments = render(data)
+        view, attachments = await asyncio.to_thread(render, data)
         try:
             if message:
                 return await message.edit(

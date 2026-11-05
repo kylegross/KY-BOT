@@ -5,13 +5,13 @@ import datetime as dt
 import json
 import logging
 import re
+import sqlite3
 import time
 import uuid
 from urllib.parse import urlparse
 
 import discord
 
-RETENTION_SECONDS = 30 * 24 * 60 * 60
 DESTINATION = 0
 DEFAULTS = {}
 TYPES = {
@@ -190,6 +190,21 @@ class ActivityLogs:
             CREATE INDEX IF NOT EXISTS activity_log_batch_started ON activity_log_batches(started);
 
             """)
+        # Explicit event order works on SQLite and PostgreSQL (which has no SQLite rowid).
+        with self.db:
+            if isinstance(self.db, sqlite3.Connection):
+                columns = {
+                    row["name"] for row in self.db.execute("PRAGMA table_info(activity_log_events)")
+                }
+                if "event_order" not in columns:
+                    self.db.execute(
+                        "ALTER TABLE activity_log_events ADD COLUMN event_order BIGINT NOT NULL DEFAULT 0"
+                    )
+                    self.db.execute("UPDATE activity_log_events SET event_order=rowid")
+            else:
+                self.db.execute(
+                    "ALTER TABLE activity_log_events ADD COLUMN IF NOT EXISTS event_order BIGINT NOT NULL DEFAULT 0"
+                )
         # Posted records stay in Discord; retire the old deletion schedule.
         with self.db:
             self.db.execute("DELETE FROM activity_log_retention")
@@ -252,7 +267,7 @@ class ActivityLogs:
         # Mark before deletion so neither flash logs nor generic server logs call this a manual deletion.
         with self.db:
             self.db.execute(
-                "INSERT OR REPLACE INTO activity_log_deletions VALUES (?,?,'pending')",
+                "INSERT OR IGNORE INTO activity_log_deletions VALUES (?,?,'pending')",
                 (message.guild.id, message.id),
             )
         try:
@@ -485,7 +500,8 @@ class ActivityLogs:
                     "INSERT INTO activity_log_batches VALUES (?,?,?,?,?,?)", tuple(batch.values())
                 )
             self.db.execute(
-                "INSERT INTO activity_log_events VALUES (?,?,?)", (token, batch["id"], event)
+                "INSERT INTO activity_log_events(token,batch,body,event_order) VALUES (?,?,?,?)",
+                (token, batch["id"], event, time.time_ns()),
             )
             location = f"Channel: <#{channel}>" if channel else "Server-wide activity"
             header = f"**{safe(s['name'])}** ({actor_label}: `{s['user']}`)\n{location}\n-# One-minute activity window\n\n"
@@ -503,7 +519,8 @@ class ActivityLogs:
             pages = [""]
             limit = 3900 - len(header)
             for entry in self.db.execute(
-                "SELECT body FROM activity_log_events WHERE batch=? ORDER BY rowid", (batch["id"],)
+                "SELECT body FROM activity_log_events WHERE batch=? ORDER BY event_order,token",
+                (batch["id"],),
             ):
                 remaining = entry["body"]
                 if (
@@ -732,14 +749,18 @@ class ActivityLogs:
         )
 
     def begin_deletion(self, m):
-        if not getattr(m, "guild", None) or not self.route(m.guild.id, m.channel.id):
+        if not getattr(m, "guild", None):
             return
         with self.db:
             self.db.execute(
-                "INSERT OR REPLACE INTO activity_log_deletions VALUES (?,?,'pending')",
+                "INSERT OR IGNORE INTO activity_log_deletions VALUES (?,?,'pending')",
                 (m.guild.id, m.id),
             )
-            if not m.author.bot and not getattr(m, "webhook_id", None):
+            if (
+                self.route(m.guild.id, m.channel.id)
+                and not m.author.bot
+                and not getattr(m, "webhook_id", None)
+            ):
                 self.db.execute(
                     "INSERT OR REPLACE INTO activity_log_messages VALUES (?,?,?,?)",
                     (m.guild.id, m.channel.id, m.id, json.dumps(self.prepare_snapshot(m))),
@@ -751,7 +772,7 @@ class ActivityLogs:
         with self.db:
             if not success:
                 self.db.execute(
-                    "DELETE FROM activity_log_deletions WHERE guild=? AND message=?",
+                    "DELETE FROM activity_log_deletions WHERE guild=? AND message=? AND status='pending'",
                     (m.guild.id, m.id),
                 )
                 return

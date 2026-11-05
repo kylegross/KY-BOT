@@ -8,11 +8,16 @@ from PIL import Image, ImageOps
 
 from ky_bot.checklists.artwork import png, title_image
 from ky_bot.design.collection import COLOURS, floral_background
-from ky_bot.design.footers import centered_overlay, read_upload, rectangular_frame
+from ky_bot.design.footers import centered_overlay, metal, read_upload, rectangular_frame
 from ky_bot.design.headers import render_header
 from ky_bot.design.typography import text_mask
 
-FINISHES = {"gold": "Gold", "dark_silver": "Dark silver", "silver_neon": "Multicolor silver"}
+FINISHES = {
+    "gold": "Gold",
+    "dark_silver": "Dark silver",
+    "silver_neon": "Multicolor silver",
+    "red_iridescent": "Iridescent red",
+}
 AUTOMATION_KEYS = ("autodelete", "autothread", "autoreact")
 
 
@@ -31,6 +36,7 @@ def default_profile(key):
         footer_background=None,
         footer_icon=None,
         dim=35,
+        text_color=None,
     )
 
 
@@ -59,7 +65,7 @@ def automation_files(key, profile, names):
     from ky_bot.views.menu_strips import strip_files
 
     return menu_files(profile, profile["title"], key.upper() + " SETTINGS", names) + strip_files(
-        "automation", profile["style"]
+        "automation", profile["style"], profile.get("text_color")
     )
 
 
@@ -82,6 +88,7 @@ def render_menu(profile, title):
         height=height,
         title=profile["title"] or title,
         rotated_divider=profile.get("_rotated_divider", False),
+        text_color=profile.get("text_color"),
     )
     size = (1600, 150)
     background = decode(profile["footer_background"])
@@ -94,8 +101,14 @@ def render_menu(profile, title):
         mask = text_mask(
             profile["footer_text"], role="display", size=52, min_size=24, max_width=1000
         )
-        ink = Image.new("RGBA", mask.size, COLOURS[style])
-        ink.putalpha(mask)
+        from ky_bot.design.text_colour import text_colour
+
+        custom_color = text_colour(profile.get("text_color"))
+        if style == "red_iridescent" and not custom_color:
+            ink = metal(mask, style)
+        else:
+            ink = Image.new("RGBA", mask.size, custom_color or COLOURS[style])
+            ink.putalpha(mask)
         footer.alpha_composite(ink, ((1600 - mask.width) // 2, (150 - mask.height) // 2))
     elif profile["footer_icon"]:
         icon = ImageOps.contain(
@@ -115,7 +128,10 @@ def menu_files(profile, title, heading, names):
     header, footer = render_menu(profile, title)
     return [
         discord.File(io.BytesIO(data), filename=name)
-        for name, data in zip(names, (header, footer, title_image(heading, profile["style"])))
+        for name, data in zip(
+            names,
+            (header, footer, title_image(heading, profile["style"], profile.get("text_color"))),
+        )
     ]
 
 

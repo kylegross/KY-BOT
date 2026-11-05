@@ -5,9 +5,9 @@ import io
 from PIL import Image, ImageOps
 
 from ky_bot.design.collection import COLOURS, floral_background
-from ky_bot.design.footers import centered_overlay, read_upload, rectangular_frame
+from ky_bot.design.footers import centered_overlay, metal, read_upload, rectangular_frame
 from ky_bot.design.headers import render_header
-from ky_bot.design.typography import section_heading_mask, text_mask
+from ky_bot.design.typography import SECTION_HEADING_LEFT, section_heading_mask, text_mask
 
 
 def png(image):
@@ -16,7 +16,7 @@ def png(image):
     return stream.getvalue()
 
 
-def title_image(title, style):
+def title_image(title, style, text_color=None):
     from ky_bot.design.typography import TypographyError
 
     text = title.upper()
@@ -28,10 +28,16 @@ def title_image(title, style):
             if len(text) <= 4:
                 raise
             text = text.rstrip("…")[:-1] + "…"
-    ink = Image.new("RGBA", mask.size, COLOURS[style])
-    ink.putalpha(mask)
+    from ky_bot.design.text_colour import text_colour
+
+    custom_color = text_colour(text_color)
+    if style == "red_iridescent" and not custom_color:
+        ink = metal(mask, style)
+    else:
+        ink = Image.new("RGBA", mask.size, custom_color or COLOURS[style])
+        ink.putalpha(mask)
     label = Image.new("RGBA", (1120, mask.height + 32))
-    label.alpha_composite(ink, (2, 16))
+    label.alpha_composite(ink, (SECTION_HEADING_LEFT, 16))
     return png(label)
 
 
@@ -49,9 +55,12 @@ def board_artwork(board, categories, tasks=None):
         if board["footer_background"]
         else floral_background(style, size)
     )
+    text_color = board.get("_menu_profile", {}).get("text_color")
     if board["footer_text"]:
         mask = text_mask(board["footer_text"], role="display", size=52, min_size=24, max_width=1000)
-        ink = Image.new("RGBA", mask.size, COLOURS[style])
+        from ky_bot.design.text_colour import text_colour
+
+        ink = Image.new("RGBA", mask.size, text_colour(text_color) or COLOURS[style])
         ink.putalpha(mask)
         footer.alpha_composite(ink, ((size[0] - mask.width) // 2, (size[1] - mask.height) // 2))
     elif board["footer_icon"]:
@@ -65,6 +74,7 @@ def board_artwork(board, categories, tasks=None):
     result["checklist_footer.png"] = png(footer)
     if board.get("_menu_profile"):
         from ky_bot.design.menu_design import render_menu
+
         result["checklist_header.png"], result["checklist_footer.png"] = render_menu(
             board["_menu_profile"], board["name"]
         )
@@ -75,9 +85,9 @@ def board_artwork(board, categories, tasks=None):
         entries, _, _ = page_entries(board, tasks, categories)
         visible_names = {name or "Uncategorized" for name, _, _ in entries}
     if visible_names is None or "Uncategorized" in visible_names:
-        result["category_none.png"] = title_image("UNCATEGORIZED", style)
+        result["category_none.png"] = title_image("UNCATEGORIZED", style, text_color)
     for category in categories:
         if visible_names is not None and category["name"] not in visible_names:
             continue
-        result[f"category_{category['id']}.png"] = title_image(category["name"], style)
+        result[f"category_{category['id']}.png"] = title_image(category["name"], style, text_color)
     return result

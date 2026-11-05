@@ -514,7 +514,7 @@ class Menu(discord.ui.LayoutView):
             panel.add_item(
                 discord.ui.TextDisplay(
                     f"Sources: {names}\n-# Only enabled AutoDelete sources can be configured. "
-                    "Images and videos are never retained. Log messages expire after 15 days."
+                    "Images/videos are not saved. Posted logs remain until staff delete them."
                 )
             )
             select = discord.ui.ChannelSelect(

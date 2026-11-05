@@ -1,4 +1,4 @@
-"""Dark silver moderation menus and private review of privileged actions."""
+"""Iridescent silver moderation menus and private review of privileged actions."""
 
 import asyncio
 import io
@@ -7,6 +7,7 @@ from importlib.resources import files
 import discord
 
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.menu_strips import group_sections, strip_files
 from ky_bot.views.sections import section_dividers
 
 from .service import duration_label, parse_duration
@@ -26,7 +27,7 @@ def artwork():
             ("header", "ky_header_moderation.png"),
             ("footer", "ky_footer_moderation.png"),
         )
-    ]
+    ] + strip_files("moderation", "silver_neon")
 
 
 async def display(interaction, view):
@@ -56,7 +57,7 @@ class Panel(discord.ui.LayoutView):
     def __init__(self, owner, guild):
         super().__init__(timeout=300)
         self.owner, self.guild = owner, guild
-        self.panel = discord.ui.Container(accent_colour=0xBDC3CA)
+        self.panel = discord.ui.Container(accent_colour=0xD6E2F3)
         self.panel.add_item(
             discord.ui.MediaGallery(
                 discord.MediaGalleryItem("attachment://ky_header_moderation.png")
@@ -71,6 +72,7 @@ class Panel(discord.ui.LayoutView):
         self.panel.add_item(discord.ui.Section(value, accessory=control))
 
     def finish(self):
+        group_sections(self.panel, "moderation")
         section_dividers(self.panel)
         self.panel.add_item(
             discord.ui.MediaGallery(

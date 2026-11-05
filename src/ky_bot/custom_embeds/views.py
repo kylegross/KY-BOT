@@ -10,7 +10,17 @@ from ky_bot.errors import report_error, send_private
 from ky_bot.views.menu_strips import group_sections, strip_files
 from ky_bot.views.sections import section_dividers
 
-from .model import FIELD_STYLES, PRESETS, STYLES, color, image_upload, styled, validate
+from .model import (
+    FIELD_STYLES,
+    MAX_SECTIONS,
+    PRESETS,
+    STYLES,
+    color,
+    defaults,
+    image_upload,
+    styled,
+    validate,
+)
 
 
 def safe(value):
@@ -31,7 +41,7 @@ def _base_editor_artwork():
 
 
 async def editor_display(i, view):
-    attachments = editor_artwork()
+    attachments = editor_artwork(view)
     try:
         return await i.edit_original_response(
             content=None,
@@ -64,7 +74,8 @@ class Base(discord.ui.LayoutView):
     def __init__(self, owner, guild, *, timeout=600):
         super().__init__(timeout=timeout)
         self.owner, self.guild = owner, guild
-        self.panel = discord.ui.Container(accent_colour=0xBDC3CA)
+        self.strip_menu = "custom_embeds:library"
+        self.panel = discord.ui.Container(accent_colour=0xD6E2F3)
         self.panel.add_item(
             discord.ui.MediaGallery(
                 discord.MediaGalleryItem("attachment://ky_header_create_embed.png")
@@ -79,6 +90,7 @@ class Base(discord.ui.LayoutView):
         self.panel.add_item(discord.ui.Section(text, accessory=control))
 
     def finish(self):
+        group_sections(self.panel, self.strip_menu)
         section_dividers(self.panel)
         self.panel.add_item(
             discord.ui.MediaGallery(
@@ -113,7 +125,7 @@ class Library(Base):
             self.text(notice)
         page = min(max(0, page), max(0, (len(rows) - 1) // 25))
         self.text(
-            "**SAVED EMBEDS**\nCreate a custom channel post or open a saved embed. "
+            "Create a custom channel post or open a saved embed. "
             "Editing and previews open privately; publishing is a separate action."
         )
 
@@ -125,6 +137,27 @@ class Library(Base):
         self.row(
             "**CREATE EMBED**\nImages, formatted text, custom color and optional sticky delivery.",
             button("Create new", create),
+        )
+
+        async def reload(i, offset=0):
+            await i.response.defer()
+            view = Library(
+                cog, owner, guild, await cog.store.listing(guild), parent=parent, page=page + offset
+            )
+            if parent and parent.panel_manager:
+                attachments = editor_artwork(view)
+                try:
+                    await parent.panel_manager.edit(parent, i, view, attachments)
+                finally:
+                    for attachment in attachments:
+                        attachment.close()
+            else:
+                await editor_display(i, view)
+            self.stop()
+
+        self.row(
+            "**SAVED EMBEDS**\nRefresh after creating or publishing an embed.",
+            button("Refresh", reload),
         )
         if rows:
             select = discord.ui.Select(
@@ -154,32 +187,12 @@ class Library(Base):
         else:
             self.text("No saved embeds yet.")
 
-        async def reload(i, offset=0):
-            await i.response.defer()
-            view = Library(
-                cog, owner, guild, await cog.store.listing(guild), parent=parent, page=page + offset
-            )
-            if parent and parent.panel_manager:
-                attachments = editor_artwork()
-                try:
-                    await parent.panel_manager.edit(parent, i, view, attachments)
-                finally:
-                    for attachment in attachments:
-                        attachment.close()
-            else:
-                await editor_display(i, view)
-            self.stop()
-
         if len(rows) > 25:
             previous = button("Previous", lambda i: reload(i, -1))
             previous.disabled = page == 0
             following = button("Next", lambda i: reload(i, 1))
             following.disabled = (page + 1) * 25 >= len(rows)
             self.panel.add_item(discord.ui.ActionRow(previous, following))
-        self.row(
-            "**SAVED EMBEDS**\nRefresh after creating or publishing an embed.",
-            button("Refresh", reload),
-        )
 
         async def home(i):
             await i.response.defer()
@@ -218,6 +231,7 @@ class Session:
         self.row = None
         self.page = "main"
         self.style = "bold"
+        self.section_index = 0
         self.view = None
 
     async def allowed(self, i):
@@ -238,6 +252,7 @@ class Session:
 
     async def show(self, i, page="main", notice=None):
         self.row = await self.cog.store.get(self.guild, self.ident)
+        self.row["draft"] = defaults() | self.row["draft"]
         self.page = page
         view = Editor(self, notice)
         await editor_display(i, view)
@@ -256,6 +271,9 @@ class EditModal(discord.ui.Modal):
                 "footer_text": "Edit footer text",
                 "name": "Saved draft name",
                 "color": "Custom highlight color",
+                "text_color": "Decorative text color",
+                "section_add": "Add section",
+                "section_edit": "Edit section",
                 "count": "Sticky message count",
                 "format": "Add styled text to message",
                 "header": "Upload header image",
@@ -264,8 +282,11 @@ class EditModal(discord.ui.Modal):
         )
         self.session, self.mode = session, mode
         self.revision = session.row["revision"]
+        self.section_index = session.section_index
         self.style = session.style
         draft = session.row["draft"]
+        sections = draft.get("sections", [])
+        section = sections[min(self.section_index, len(sections) - 1)] if sections else {}
         self.fields = {}
         self.upload = None
         if mode in {"header", "footer"}:
@@ -290,6 +311,23 @@ class EditModal(discord.ui.Modal):
                 ("title", "Title (optional)", draft["title"], 200, False),
                 ("body", "Message · Discord formatting supported", draft["body"], 3500, False),
                 ("footer_text", "Footer text (optional)", draft["footer_text"], 200, False),
+            ],
+            "text_color": [
+                (
+                    "text_color",
+                    "Text color · #RRGGBB (blank follows finish)",
+                    draft.get("text_color") or "",
+                    7,
+                    False,
+                )
+            ],
+            "section_add": [
+                ("heading", "Decorative section heading", "", 80, True),
+                ("body", "Section message (optional)", "", 1500, False),
+            ],
+            "section_edit": [
+                ("heading", "Decorative section heading", section.get("heading", ""), 80, True),
+                ("body", "Section message (optional)", section.get("body", ""), 1500, False),
             ],
             "color": [("color", "Highlight color · #RRGGBB", draft["color"], 7, True)],
             "count": [
@@ -330,7 +368,16 @@ class EditModal(discord.ui.Modal):
                 changes = {self.mode: encoded}
             else:
                 changes = {key: field.value for key, field in self.fields.items()}
-                if self.mode == "color":
+                if self.mode in {"section_add", "section_edit"}:
+                    sections = [dict(section) for section in s.row["draft"].get("sections", [])]
+                    if self.mode == "section_add":
+                        sections.append(changes)
+                    elif self.section_index < len(sections):
+                        sections[self.section_index] = changes
+                    else:
+                        raise ValueError("This section changed. Reopen the section editor.")
+                    changes = dict(sections=sections)
+                elif self.mode == "color":
                     changes["color"] = color(changes["color"])
                 elif self.mode == "count":
                     try:
@@ -358,6 +405,7 @@ class Editor(Base):
         self.session = s
         row, data, page = s.row, s.row["draft"], s.page
         revision = row["revision"]
+        self.strip_menu = "custom_embeds" if page == "main" else f"custom_embeds:{page}"
         self.text(
             f"**{safe(data['name'])}**\nPrivate draft · Changes go live only when you publish."
         )
@@ -397,9 +445,9 @@ class Editor(Base):
                     "content",
                 ),
                 (
-                    "HIGHLIGHT COLOR",
-                    "Choose a preset or custom highlight color.",
-                    "style",
+                    "FORMATTING",
+                    "Text color, decorative headings, sections and highlight color.",
+                    "formatting",
                 ),
                 ("STICKY DELIVERY", "Choose how often this post moves to the bottom.", "delivery"),
                 (
@@ -469,6 +517,95 @@ class Editor(Base):
                 value = safe(data[key][:160]) if data[key] else "No text yet"
                 self.row(f"**{label}**\n{value}", button("Edit " + label.lower(), modal(key)))
             self.text("-# You can also enter Discord Markdown directly. Mentions never ping.")
+        elif page == "formatting":
+            from ky_bot.design.menu_design import FINISHES
+
+            self.text(
+                "**DECORATIVE TEXT**\nUse the Decorative heading style for a title or "
+                "footer, or add section headings. Ordinary message text keeps its Discord style."
+            )
+            self.row(
+                "**TEXT COLOR**\n" + (data.get("text_color") or "Follow finish"),
+                button("Text color", modal("text_color")),
+            )
+            finish = discord.ui.Select(
+                placeholder="Decorative text finish",
+                options=[
+                    discord.SelectOption(
+                        label=label,
+                        value=key,
+                        default=key == data.get("text_finish", "dark_silver"),
+                    )
+                    for key, label in FINISHES.items()
+                ],
+            )
+
+            async def choose_finish(i):
+                await i.response.defer()
+                await s.save(i, revision, text_finish=finish.values[0])
+
+            finish.callback = choose_finish
+            self.panel.add_item(discord.ui.ActionRow(finish))
+            self.row(
+                "**HIGHLIGHT COLOR**\nSet the accent beside the message.",
+                button("Highlight color", go("style")),
+            )
+            self.row(
+                "**TITLE & FOOTER**\nChoose Decorative heading in the text styles.",
+                button("Text styles", go("content")),
+            )
+            self.row(
+                "**SECTIONS**\nEach section can have a decorative heading and message.",
+                button("Manage sections", go("sections")),
+            )
+        elif page == "sections":
+            sections = data.get("sections", [])
+            self.text(
+                f"**SECTIONS**\n{len(sections)} of {MAX_SECTIONS} sections. "
+                "Shown below the main message, in the order you add them."
+            )
+            add = button("+ Add section", modal("section_add"))
+            add.disabled = len(sections) >= MAX_SECTIONS
+            self.panel.add_item(discord.ui.ActionRow(add))
+            if sections:
+                index = min(s.section_index, len(sections) - 1)
+                s.section_index = index
+                select = discord.ui.Select(
+                    placeholder="Choose a section to edit",
+                    options=[
+                        discord.SelectOption(
+                            label=f"{n + 1}. {section['heading']}"[:100],
+                            value=str(n),
+                            default=n == index,
+                        )
+                        for n, section in enumerate(sections)
+                    ],
+                )
+
+                async def choose_section(i):
+                    s.section_index = int(select.values[0])
+                    await i.response.defer()
+                    await s.show(i, "sections")
+
+                select.callback = choose_section
+                self.panel.add_item(discord.ui.ActionRow(select))
+                self.row(
+                    "**SELECTED SECTION**\n" + safe(sections[index]["heading"]),
+                    button("Edit section", modal("section_edit")),
+                )
+
+                async def remove_section(i):
+                    await i.response.defer()
+                    await s.save(i, revision, sections=sections[:index] + sections[index + 1 :])
+
+                self.row(
+                    "**REMOVE SECTION**\nRemove this heading and its message from the draft.",
+                    button("Remove section", remove_section),
+                )
+            self.row(
+                "**FORMATTING**\nSet the finish and color used by decorative headings.",
+                button("Formatting", go("formatting")),
+            )
         elif page == "images":
             for key, title in (("header", "HEADER IMAGE"), ("footer", "FOOTER IMAGE")):
                 self.row(
@@ -598,8 +735,6 @@ class Editor(Base):
                 "**SAVED EMBEDS**\n-# Your drafts are saved automatically.",
                 button("All embeds", library),
             )
-        if page == "main":
-            group_sections(self.panel, "custom_embeds")
         self.finish()
 
     def channel_picker(self, s, data, revision):
@@ -625,6 +760,7 @@ class DeleteConfirm(Base):
     def __init__(self, s, revision):
         super().__init__(s.owner, s.guild)
         self.session, self.revision = s, revision
+        self.strip_menu = "custom_embeds:delete"
         self.used = False
         self.text(
             "**DELETE EMBED**\nRemove the saved draft and its published copy. "
@@ -676,5 +812,6 @@ class DeleteConfirm(Base):
         return await self.session.allowed(i)
 
 
-def editor_artwork():
-    return _base_editor_artwork() + strip_files("custom_embeds", "dark_silver")
+def editor_artwork(view=None):
+    menu = view.strip_menu if view is not None else "custom_embeds:library"
+    return _base_editor_artwork() + strip_files(menu, "silver_neon")

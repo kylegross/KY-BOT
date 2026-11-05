@@ -7,6 +7,11 @@ from importlib.resources import files
 import discord
 
 GROUPS = {
+    "moderation": (("MEMBER MODERATION", ("KICK A MEMBER", "BAN A MEMBER", "TIME OUT A MEMBER")),),
+    "nsfw": (
+        ("CHANNEL & DELIVERY", ("SOURCE CHANNEL", "AGE-RESTRICTED CHANNEL", "SPOILERED MEDIA")),
+        ("LOGGING & PRIVACY", ("STAFF LOG CHANNEL", "FLASH LOGGING", "WHAT IS LOGGED")),
+    ),
     "settings:overview": (
         ("SERVER SETUP", ("COMMAND CENTER CHANNEL", "WELCOME EXPERIENCE")),
         ("ADMINISTRATION", ("MODERATION", "LOGS")),
@@ -14,7 +19,7 @@ GROUPS = {
         ("COMMUNITY", ("LEVELING", "CONFESSIONS", "ASK TO DM/FR")),
     ),
     "settings:general": (
-        ("AUTOMATION", ("AUTODELETE", "AUTOTHREAD", "AUTOREACT", "NSFW FLASH LOGS")),
+        ("AUTOMATION", ("AUTODELETE", "AUTOTHREAD", "AUTOREACT")),
         ("MENU APPEARANCE", ("MENU APPEARANCE",)),
     ),
     "settings:welcome": (
@@ -33,11 +38,50 @@ GROUPS = {
     ),
     "custom_embeds": (
         ("SETUP", ("DESTINATION CHANNEL", "DRAFT NAME")),
-        ("DESIGN", ("IMAGES", "CONTENT & TEXT STYLES", "HIGHLIGHT COLOR")),
+        (
+            "DESIGN",
+            ("IMAGES", "CONTENT & TEXT STYLES", "HIGHLIGHT COLOR", "FORMATTING", "SECTIONS"),
+        ),
         ("DELIVERY", ("STICKY DELIVERY",)),
         ("REVIEW & PUBLISH", ("PREVIEW & PUBLISH",)),
         ("SAVED EMBEDS", ("SAVED EMBEDS",)),
     ),
+    "custom_embeds:library": (
+        ("CREATE EMBED", ("CREATE EMBED",)),
+        ("SAVED EMBEDS", ("SAVED EMBEDS",)),
+    ),
+    "custom_embeds:content": (
+        ("ADD STYLED TEXT", ("ADD STYLED TEXT", "NEW PASSAGE")),
+        ("TITLE", ("TITLE STYLE", "TITLE")),
+        ("MESSAGE", ("MESSAGE STYLE", "MESSAGE")),
+        ("FOOTER TEXT", ("FOOTER TEXT STYLE", "FOOTER TEXT")),
+    ),
+    "custom_embeds:formatting": (
+        ("DESIGN", ("DECORATIVE TEXT", "TEXT COLOR", "HIGHLIGHT COLOR", "TITLE & FOOTER")),
+        ("SECTIONS", ("SECTIONS",)),
+    ),
+    "custom_embeds:sections": (
+        ("SECTIONS", ("SECTIONS", "SELECTED SECTION", "REMOVE SECTION")),
+        ("DESIGN", ("FORMATTING",)),
+    ),
+    "custom_embeds:images": (
+        ("HEADER IMAGE", ("HEADER IMAGE", "REMOVE HEADER IMAGE")),
+        ("FOOTER IMAGE", ("FOOTER IMAGE", "REMOVE FOOTER IMAGE")),
+    ),
+    "custom_embeds:style": (("DESIGN", ("HIGHLIGHT COLOR",)),),
+    "custom_embeds:delivery": (
+        ("DESTINATION", ("DESTINATION CHANNEL",)),
+        ("DELIVERY", ("STICKY MESSAGE", "MESSAGE COUNT")),
+    ),
+    "custom_embeds:channel": (
+        ("DESTINATION", ("DESTINATION CHANNEL",)),
+        ("DELIVERY", ("STICKY MESSAGE", "MESSAGE COUNT")),
+    ),
+    "custom_embeds:publish": (
+        ("REVIEW & PUBLISH", ("PRIVATE PREVIEW", "PUBLISH / UPDATE")),
+        ("DELETE EMBED", ("DELETE EMBED",)),
+    ),
+    "custom_embeds:delete": (("DELETE EMBED", ("CONFIRM DELETION", "KEEP EMBED")),),
     "askdm": (
         ("REQUEST SETTINGS", ("REQUESTS",)),
         ("CHANNELS & LOGGING", ("REQUEST CHANNEL", "STAFF LOG CHANNEL")),
@@ -56,7 +100,10 @@ GROUPS = {
                 "QUICK REFERENCE",
             ),
         ),
-        ("STAFF GUIDES", ("MEMBER MODERATION", "COMMAND CENTER", "AUTOMATION & SETUP")),
+        (
+            "STAFF GUIDES",
+            ("MEMBER MODERATION", "COMMAND CENTER", "NSFW FLASH LOGS", "AUTOMATION & SETUP"),
+        ),
     ),
     "automation": (
         ("DESTINATION", ("DESTINATION",)),
@@ -77,9 +124,18 @@ def filename(title):
     return "ky_strip_" + re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_") + ".png"
 
 
-def strip_files(menu, style="dark_silver"):
-    if style not in {"dark_silver", "gold", "silver_neon"}:
+def strip_files(menu, style="dark_silver", text_color=None):
+    if style not in {"dark_silver", "gold", "silver_neon", "red_iridescent"}:
         raise ValueError("Choose a supported menu finish.")
+    if text_color:
+        from ky_bot.checklists.artwork import title_image
+
+        return [
+            discord.File(
+                io.BytesIO(title_image(title, style, text_color)), filename=filename(title)
+            )
+            for title, _ in GROUPS.get(menu, ())
+        ]
     return [
         discord.File(
             io.BytesIO(
@@ -151,6 +207,11 @@ def group_sections(panel, menu):
         add_strip(panel, title)
         for label in labels:
             for child in blocks.get(label, []):
+                if heading(child) == title:
+                    text = child.children[0] if isinstance(child, discord.ui.Section) else child
+                    _, separator, body = text.content.partition("\n")
+                    if separator and body.strip():
+                        text.content = body
                 panel.add_item(child)
     if tail:
         for child in tail:

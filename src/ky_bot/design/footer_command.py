@@ -30,11 +30,13 @@ class Footers(commands.Cog):
             app_commands.Choice(name="Iridescent silver · rainbow tint", value="silver_neon"),
             app_commands.Choice(name="Metallic gold", value="gold"),
             app_commands.Choice(name="Dark metallic silver", value="dark_silver"),
+            app_commands.Choice(name="Iridescent red · ruby sheen", value="red_iridescent"),
         ]
     )
     @app_commands.describe(
         background="Upload your background: PNG, JPEG or WebP, up to 8 MB.",
         style="Choose the frame, text and icon finish.",
+        text_color="Optional lettering color, such as #39DCCB; blank follows the finish.",
         slogan="Optional custom slogan (requires the owner's installed Vonca font).",
         left_icon="Transparent logo, tinted to match the frame; used on both sides by default.",
         right_icon="Optional separate transparent logo for the right side.",
@@ -55,6 +57,7 @@ class Footers(commands.Cog):
         crop_y: app_commands.Range[int, 0, 100] = 50,
         dim: app_commands.Range[int, 0, 80] = 20,
         icon_scale: app_commands.Range[int, 60, 120] = 100,
+        text_color: str | None = None,
     ) -> None:
         attachments = [a for a in (background, left_icon, right_icon) if a is not None]
         if any(a.size > MAX_UPLOAD for a in attachments):
@@ -86,6 +89,7 @@ class Footers(commands.Cog):
                     dim=dim,
                     icon_scale=icon_scale,
                     font_path=self.bot.settings.footer_font_path,
+                    text_color=text_color,
                 )
             except FooterError as error:
                 await interaction.followup.send(str(error), ephemeral=True)

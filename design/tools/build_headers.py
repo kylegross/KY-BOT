@@ -44,7 +44,12 @@ def main():
             icon.putalpha(alpha)
         ImageDraw.Draw(brand).rounded_rectangle((100, 68, 370, 148), radius=16, fill=plate)
         brand.alpha_composite(icon, (118 + (50 - icon.width) // 2, 83 + (50 - icon.height) // 2))
-        colour = {"gold": "#e8c47c", "silver_neon": "#dbe7ef", "dark_silver": "#BDC3CA"}[style]
+        colour = {
+            "gold": "#e8c47c",
+            "silver_neon": "#dbe7ef",
+            "dark_silver": "#BDC3CA",
+            "red_iridescent": "#BC344F",
+        }[style]
         text = Image.new("RGBA", lettering.size, colour)
         text.putalpha(lettering)
         brand.alpha_composite(text, (184, 108 - lettering.height // 2))
@@ -105,9 +110,7 @@ def main():
         for path in (OUTPUT / "templates").glob("*.png"):
             bundle.write(path, path.name)
 
-    print(
-        "Built standard and compact versions of three floral finishes and six reusable templates."
-    )
+    print("Built standard and compact versions of four floral finishes and six reusable templates.")
 
 
 if __name__ == "__main__":

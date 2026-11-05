@@ -162,6 +162,10 @@ class AskDM(commands.Cog):
             _, profiles = await service.repository.get_designs(guild_id)
             if "askdm" in profiles:
                 profile = profile_for(profiles, "askdm")
+        if isinstance(view, Admin):
+            from ky_bot.design.menu_design import default_profile
+
+            profile = default_profile("settings:askdm")
         if profile is not None and view is not None:
             from ky_bot.design.collection import COLOURS
 

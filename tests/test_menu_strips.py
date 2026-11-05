@@ -120,3 +120,23 @@ class MenuStripTests(unittest.IsolatedAsyncioTestCase):
                 finally:
                     for file in attachments:
                         file.close()
+
+    async def test_repeated_category_labels_are_removed_without_losing_controls(self):
+        for menu, title in (
+            ("settings:welcome", "APPEARANCE"),
+            ("custom_embeds:images", "HEADER IMAGE"),
+            ("askdm", "MEMBER PANEL"),
+        ):
+            with self.subTest(menu=menu):
+                panel = discord.ui.Container()
+                control = discord.ui.Button(label="Edit")
+                control.callback = AsyncMock()
+                section = discord.ui.Section(
+                    "**" + title + "**\nKeep this description.", accessory=control
+                )
+                panel.add_item(section)
+                group_sections(panel, menu)
+                self.assertEqual(section.children[0].content, "Keep this description.")
+                self.assertIs(section.accessory, control)
+                await control.callback("interaction")
+                control.callback.assert_awaited_once_with("interaction")
