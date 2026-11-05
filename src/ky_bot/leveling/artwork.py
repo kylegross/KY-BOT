@@ -76,6 +76,7 @@ def level_card(name, level, date, avatar=None, settings=None):
         "#D6E2F3",
         820,
         metallic="silver_neon",
+        height=max(1, height - cy - 28),
     )
     image.alpha_composite(name_layer, (center - name_layer.width // 2, cy + 8))
     return png(image)

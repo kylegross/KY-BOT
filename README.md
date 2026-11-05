@@ -793,3 +793,22 @@ dividers. Back/Home/Close remain separate navigation. Strip images are packaged
 in all three finishes, with no runtime font dependency. Existing persistent
 panels use the new layout when refreshed. No command sync is needed for this
 appearance update.
+
+
+### Emoji-safe display names on cards
+
+Level-up and welcome cards use the VICE-style grapheme-aware text renderer.
+VONCA remains the primary typeface, with packaged Noto fallback fonts for special
+letters/symbols and Noto Color Emoji for joined emoji, skin tones, flags and keycaps.
+Emoji keep their original colors while the level-up name text keeps its metallic
+finish. Wrapping and avatar initials preserve whole graphemes. Long names are
+fitted inside the name area rather than clipped. No Discord/CDN request is needed
+to render a Unicode emoji. Server names and welcome message text use the same
+fallback handling. Unsupported private-use glyphs still require a font containing
+those glyphs; the full display name remains in the Discord announcement.
+
+The redistributable Noto fonts and licenses are packaged under design/assets/fonts,
+with an explicit Git ignore exception for those public TTF files. The licensed
+VONCA font directory stays excluded. Install updated dependencies or rebuild the
+Docker image after deployment; Docker also installs Noto core/CJK fonts for wider
+script coverage. No slash command sync is needed.

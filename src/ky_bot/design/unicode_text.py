@@ -11,7 +11,7 @@ from threading import RLock
 import regex
 import uharfbuzz as hb
 from fontTools.ttLib import TTFont, TTLibError
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 
 _emoji_lock = RLock()
 
@@ -226,47 +226,16 @@ def text_image(text, size, primary, color, stroke_width=0, stroke_fill=None, met
     return result.crop(bounds) if bounds else Image.new("RGBA", (max(1, round(advance)), 1))
 
 
-def draw_label(
-    im,
-    text,
-    x,
-    y,
-    size,
-    font_factory,
-    style="serif",
-    color="#FFF9EF",
-    glow=None,
-    width=None,
-    stroke_width=0,
-    stroke_fill=None,
-):
-    primary = str(font_factory(size, style).path)
-    while width and measure(text, size, primary) > max(1, width - 2 * stroke_width) and size > 14:
-        size -= 1
-    tile = text_image(text, size, primary, color, stroke_width, stroke_fill)
-    if width and tile.width > width:
-        tile = tile.resize(
-            (int(width), max(1, round(tile.height * width / tile.width))), Image.Resampling.LANCZOS
-        )
-    x = round(x - tile.width / 2)
-    y = round(y)
-    if glow:
-        layer = Image.new("RGBA", im.size)
-        tint = Image.new("RGBA", tile.size, glow)
-        tint.putalpha(tile.getchannel("A"))
-        layer.alpha_composite(tint, (x, y))
-        im.alpha_composite(layer.filter(ImageFilter.GaussianBlur(8)))
-    im.alpha_composite(tile, (x, y))
-
-
-def fit_text(text, size, primary, color, width, *, metallic=None):
+def fit_text(text, size, primary, color, width, *, metallic=None, height=None):
     """Render the complete name to fit, without clipping a grapheme or flattening emoji color."""
     while measure(text, size, primary) > width and size > 18:
         size = max(18, size - 2)
     tile = text_image(text, size, primary, color, metallic=metallic)
-    if tile.width > width:
+    scale = min(1.0, width / tile.width, height / tile.height if height else 1.0)
+    if scale < 1:
         tile = tile.resize(
-            (int(width), max(1, round(tile.height * width / tile.width))), Image.Resampling.LANCZOS
+            (max(1, round(tile.width * scale)), max(1, round(tile.height * scale))),
+            Image.Resampling.LANCZOS,
         )
     return tile
 
