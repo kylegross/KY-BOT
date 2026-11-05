@@ -7,6 +7,7 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from math import isqrt
+from string import Formatter
 
 SCHEMA = (
     "CREATE TABLE IF NOT EXISTS leveling_settings (guild BIGINT PRIMARY KEY, "
@@ -47,6 +48,11 @@ def defaults():
         excluded_roles=[],
         announcement_channel=None,
         rewards={},
+        card_title="LEVEL UP",
+        announcement_text="{mention} just leveled up!",
+        card_height=340,
+        title_size=66,
+        name_size=92,
     )
 
 
@@ -54,6 +60,30 @@ def validate(settings):
     result = defaults() | settings
     if set(result) != set(defaults()):
         raise ValueError("Unknown leveling setting.")
+    for key, limit in (("card_title", 40), ("announcement_text", 500)):
+        value = result[key]
+        if (
+            not isinstance(value, str)
+            or not value.strip()
+            or len(value) > limit
+            or any(ord(c) < 32 for c in value)
+        ):
+            raise ValueError(f"{key.replace('_', ' ')}: use 1–{limit} characters on one line.")
+    try:
+        for _, field, spec, conversion in Formatter().parse(result["announcement_text"]):
+            if field is not None and (
+                field not in ("mention", "name", "level") or spec or conversion
+            ):
+                raise ValueError("Message placeholders: {mention}, {name}, {level} only.")
+    except ValueError:
+        raise ValueError("Message placeholders: {mention}, {name}, {level} only.") from None
+    for key, low, high in (
+        ("card_height", 300, 420),
+        ("title_size", 40, 80),
+        ("name_size", 60, 110),
+    ):
+        if type(result[key]) is not int or not low <= result[key] <= high:
+            raise ValueError(f"{key.replace('_', ' ')}: use {low}–{high}.")
     for key in ("enabled", "message_enabled", "voice_enabled"):
         if type(result[key]) is not bool:
             raise ValueError("Choose on or off.")
@@ -225,14 +255,23 @@ class LevelStore:
             await self.execute(
                 "UPDATE leveling_members SET xp=?,message_at=?,voice_at=?,source=?,fingerprint=? "
                 "WHERE guild=? AND member=?",
-                (new_xp, message_at, voice_at, previous_source, previous_text, guild, member),
+                (
+                    new_xp,
+                    message_at,
+                    voice_at,
+                    previous_source,
+                    previous_text,
+                    guild,
+                    member,
+                ),
             )
             return dict(xp=new_xp, before=level_for(xp), level=level_for(new_xp), config=config)
 
     async def member_xp(self, guild, member):
         async with self.lock:
             row = await self.execute(
-                "SELECT xp FROM leveling_members WHERE guild=? AND member=?", (guild, member)
+                "SELECT xp FROM leveling_members WHERE guild=? AND member=?",
+                (guild, member),
             )
             return row[0] if row else 0
 
@@ -281,7 +320,17 @@ class LevelStore:
                     "INSERT INTO leveling_adjustments "
                     "(guild,operation,actor,member,action,value,before_xp,after_xp,created) "
                     "VALUES (?,?,?,?,?,?,?,?,?)",
-                    (guild, operation, actor, member, action, value, before, after, time.time()),
+                    (
+                        guild,
+                        operation,
+                        actor,
+                        member,
+                        action,
+                        value,
+                        before,
+                        after,
+                        time.time(),
+                    ),
                 )
             return dict(
                 xp=after,

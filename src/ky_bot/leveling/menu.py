@@ -8,7 +8,7 @@ from ky_bot.checklists.board import safe
 from ky_bot.design.collection import COLOURS
 from ky_bot.design.menu_design import menu_files, profile_for
 from ky_bot.errors import report_error, send_private
-from ky_bot.leveling.artwork import card_file
+from ky_bot.leveling.artwork import announcement, card_file
 from ky_bot.leveling.service import role_allowed
 from ky_bot.leveling.store import MAX_LEVEL, MAX_XP, defaults, level_for, threshold
 from ky_bot.views.private_style import private_heading
@@ -260,6 +260,8 @@ class Menu(discord.ui.LayoutView):
                         modal = (
                             MemberAdjustment(s, action[0].split(":")[1])
                             if action[0].startswith("member:")
+                            else CardFormatting(s)
+                            if action[0] == "format"
                             else Numbers(s, action[0])
                         )
                         await interaction.response.send_modal(modal)
@@ -304,15 +306,30 @@ class Menu(discord.ui.LayoutView):
                 "Manage",
                 go("exclusions"),
             )
-            row("ROLE REWARDS", "Optional roles earned at chosen levels.", "Manage", go("rewards"))
+            row(
+                "ROLE REWARDS",
+                "Optional roles earned at chosen levels.",
+                "Manage",
+                go("rewards"),
+            )
             row(
                 "LEVEL-UP MESSAGES",
                 "Wide silver card · No role announcements.",
                 "Manage",
                 go("announcements"),
             )
-            row("LEADERBOARD", "Member rankings for this server.", "View", go("leaderboard"))
-            row("MEMBER XP", "Add or remove XP, or set a member's level.", "Manage", go("members"))
+            row(
+                "LEADERBOARD",
+                "Member rankings for this server.",
+                "View",
+                go("leaderboard"),
+            )
+            row(
+                "MEMBER XP",
+                "Add or remove XP, or set a member's level.",
+                "Manage",
+                go("members"),
+            )
             row(
                 "TURN ON / OFF",
                 "XP earning is "
@@ -358,7 +375,13 @@ class Menu(discord.ui.LayoutView):
                     "level",
                 ),
             ):
-                row(title, description, label, ("member:" + action,), disabled=s.member_id is None)
+                row(
+                    title,
+                    description,
+                    label,
+                    ("member:" + action,),
+                    disabled=s.member_id is None,
+                )
             panel.add_item(
                 discord.ui.TextDisplay(
                     "-# Admin corrections work while earning is paused. Existing reward roles "
@@ -415,7 +438,12 @@ class Menu(discord.ui.LayoutView):
                     "-# Channel exclusions also cover their threads. Changes affect future XP only."
                 )
             )
-        elif page in ("exclude_channels", "exclude_roles", "destination", "reward_role"):
+        elif page in (
+            "exclude_channels",
+            "exclude_roles",
+            "destination",
+            "reward_role",
+        ):
             is_role = page in ("exclude_roles", "reward_role")
             exclusion = page.startswith("exclude_")
             key = "excluded_roles" if is_role else "excluded_channels"
@@ -498,7 +526,10 @@ class Menu(discord.ui.LayoutView):
                 )
             )
             row(
-                "ADD / UPDATE REWARD", "Choose the level, then its role.", "Add reward", ("reward",)
+                "ADD / UPDATE REWARD",
+                "Choose the level, then its role.",
+                "Add reward",
+                ("reward",),
             )
             row(
                 "REMOVE REWARD",
@@ -556,12 +587,19 @@ class Menu(discord.ui.LayoutView):
                 disabled=destination is None,
             )
 
+            row(
+                "FORMATTING",
+                "Edit heading, message, card height and text sizes.",
+                "Edit formatting",
+                ("format",),
+            )
+
             async def preview(interaction):
-                image = await s.cog.service.render_card(interaction.user, 10)
+                image = await s.cog.service.render_card(interaction.user, 1)
                 upload = card_file(image)
                 try:
                     await interaction.followup.send(
-                        content=f"{interaction.user.mention} just leveled up!",
+                        content=announcement(s.config, interaction.user, 1),
                         file=upload,
                         ephemeral=True,
                         allowed_mentions=discord.AllowedMentions.none(),
@@ -571,7 +609,7 @@ class Menu(discord.ui.LayoutView):
 
             row(
                 "LEVEL-UP CARD",
-                "Silver welcome-style card · Date at top right · No role names.",
+                "Compact card · Lotus heading · Iridescent silver name.",
                 "Preview",
                 preview,
             )
@@ -670,3 +708,50 @@ class Menu(discord.ui.LayoutView):
     async def on_timeout(self):
         if self.session.generation == self.generation:
             self.session.generation += 1
+
+
+class CardFormatting(discord.ui.Modal):
+    def __init__(self, session):
+        super().__init__(title="Level-up formatting")
+        self.session, self.generation, self.revision = (
+            session,
+            session.generation,
+            session.revision,
+        )
+        self.fields = {}
+        for key, label, length in (
+            ("card_title", "Heading (lotus + LEVEL added automatically)", 40),
+            ("announcement_text", "Message: {mention}, {name}, {level}", 500),
+            ("card_height", "Card height (300-420)", 3),
+            ("title_size", "Heading size (40-80)", 2),
+            ("name_size", "Username size (60-110)", 3),
+        ):
+            item = discord.ui.TextInput(
+                label=label, default=str(session.config[key]), max_length=length
+            )
+            self.fields[key] = item
+            self.add_item(item)
+
+    async def on_submit(self, interaction):
+        s = self.session
+        async with s.lock:
+            if not await s.allowed(interaction, self.generation):
+                return
+            await interaction.response.defer()
+            try:
+                if s.revision != self.revision:
+                    raise ValueError("Settings changed. Reopen this form.")
+                values = {key: str(value) for key, value in self.fields.items()}
+                for key in ("card_height", "title_size", "name_size"):
+                    values[key] = int(values[key])
+                await s.save(**values)
+                await s.show(
+                    interaction,
+                    "announcements",
+                    "Formatting saved. Select Preview to see your card.",
+                )
+            except ValueError as error:
+                await send_private(interaction, str(error))
+
+    async def on_error(self, interaction, error):
+        await report_error(interaction, error)

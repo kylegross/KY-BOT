@@ -8,7 +8,7 @@ import time
 import discord
 from discord.ext import tasks
 
-from ky_bot.leveling.artwork import card_file, level_card
+from ky_bot.leveling.artwork import announcement, card_file, level_card
 
 log = logging.getLogger(__name__)
 
@@ -124,7 +124,9 @@ class LevelingService:
                 await member.add_roles(role, reason="KY BOT level reward", atomic=True)
             except (ValueError, discord.HTTPException):
                 log.warning(
-                    "Unable to grant leveling reward %s in guild %s", role_id, member.guild.id
+                    "Unable to grant leveling reward %s in guild %s",
+                    role_id,
+                    member.guild.id,
                 )
         if (
             not announce
@@ -145,7 +147,7 @@ class LevelingService:
             upload = card_file(image)
             try:
                 await channel.send(
-                    content=f"{member.mention} just leveled up!",
+                    content=announcement(config, member, result["level"]),
                     file=upload,
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
@@ -155,6 +157,7 @@ class LevelingService:
             log.exception("Unable to deliver level-up card in guild %s", member.guild.id)
 
     async def render_card(self, member, level):
+        _, config = await self.store.config(member.guild.id)
         try:
             avatar = await member.display_avatar.with_format("png").with_size(256).read()
         except discord.HTTPException:
@@ -165,6 +168,7 @@ class LevelingService:
             level,
             discord.utils.utcnow().strftime("%b %d, %Y · %H:%M UTC"),
             avatar,
+            config,
         )
 
     def eligible_voice(self, member, channel, config):
