@@ -37,7 +37,8 @@ class LogChannelPicker(InlineView):
         )
 
         async def choose(interaction):
-            await interaction.response.defer(ephemeral=True, thinking=True)
+            # Defer the picker update so its private message remains the edit target.
+            await interaction.response.defer()
             try:
                 log_channel = await cog.service.channel(picker.values[0].id)
                 if log_channel.guild.id != self.guild_id or log_channel.id == self.channel_id:
@@ -51,15 +52,14 @@ class LogChannelPicker(InlineView):
                 )
                 self.completed = True
                 self.stop()
-                await interaction.edit_original_response(content=summary)
-                await interaction.message.edit(
+                await interaction.edit_original_response(
                     content=None,
                     view=InlineView().add_item(
-                        discord.ui.TextDisplay("**SETUP COMPLETE**\nChecklist log selected.")
+                        discord.ui.TextDisplay(f"**SETUP COMPLETE**\n{summary}")
                     ),
                 )
             except (ValueError, FooterError, discord.HTTPException) as exc:
-                await interaction.edit_original_response(content=str(exc)[:1500])
+                await interaction.followup.send(str(exc)[:1500], ephemeral=True)
 
         picker.callback = choose
         self.add_item(picker)
