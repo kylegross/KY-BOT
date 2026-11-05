@@ -32,6 +32,7 @@ def defaults():
         log_channel=0,
         panel=0,
         panel_channel=0,
+        retired_panels=[],
         public=False,
         sender_roles=[],
         recipient_roles=[],
@@ -125,6 +126,44 @@ class Store:
                 (guild, revision, json.dumps(config)),
             )
             return revision, config
+
+    async def sticky_guilds(self):
+        async with self.lock:
+            rows = await self.execute("SELECT guild,settings FROM ask_settings", many=True)
+        result = []
+        for guild, raw in rows:
+            config = defaults() | json.loads(raw)
+            if config["retired_panels"] or (
+                config["enabled"] and config["public"] and config["panel"]
+            ):
+                result.append(guild)
+        return result
+
+    async def save_panel(self, guild, message, channel, expected, *, sticky=False):
+        """Update runtime message IDs without invalidating an administrator's settings form."""
+        async with self.transaction(guild):
+            _, config = await self._config(guild)
+            if config["panel"] != expected or config["channel"] != channel:
+                raise ValueError("The request panel changed. Refresh and try again.")
+            if sticky and not (config["enabled"] and config["public"]):
+                raise ValueError("Public requests were disabled while moving the panel.")
+            old_channel = config["panel_channel"] or config["channel"]
+            old = dict(channel=old_channel, message=config["panel"])
+            if old["message"] and old != dict(channel=channel, message=message):
+                if old not in config["retired_panels"]:
+                    config["retired_panels"].append(old)
+            config.update(panel=message, panel_channel=channel)
+            await self.execute(
+                "UPDATE ask_settings SET settings=? WHERE guild=?", (json.dumps(config), guild)
+            )
+
+    async def forget_panel(self, guild, obsolete):
+        async with self.transaction(guild):
+            _, config = await self._config(guild)
+            config["retired_panels"] = [p for p in config["retired_panels"] if p != obsolete]
+            await self.execute(
+                "UPDATE ask_settings SET settings=? WHERE guild=?", (json.dumps(config), guild)
+            )
 
     async def draft(self, guild, sender, recipient, kind, reason):
         if kind not in KINDS or len(reason) > 500:

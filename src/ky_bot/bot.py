@@ -23,6 +23,7 @@ EXTENSIONS = (
     "ky_bot.admin_functions.autodelete.command",
     "ky_bot.leveling.command",
     "ky_bot.askdm.command",
+    "ky_bot.moderation.command",
 )
 
 

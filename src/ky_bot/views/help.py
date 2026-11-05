@@ -133,6 +133,14 @@ GUIDES = {
                 "embed design from their Command Center sections.",
             ),
             (
+                "MEMBER MODERATION",
+                "Open **Command Center → Moderation** for a private member picker. "
+                "Or use `/ban member` and `/timeout member duration`. "
+                "Timeout examples: `30m`, `2h`, `3d 12h`. Maximum: **28 days**. "
+                "Ban Members or Moderate Members permissions are required, "
+                "and actions show a confirmation before applying.",
+            ),
+            (
                 "XP CORRECTIONS",
                 "`/xp add` · `/xp remove` · `/xp level`\n"
                 "Administrator-only commands for adjusting a member’s XP or level.",

@@ -24,14 +24,17 @@ def settings_files(section: str, design=None) -> list[discord.File]:
     if design is not None:
         from ky_bot.design.menu_design import menu_files
 
-        return menu_files(
+        attachments = menu_files(
             design,
             "COMMAND CENTER",
             SETTINGS_TITLES[section][0],
             ("ky_settings_header.png", "ky_settings_footer.png", "ky_settings_title.png"),
         )
+        if section == "overview":
+            attachments.pop().close()
+        return attachments
     # Components V2 media attachments aren't reliably present in Message.attachments.
-    return [
+    attachments = [
         discord.File(
             files("ky_bot.design")
             .joinpath("assets", "header", "ky_header_command_center.png")
@@ -46,6 +49,9 @@ def settings_files(section: str, design=None) -> list[discord.File]:
         ),
         settings_title_file(section),
     ]
+    if section == "overview":
+        attachments.pop().close()
+    return attachments
 
 
 def channel_label(channel_id: int | None, guild: discord.Guild) -> str:
@@ -57,8 +63,13 @@ def channel_label(channel_id: int | None, guild: discord.Guild) -> str:
 
 class SettingsView(discord.ui.LayoutView):
     def __init__(
-        self, owner_id: int | None, guild_id: int, service: SettingsService,
-        *, panel_manager=None, panel_token=None,
+        self,
+        owner_id: int | None,
+        guild_id: int,
+        service: SettingsService,
+        *,
+        panel_manager=None,
+        panel_token=None,
     ) -> None:
         super().__init__(timeout=None if panel_manager else 180)
         self.panel_manager, self.panel_token = panel_manager, panel_token
@@ -120,13 +131,14 @@ class SettingsView(discord.ui.LayoutView):
                 )
             )
         )
-        panel.add_item(
-            discord.ui.MediaGallery(
-                discord.MediaGalleryItem(
-                    "attachment://ky_settings_title.png",
+        if section != "overview":
+            panel.add_item(
+                discord.ui.MediaGallery(
+                    discord.MediaGalleryItem(
+                        "attachment://ky_settings_title.png",
+                    )
                 )
             )
-        )
         if notice:
             panel.add_item(discord.ui.TextDisplay(notice))
 
@@ -137,9 +149,9 @@ class SettingsView(discord.ui.LayoutView):
             panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
 
         def space() -> None:
-            panel.add_item(discord.ui.Separator(
-                visible=False, spacing=discord.SeparatorSpacing.small
-            ))
+            panel.add_item(
+                discord.ui.Separator(visible=False, spacing=discord.SeparatorSpacing.small)
+            )
 
         def channel(channel_id: int | None) -> str:
             if self.guild is None:
@@ -154,10 +166,14 @@ class SettingsView(discord.ui.LayoutView):
                 self.navigation("Set channel", "overview", picker="command_center"),
             )
             if picker == "command_center":
+                heading = panel.children[-1]
+                panel.remove_item(heading)
+                panel.add_item(discord.ui.TextDisplay(heading.children[0].content))
                 self.command_center_channel = discord.ui.ChannelSelect(
                     channel_types=[discord.ChannelType.text],
                     placeholder="Choose the permanent Command Center channel…",
-                    min_values=1, max_values=1,
+                    min_values=1,
+                    max_values=1,
                 )
                 self.command_center_channel.callback = self.publish_command_center
                 panel.add_item(discord.ui.ActionRow(self.command_center_channel))
@@ -184,9 +200,17 @@ class SettingsView(discord.ui.LayoutView):
             )
             separator()
             row(
+                "**MODERATION**\n-# Ban members and apply custom-duration timeouts.",
+                self.automation_navigation("Moderation"),
+            )
+            separator()
+            row(
                 "**SERVER ACTIVITY**\n-# Moderation logs · "
-                + ("Enabled" if self.settings.log_channel_id
-                   or self.settings.member_log_channel_id else "Disabled"),
+                + (
+                    "Enabled"
+                    if self.settings.log_channel_id or self.settings.member_log_channel_id
+                    else "Disabled"
+                ),
                 self.navigation("Manage", "logging"),
             )
             separator()
@@ -300,11 +324,13 @@ class SettingsView(discord.ui.LayoutView):
                 self.clear_channel,
             )
             space()
-            panel.add_item(discord.ui.TextDisplay(
-                "**TRACKED EVENTS**\n"
-                "-# ✧ Message edits & deletions\n"
-                "-# ✧ Role changes, bans & unbans"
-            ))
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    "**TRACKED EVENTS**\n"
+                    "-# ✧ Message edits & deletions\n"
+                    "-# ✧ Role changes, bans & unbans"
+                )
+            )
             separator()
             row(
                 f"**MEMBERS & INVITES**\n-# {channel(self.settings.member_log_channel_id)}",
@@ -314,7 +340,8 @@ class SettingsView(discord.ui.LayoutView):
                 self.member_log_channel = discord.ui.ChannelSelect(
                     channel_types=[discord.ChannelType.text],
                     placeholder="Choose a member & invite log channel…",
-                    min_values=1, max_values=1,
+                    min_values=1,
+                    max_values=1,
                 )
                 self.member_log_channel.callback = self.save_member_log_channel
                 panel.add_item(discord.ui.ActionRow(self.member_log_channel))
@@ -354,13 +381,14 @@ class SettingsView(discord.ui.LayoutView):
             controls.add_item(
                 self.button("Home" if self.panel_manager else "Close", self.close_menu)
             )
-        panel.add_item(
-            discord.ui.TextDisplay(
-                "-# Admin controls · Saved automatically · Returns Home after 10 minutes idle"
-                if self.panel_manager else
-                "-# Private admin controls · Saved automatically · 3-minute session"
+        if section != "overview":
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    "-# Admin controls · Saved automatically · Returns Home after 10 minutes idle"
+                    if self.panel_manager
+                    else "-# Private admin controls · Saved automatically · 3-minute session"
+                )
             )
-        )
         panel.add_item(
             discord.ui.MediaGallery(
                 discord.MediaGalleryItem(
@@ -391,8 +419,11 @@ class SettingsView(discord.ui.LayoutView):
 
     async def refresh(self, interaction: discord.Interaction, notice: str | None = None) -> None:
         replacement = SettingsView(
-            self.owner_id, self.guild_id, self.service,
-            panel_manager=self.panel_manager, panel_token=self.panel_token,
+            self.owner_id,
+            self.guild_id,
+            self.service,
+            panel_manager=self.panel_manager,
+            panel_token=self.panel_token,
         )
         replacement.settings = await self.service.repository.get(self.guild_id)
         replacement.guild = interaction.guild
@@ -453,7 +484,8 @@ class SettingsView(discord.ui.LayoutView):
             from ky_bot.admin_functions.command_center import command_center_link
 
             await interaction.edit_original_response(
-                view=command_center_link(message), attachments=[],
+                view=command_center_link(message),
+                attachments=[],
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             self.stop()

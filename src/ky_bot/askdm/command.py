@@ -42,6 +42,8 @@ class AskDM(commands.Cog):
         self.bot = bot
         self.config_lock = asyncio.Lock()
         self.request_lock = asyncio.Lock()
+        self.sticky_due = {}
+        self.sticky_scan = 0
 
     async def cog_load(self):
         self.store = await Store.open(
@@ -51,8 +53,16 @@ class AskDM(commands.Cog):
         self.entry_view = PublicPanel(self)
         self.bot.add_view(self.entry_view)
         self.deliver.start()
+        self.sticky.start()
 
     async def cog_unload(self):
+        self.sticky.cancel()
+        sticky_task = self.sticky.get_task()
+        if sticky_task:
+            try:
+                await sticky_task
+            except asyncio.CancelledError:
+                pass
         self.deliver.cancel()
         task = self.deliver.get_task()
         if task:
@@ -301,7 +311,7 @@ class AskDM(commands.Cog):
 
     async def publish(self, guild):
         async with self.config_lock:
-            revision, config = await self.store.config(guild.id)
+            _, config = await self.store.config(guild.id)
             await self.validate_channels(guild, config)
             channel = await self.channel(config["channel"], guild.id)
             view = PublicPanel(self)
@@ -330,14 +340,105 @@ class AskDM(commands.Cog):
                         file.close()
             else:
                 message = await self.send_panel(channel, view)
-            await self.store.configure(
-                guild.id, revision, panel=message.id, panel_channel=channel.id
-            )
-            if old_message and old_message.id != message.id:
+            try:
+                await self.store.save_panel(guild.id, message.id, channel.id, config["panel"])
+            except BaseException:
+                if old_message is None or old_message.id != message.id:
+                    try:
+                        await message.delete()
+                    except discord.HTTPException:
+                        log.warning("Could not remove unsaved member panel in guild %s", guild.id)
+                raise
+            await self.clean_old_panels(guild.id)
+        await self.bump_sticky(guild.id)
+
+    async def clean_old_panels(self, guild_id):
+        _, config = await self.store.config(guild_id)
+        for old in config["retired_panels"]:
+            # Never delete the active menu, even if a stale receipt points at it.
+            if (old["message"], old["channel"]) == (config["panel"], config["panel_channel"]):
+                await self.store.forget_panel(guild_id, old)
+                continue
+            try:
+                channel = await self.channel(old["channel"], guild_id)
+                await channel.get_partial_message(old["message"]).delete()
+            except discord.NotFound:
+                pass
+            except discord.HTTPException:
+                log.warning("Old Ask to DM/FR menu deletion will retry in guild %s", guild_id)
+                return False
+            await self.store.forget_panel(guild_id, old)
+        return True
+
+    async def bump_sticky(self, guild_id):
+        async with self.config_lock:
+            if not await self.clean_old_panels(guild_id):
+                return
+            _, config = await self.store.config(guild_id)
+            if not (config["enabled"] and config["public"] and config["panel"]):
+                return
+            channel = await self.channel(config["channel"], guild_id)
+            latest = [message async for message in channel.history(limit=1)]
+            if latest and latest[0].id == config["panel"]:
+                return
+            message = await self.send_panel(channel, PublicPanel(self))
+            try:
+                await self.store.save_panel(
+                    guild_id, message.id, channel.id, config["panel"], sticky=True
+                )
+            except BaseException:
+                # A concurrent settings change must not leave a second untracked menu.
                 try:
-                    await old_message.delete()
+                    await message.delete()
                 except discord.HTTPException:
-                    log.warning("Could not remove old Ask to DM/FR entry panel in %s", guild.id)
+                    log.warning("Could not remove an unsaved request menu in guild %s", guild_id)
+                raise
+            # The new ID is durable before removing the old copy. Failures are retried on restart.
+            await self.clean_old_panels(guild_id)
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if not message.guild or isinstance(message.channel, discord.Thread):
+            return
+        if message.author.id == self.bot.user.id:
+            # Recognize our entry panel by its stable button ID, even before its new ID is saved.
+            if any("ky:ask:entry" in json.dumps(c.to_dict()) for c in message.components):
+                return
+        _, config = await self.store.config(message.guild.id)
+        if (
+            config["enabled"]
+            and config["public"]
+            and config["panel"]
+            and message.channel.id == config["channel"]
+        ):
+            self.sticky_due.setdefault(message.guild.id, time.monotonic() + 1.5)
+
+    async def sticky_tick(self):
+        now = time.monotonic()
+        if now >= self.sticky_scan:
+            for guild in await self.store.sticky_guilds():
+                self.sticky_due.setdefault(guild, now)
+            self.sticky_scan = now + 30
+        for guild, due in list(self.sticky_due.items()):
+            if due > now:
+                continue
+            del self.sticky_due[guild]
+            try:
+                await self.bump_sticky(guild)
+            except (discord.HTTPException, ValueError):
+                log.warning("Ask to DM/FR sticky menu queued for retry in guild %s", guild)
+                self.sticky_due.setdefault(guild, time.monotonic() + 10)
+
+    @tasks.loop(seconds=2)
+    async def sticky(self):
+        try:
+            await self.sticky_tick()
+        except Exception:
+            log.exception("Ask to DM/FR sticky menu cycle failed; will retry")
+
+    @sticky.before_loop
+    async def sticky_ready(self):
+        await self.bot.wait_until_ready()
 
     def record(self, request, data, state):
         colours = dict(
@@ -463,6 +564,12 @@ class AskDM(commands.Cog):
             message = await self.send_panel(channel, RequestPanel(current, data, public=True))
             receipt["public"] = dict(channel=channel.id, message=message.id)
         await self.store.checkpoint(eid, receipt, done=True)
+        if receipt.get("public"):
+            try:
+                await self.bump_sticky(request["guild"])
+            except (discord.HTTPException, ValueError):
+                self.sticky_due[request["guild"]] = time.monotonic() + 2
+                log.warning("Sticky menu move will retry in guild %s", request["guild"])
 
     async def refresh_cards(self):
         async with self.store.lock:
