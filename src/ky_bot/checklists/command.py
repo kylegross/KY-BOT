@@ -123,9 +123,15 @@ class Checklists(commands.Cog):
         service.check_permissions(channel)
         async with service.lock:
             existing = service.store.board(channel_id)
+            # Validate new boards with the same artwork defaults as stored boards.
             candidate = existing or dict(
                 name="ADMIN CHECKLIST",
+                style="gold",
                 height=280,
+                header_background=None,
+                footer_background=None,
+                footer_text=None,
+                footer_icon=None,
             )
             candidate = {**candidate, **values}
             await asyncio.to_thread(board_artwork, candidate, [])
