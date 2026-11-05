@@ -85,3 +85,5 @@ CREATE INDEX IF NOT EXISTS ask_event_queue ON ask_events(done,created);
 -- Saved custom embeds and sticky delivery.
 CREATE TABLE IF NOT EXISTS custom_embeds (id TEXT PRIMARY KEY, guild BIGINT NOT NULL, revision TEXT NOT NULL, draft TEXT NOT NULL, published TEXT NOT NULL DEFAULT '', channel BIGINT NOT NULL DEFAULT 0, message BIGINT NOT NULL DEFAULT 0, message_count BIGINT NOT NULL DEFAULT 0, last_seen BIGINT NOT NULL DEFAULT 0, sticky_every BIGINT NOT NULL DEFAULT 0, pending BIGINT NOT NULL DEFAULT 0, retired TEXT NOT NULL DEFAULT '[]', deleted BIGINT NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS custom_embed_channel ON custom_embeds(guild,channel,sticky_every);
+
+CREATE TABLE IF NOT EXISTS steal_destinations (user_id BIGINT PRIMARY KEY, guild_id BIGINT NOT NULL);

@@ -25,12 +25,14 @@ EXTENSIONS = (
     "ky_bot.askdm.command",
     "ky_bot.moderation.command",
     "ky_bot.custom_embeds.command",
+    "ky_bot.stealing.command",
 )
 
 
 def build_intents() -> discord.Intents:
     intents = discord.Intents.none()
     intents.guilds = True
+    intents.emojis_and_stickers = True
     intents.members = True
     intents.messages = True
     intents.message_content = True
@@ -48,6 +50,10 @@ class KYBot(commands.Bot):
             command_prefix=commands.when_mentioned,
             help_command=None,
             tree_cls=CommandTree,
+            allowed_installs=discord.app_commands.AppInstallationType(guild=True, user=False),
+            allowed_contexts=discord.app_commands.AppCommandContext(
+                guild=True, dm_channel=False, private_channel=False
+            ),
             intents=build_intents(),
             allowed_mentions=discord.AllowedMentions.none(),
             chunk_guilds_at_startup=True,

@@ -204,6 +204,20 @@ class SettingsRepository:
         )
 
 
+    async def get_steal_destination(self, user_id):
+        async with self.connection.execute(
+            "SELECT guild_id FROM steal_destinations WHERE user_id=?", (user_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+        return int(row[0]) if row else None
+
+    async def set_steal_destination(self, user_id, guild_id):
+        await self.connection.execute(
+            "INSERT INTO steal_destinations(user_id,guild_id) VALUES (?,?) "
+            "ON CONFLICT(user_id) DO UPDATE SET guild_id=excluded.guild_id", (user_id, guild_id)
+        )
+
+
 @asynccontextmanager
 async def open_settings(path: Path, *, database_url: str | None = None):
     if database_url:
@@ -259,5 +273,9 @@ async def open_settings(path: Path, *, database_url: str | None = None):
         await connection.execute(
             "CREATE TABLE IF NOT EXISTS command_center_panels "
             "(guild_id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, message_id TEXT NOT NULL)"
+        )
+        await connection.execute(
+            "CREATE TABLE IF NOT EXISTS steal_destinations "
+            "(user_id BIGINT PRIMARY KEY, guild_id BIGINT NOT NULL)"
         )
         yield SettingsRepository(connection)

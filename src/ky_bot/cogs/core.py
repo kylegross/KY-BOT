@@ -17,13 +17,24 @@ class Core(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="help", description="Explore KY BOT and its available tools.")
-    @app_commands.guild_only()
+    @app_commands.allowed_installs(guilds=True, users=True)
+    @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     async def help_command(self, interaction: discord.Interaction) -> None:
         view = HelpView(
             interaction.user.id,
             interaction.guild_id,
-            administrator=interaction.permissions.administrator,
-            manage_guild=interaction.permissions.manage_guild,
+            administrator=bool(
+                interaction.guild_id is not None and interaction.permissions.administrator
+            ),
+            manage_guild=bool(
+                interaction.guild_id is not None and interaction.permissions.manage_guild
+            ),
+            ban_members=bool(
+                interaction.guild_id is not None and interaction.permissions.ban_members
+            ),
+            moderate_members=bool(
+                interaction.guild_id is not None and interaction.permissions.moderate_members
+            ),
         )
         attachments = help_files()
         try:

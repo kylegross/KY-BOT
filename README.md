@@ -692,3 +692,41 @@ a successful send but before its receipt is saved can leave an untracked copy.
 No new slash-command sync is needed for this Command Center feature.
 
 Existing menu appearance settings are under General Settings > Menu Appearance.
+
+
+## Copy emojis and stickers
+
+- `/steal set server`: save a destination per user, using autocomplete or a server ID.
+- `/steal emoji source name`: paste multiple custom emojis, a message link, an emoji
+  ID or a Discord asset link. The name is optional for a single asset.
+- `/steal sticker source name`: supply a sticker ID/link or a posted message link.
+- Apps > Steal emojis / stickers on a message: open a private picker for all custom
+  emojis and stickers in that message, including messages supplied to a user install.
+
+The dark silver picker starts with everything checked. Uncheck unwanted items,
+page through long lists, rename individual assets and choose Copy selected.
+Successful items are not repeated when retrying a partial batch. Unconfirmed
+network results require checking the destination before starting another copy.
+Original names are kept unless overridden; an unknown original name requires one.
+
+Animated emojis use Discord's animated WebP representation. APNG/GIF stickers
+are copied without flattening. Lottie stays JSON for Verified/Partnered servers;
+ordinary servers receive a 320x320 animated APNG copy rendered in an isolated
+process. The renderer may reduce frame rate to fit 512 KiB, preserves playback
+duration and never substitutes a still image. Unsupported or oversized results
+report a failure. Discord size, duration, rate and available-slot limits remain.
+
+Both the user and bot need Create Expressions or Manage Expressions in the
+destination, and the bot must be installed there. Saved destinations and fresh
+permissions are checked before uploads. Message-link lookup requires both
+parties to view/read the source channel; personal installation grants no general
+access to another server's history. Use the message's Apps action there instead.
+
+Deployment: install the updated dependencies (including rlottie-python); the
+Docker image includes its C++ runtime. In Discord Developer Portal > Installation,
+enable Guild Install and User Install, with applications.commands for User Install.
+Deploy once with COMMAND_SYNC=global to register /steal, the message action and
+updated /help globally, then return COMMAND_SYNC to none. A guild-only command
+sync cannot register commands for personal installation. Each user must add KY BOT
+to their account to use it in other servers or private conversations, subject to
+Discord's app permissions in that context. /help explains these features.
