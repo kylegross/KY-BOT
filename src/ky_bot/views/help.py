@@ -260,7 +260,6 @@ class HelpView(discord.ui.LayoutView):
                 if index:
                     panel.add_item(discord.ui.Separator())
                 panel.add_item(discord.ui.TextDisplay(f"**{heading}**\n{text}"))
-        section_dividers(panel)
         if page != "home":
             panel.add_item(
                 discord.ui.Section(
@@ -277,6 +276,7 @@ class HelpView(discord.ui.LayoutView):
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://ky_footer_help.png"))
         )
+        section_dividers(panel)
         self.add_item(panel)
 
     async def interaction_check(self, interaction):
