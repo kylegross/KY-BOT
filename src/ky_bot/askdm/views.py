@@ -348,26 +348,28 @@ class Admin(Panel):
 
                 role_text = ", ".join(f"<@&{r}>" for r in config[key]) or empty
                 self.row(f"**{label}**\n{role_text}", button("Choose roles", roles))
+                if picker == key:
+                    select = discord.ui.RoleSelect(
+                        placeholder="Choose roles; clear to remove restriction",
+                        min_values=0,
+                        max_values=10,
+                        default_values=[discord.Object(id=r) for r in config[key]],
+                    )
+
+                    async def choose_roles(i, key=key, select=select):
+                        if any(role.guild.id != guild for role in select.values):
+                            return await send_private(i, "Choose roles in this server.")
+                        await change(i, **{key: [role.id for role in select.values]})
+
+                    select.callback = choose_roles
+                    self.panel.add_item(discord.ui.ActionRow(select))
+                    self.panel.add_item(discord.ui.Separator())
+
             self.text(
                 "-# Allowed roles use any match. Blocked roles take priority, including "
                 "for administrators. Clear a selection to remove that restriction. "
                 "Roles are checked again when a request is confirmed."
             )
-            if picker in self.ROLE_FIELDS:
-                select = discord.ui.RoleSelect(
-                    placeholder="Choose roles; clear to remove restriction",
-                    min_values=0,
-                    max_values=10,
-                    default_values=[discord.Object(id=r) for r in config[picker]],
-                )
-
-                async def choose_roles(i):
-                    if any(role.guild.id != guild for role in select.values):
-                        return await send_private(i, "Choose roles in this server.")
-                    await change(i, **{picker: [role.id for role in select.values]})
-
-                select.callback = choose_roles
-                self.panel.add_item(discord.ui.ActionRow(select))
 
             async def back(i):
                 await i.response.defer()
@@ -395,6 +397,25 @@ class Admin(Panel):
 
             destination = f"<#{config[key]}>" if config[key] else "Not configured"
             self.row(f"**{label}**\n{destination}", button("Choose channel", open_picker))
+            if picker == key:
+                select = discord.ui.ChannelSelect(
+                    channel_types=[discord.ChannelType.text], placeholder=f"Choose {label.lower()}"
+                )
+
+                async def choose_channel(i, key=key, select=select):
+                    await i.response.defer()
+                    try:
+                        channel = await cog.channel(select.values[0].id, guild)
+                        await cog.check_channel(channel, logs=key == "log_channel")
+                        async with cog.config_lock:
+                            await cog.store.configure(guild, revision, **{key: channel.id})
+                        await cog.admin(i, parent)
+                    except (ValueError, discord.HTTPException) as error:
+                        await cog.admin(i, parent, notice=safe(str(error))[:1000])
+
+                select.callback = choose_channel
+                self.panel.add_item(discord.ui.ActionRow(select))
+                self.panel.add_item(discord.ui.Separator())
 
         async def visibility(i):
             await change(i, public=not config["public"])
@@ -418,24 +439,6 @@ class Admin(Panel):
             "-# Changing visibility also hides existing public request cards; it does not "
             "publish previously private requests. The entry panel remains visible."
         )
-        if picker in {"channel", "log_channel"}:
-            select = discord.ui.ChannelSelect(
-                channel_types=[discord.ChannelType.text], placeholder="Choose channel"
-            )
-
-            async def choose_channel(i):
-                await i.response.defer()
-                try:
-                    channel = await cog.channel(select.values[0].id, guild)
-                    await cog.check_channel(channel, logs=picker == "log_channel")
-                    async with cog.config_lock:
-                        await cog.store.configure(guild, revision, **{picker: channel.id})
-                    await cog.admin(i, parent)
-                except (ValueError, discord.HTTPException) as error:
-                    await cog.admin(i, parent, notice=safe(str(error))[:1000])
-
-            select.callback = choose_channel
-            self.panel.add_item(discord.ui.ActionRow(select))
 
         async def publish(i):
             await i.response.defer()
