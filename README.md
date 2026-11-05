@@ -656,3 +656,39 @@ draft cannot create two requests. Discord sends and database receipts cannot com
 so a crash immediately after a successful send may produce a repeated notification on retry.
 Ten requests per member per server per hour limits spam. No VICE IDs, historical log rebuilds
 or old channel cleanup jobs are imported.
+
+
+## Create custom embeds
+
+Open Command Center > Create Embed. Create a new saved draft or choose an existing
+embed from the library. Editors and previews are private to the administrator.
+
+- Content: a private saved name, optional title, message and footer text.
+- Images: upload an optional header and/or footer (8 MB per source image).
+  Images are normalized to a static PNG, preserve their proportions and are saved
+  in the database; sticky copies do not rely on expiring Discord attachment links.
+- Color and formatting: choose a preset or six-digit hex highlight, use Discord
+  Markdown directly, or append bold, italic, underlined, spoiler, heading, quote,
+  monospace or special-lettering text using the formatter.
+- Delivery: choose a server text channel. Sticky Off leaves the post in place;
+  a count of 1 moves after every new message, and 2-10000 waits that many messages.
+- Preview and Publish: preview without posting to the destination, then publish.
+  Publishing updates the known message in place or moves it to a new channel.
+  Draft changes do not affect the published message or its sticky copies until
+  published. Role, user and everyone notifications are suppressed.
+
+The bot needs View Channel, Send Messages, Embed Links, Attach Files and Read
+Message History in the destination. Sticky moves remove the old copy. Failed
+deletions remain queued across restarts; further copies wait until cleanup can
+finish. Counts and published snapshots persist in the settings database, with
+history recovery after downtime. KY BOT's own messages do not count toward a
+sticky threshold, preventing its menus from endlessly moving each other.
+
+Deleting an embed requires confirmation and removes its saved content and known
+posted copies, without deleting the channel or anyone else's messages. If the
+bot cannot access an old channel, removal remains queued and retries.
+Discord sends and database commits cannot be atomic; a crash immediately after
+a successful send but before its receipt is saved can leave an untracked copy.
+No new slash-command sync is needed for this Command Center feature.
+
+Existing menu appearance settings are under General Settings > Menu Appearance.

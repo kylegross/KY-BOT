@@ -100,7 +100,7 @@ class SettingsView(discord.ui.LayoutView):
 
         return self.button(label, callback)
 
-    def automation_navigation(self, cog_name: str) -> discord.ui.Button:
+    def automation_navigation(self, cog_name: str, *, label="Manage") -> discord.ui.Button:
         async def callback(interaction: discord.Interaction) -> None:
             if not await self.interaction_check(interaction):
                 return
@@ -113,7 +113,7 @@ class SettingsView(discord.ui.LayoutView):
             await cog.open_menu(interaction, command_center=self)
             self.stop()
 
-        return self.button("Manage", callback)
+        return self.button(label, callback)
 
     def show_section(
         self, section: str, *, picker: bool = False, notice: str | None = None
@@ -215,8 +215,8 @@ class SettingsView(discord.ui.LayoutView):
             )
             separator()
             row(
-                "**EMBED DESIGN**\n-# Customize menus together, preview, then apply.",
-                self.button("Manage", self.open_embed_design),
+                "**CREATE EMBED**\n-# Custom posts, images, formatting and sticky messages.",
+                self.automation_navigation("CustomEmbeds", label="Create Embed"),
             )
         elif section == "general":
             for index, (title, description, cog_name) in enumerate(
@@ -237,6 +237,11 @@ class SettingsView(discord.ui.LayoutView):
                 if index:
                     separator()
                 row(f"**{title}**\n-# {description}", self.automation_navigation(cog_name))
+            separator()
+            row(
+                "**MENU APPEARANCE**\n-# Customize KY BOT menus together, preview, then apply.",
+                self.button("Manage", self.open_embed_design),
+            )
         elif section == "welcome":
             row(
                 f"**DESTINATION**\n-# {channel(self.settings.welcome_channel_id)}",

@@ -15,7 +15,7 @@ SETTINGS_TABLES = (
     "member_inviters",
     "command_center_panels",
     "leveling_settings", "leveling_members", "leveling_adjustments",
-    "ask_settings", "ask_requests", "ask_drafts", "ask_events",
+    "ask_settings", "ask_requests", "ask_drafts", "ask_events", "custom_embeds",
 )
 CHECKLIST_TABLES = ("boards", "categories", "tasks", "logs", "subtasks")
 TABLES = SETTINGS_TABLES + CHECKLIST_TABLES
@@ -34,7 +34,7 @@ def snapshot(path, tables):
             "subtasks", "embed_designs", "member_log_settings", "member_inviters",
             "command_center_panels",
             "leveling_settings", "leveling_members", "leveling_adjustments",
-            "ask_settings", "ask_requests", "ask_drafts", "ask_events",
+            "ask_settings", "ask_requests", "ask_drafts", "ask_events", "custom_embeds",
         }
         if not (set(tables) - optional) <= existing:
             raise ValueError("Source database needs the current KY BOT SQLite schema.")

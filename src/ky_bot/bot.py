@@ -24,6 +24,7 @@ EXTENSIONS = (
     "ky_bot.leveling.command",
     "ky_bot.askdm.command",
     "ky_bot.moderation.command",
+    "ky_bot.custom_embeds.command",
 )
 
 

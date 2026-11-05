@@ -2,7 +2,7 @@
 
 import discord
 
-NAVIGATION_LABELS = {"back", "home", "close", "close menu", "all guides"}
+NAVIGATION_LABELS = {"back", "home", "close", "close menu", "all guides", "all embeds"}
 
 
 def navigation_item(item):

@@ -133,6 +133,14 @@ GUIDES = {
                 "embed design from their Command Center sections.",
             ),
             (
+                "CREATE CUSTOM EMBEDS",
+                "Open **Command Center → Create Embed**. Add images, text, a highlight "
+                "color and optional footer. Preview privately, then publish. "
+                "Sticky posts can move after every message or a chosen message count; "
+                "their old copy is removed. Saved drafts do not change live posts "
+                "until you publish. Menu appearance settings are under General Settings.",
+            ),
+            (
                 "MEMBER MODERATION",
                 "Open **Command Center → Moderation** for a private member picker. "
                 "Or use `/ban member` and `/timeout member duration`. "

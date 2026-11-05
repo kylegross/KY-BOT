@@ -1,0 +1,349 @@
+import base64
+import io
+import tempfile
+import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock, patch
+
+import discord
+from PIL import Image
+
+from ky_bot.admin_functions.settings_view import SettingsView
+from ky_bot.custom_embeds.command import CustomEmbeds
+from ky_bot.custom_embeds.model import color, defaults, image_upload, render, styled, validate
+from ky_bot.custom_embeds.store import Store
+from ky_bot.custom_embeds.views import DeleteConfirm, EditModal, Editor, Library, Session
+
+
+class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.path = Path(self.temp.name) / "settings.sqlite3"
+        self.store = await Store.open(self.path)
+        self.ident = await self.store.create(1)
+        self.bot = SimpleNamespace(user=SimpleNamespace(id=999))
+        self.cog = CustomEmbeds(self.bot)
+        self.cog.store = self.store
+        self.cog.authorize = AsyncMock()
+        self.messages = {}
+        self.timeline = []
+        self.next_id = 100
+        self.deleted = []
+
+        async def history(limit=1, after=None, oldest_first=False):
+            ids = [ident for ident in self.timeline if after is None or ident > after.id]
+            if not oldest_first:
+                ids = list(reversed(ids))
+            if limit is not None:
+                ids = ids[:limit]
+            for ident in ids:
+                yield SimpleNamespace(id=ident, author=SimpleNamespace(id=50))
+
+        def partial(ident):
+            async def remove():
+                self.deleted.append(ident)
+                if ident in self.timeline:
+                    self.timeline.remove(ident)
+
+            return SimpleNamespace(delete=AsyncMock(side_effect=remove))
+
+        self.channel = SimpleNamespace(
+            id=10,
+            history=Mock(side_effect=history),
+            get_partial_message=Mock(side_effect=partial),
+            fetch_message=AsyncMock(side_effect=lambda ident: self.messages[ident]),
+        )
+        self.cog.channel = AsyncMock(return_value=self.channel)
+
+        async def post(channel, data, *, message=None, private=False):
+            if message:
+                return message
+            self.next_id += 100
+            ident = self.next_id
+            self.timeline.append(ident)
+            result = SimpleNamespace(id=ident, delete=partial(ident).delete)
+            self.messages[ident] = result
+            return result
+
+        self.cog.post = AsyncMock(side_effect=post)
+
+    async def asyncTearDown(self):
+        await self.store.close()
+        self.temp.cleanup()
+
+    def interaction(self, *, admin=True, user=50, guild=1):
+        return SimpleNamespace(
+            user=SimpleNamespace(id=user),
+            guild_id=guild,
+            guild=SimpleNamespace(id=guild),
+            permissions=SimpleNamespace(administrator=admin),
+            response=SimpleNamespace(defer=AsyncMock(), is_done=lambda: True),
+            followup=SimpleNamespace(send=AsyncMock()),
+        )
+
+    async def save(self, **changes):
+        current = await self.store.get(1, self.ident)
+        return await self.store.save(1, self.ident, current["revision"], **changes)
+
+    async def publish(self, *, count=0):
+        revision = await self.save(body="Original **message**", channel=10, sticky_every=count)
+        await self.cog.publish(self.interaction(), self.ident, revision)
+
+    async def test_content_color_and_empty_post_validation(self):
+        self.assertEqual(color("#39dccb"), "39DCCB")
+        self.assertEqual(color("000000"), "000000")
+        for invalid in ("red", "#FFF", "#GGGGGG", "#1234567"):
+            with self.assertRaises(ValueError):
+                color(invalid)
+        with self.assertRaises(ValueError):
+            validate(defaults() | dict(channel=10), publish=True)
+        with self.assertRaises(ValueError):
+            validate(defaults() | dict(body="x" * 3501))
+        with self.assertRaises(ValueError):
+            validate(defaults() | dict(sticky_every=10001))
+        data = validate(defaults() | dict(body="**Bold**\n> quote\n[link](https://example.com)"))
+        self.assertIn("[link]", data["body"])
+
+    async def test_formatting_and_special_lettering(self):
+        self.assertEqual(styled("KY BOT", "special"), "𝙆𝙔 𝘽𝙊𝙏")
+        self.assertEqual(styled("hello", "bold"), "**hello**")
+        self.assertEqual(styled("one\ntwo", "quote"), "> one\n> two")
+        self.assertEqual(styled("Welcome ♡", "special"), "𝙒𝙚𝙡𝙘𝙤𝙢𝙚 ♡")
+
+    async def test_uploads_are_saved_as_real_png_not_expiring_urls(self):
+        raw = io.BytesIO()
+        Image.new("RGB", (20, 10), "teal").save(raw, format="JPEG")
+        encoded = image_upload(raw.getvalue())
+        self.assertTrue(base64.b64decode(encoded).startswith(b"\x89PNG\r\n\x1a\n"))
+        with self.assertRaises(ValueError):
+            image_upload(b"Not an image")
+
+    async def test_render_preserves_markdown_and_orders_images(self):
+        raw = io.BytesIO()
+        Image.new("RGBA", (5, 5), "red").save(raw, format="PNG")
+        data = defaults() | dict(
+            title="Title",
+            body="**Bold**\n## Heading",
+            footer_text="Footer",
+            color="000000",
+            header=image_upload(raw.getvalue()),
+            footer=image_upload(raw.getvalue()),
+        )
+        view, files = render(data)
+        try:
+            self.assertEqual(len(files), 2)
+            types = [type(child) for child in view.children[0].children]
+            self.assertEqual(
+                types,
+                [
+                    discord.ui.MediaGallery,
+                    discord.ui.TextDisplay,
+                    discord.ui.TextDisplay,
+                    discord.ui.MediaGallery,
+                ],
+            )
+            self.assertIn("**Bold**", str(view.to_components()))
+            self.assertLessEqual(view.total_children_count, 40)
+        finally:
+            view.stop()
+            for file in files:
+                file.close()
+
+    async def test_draft_edit_does_not_change_published_snapshot(self):
+        await self.publish(count=3)
+        await self.save(body="New draft", sticky_every=1)
+        row = await self.store.get(1, self.ident)
+        self.assertEqual(row["draft"]["body"], "New draft")
+        self.assertEqual(row["published"]["body"], "Original **message**")
+        self.assertEqual(row["sticky_every"], 3)
+
+    async def test_cross_server_and_stale_draft_are_rejected(self):
+        old = (await self.store.get(1, self.ident))["revision"]
+        await self.save(name="Changed")
+        with self.assertRaises(ValueError):
+            await self.store.save(1, self.ident, old, body="Overwrite")
+        with self.assertRaises(ValueError):
+            await self.store.get(2, self.ident)
+        with self.assertRaises(ValueError):
+            await self.store.save(2, self.ident, old, body="Other server")
+
+    async def test_publish_updates_existing_message_instead_of_duplicate(self):
+        await self.publish()
+        revision = await self.save(body="Published update")
+        await self.cog.publish(self.interaction(), self.ident, revision)
+        self.assertEqual(self.timeline, [200])
+        self.assertIsNotNone(self.cog.post.await_args.kwargs["message"])
+        self.assertEqual(
+            (await self.store.get(1, self.ident))["published"]["body"], "Published update"
+        )
+
+    async def test_repost_only_after_threshold_and_duplicate_events_do_not_count(self):
+        await self.publish(count=2)
+        self.timeline.append(201)
+        await self.store.note(1, 10, 201)
+        await self.store.note(1, 10, 201)
+        await self.cog.move(1, self.ident)
+        self.assertEqual(self.cog.post.await_count, 1)
+        self.timeline.append(202)
+        await self.store.note(1, 10, 202)
+        await self.cog.move(1, self.ident)
+        self.assertEqual(self.timeline, [201, 202, 300])
+        self.assertEqual(self.deleted, [200])
+        self.assertEqual((await self.store.get(1, self.ident))["message_count"], 0)
+
+    async def test_own_messages_and_other_channels_do_not_count(self):
+        await self.publish(count=1)
+        message = SimpleNamespace(
+            guild=SimpleNamespace(id=1),
+            channel=SimpleNamespace(id=10),
+            author=SimpleNamespace(id=999),
+            id=201,
+        )
+        await self.cog.on_message(message)
+        await self.store.note(1, 11, 202)
+        await self.store.note(2, 10, 203)
+        self.assertEqual((await self.store.get(1, self.ident))["message_count"], 0)
+        message.author.id = 50
+        await self.cog.on_message(message)
+        self.assertEqual((await self.store.get(1, self.ident))["message_count"], 1)
+
+    async def test_sticky_uses_live_snapshot_not_unpublished_draft(self):
+        await self.publish(count=1)
+        await self.save(body="Still a draft")
+        self.timeline.append(201)
+        await self.store.note(1, 10, 201)
+        await self.cog.move(1, self.ident)
+        self.assertEqual(self.cog.post.await_args.args[1]["body"], "Original **message**")
+
+    async def test_counts_and_content_survive_restart(self):
+        await self.publish(count=3)
+        await self.store.note(1, 10, 201)
+        await self.store.close()
+        self.store = await Store.open(self.path)
+        self.cog.store = self.store
+        row = await self.store.get(1, self.ident)
+        self.assertEqual(row["message_count"], 1)
+        self.assertEqual(row["sticky_every"], 3)
+        self.assertEqual(row["message"], 200)
+
+    async def test_restart_recovers_missed_message_count(self):
+        await self.publish(count=2)
+        self.timeline.extend([201, 202, 203])
+        await self.cog.recover(1, self.ident)
+        self.assertEqual((await self.store.get(1, self.ident))["pending"], 1)
+        await self.cog.move(1, self.ident)
+        self.assertEqual(self.timeline[-1], 300)
+        self.assertEqual((await self.store.get(1, self.ident))["last_seen"], 300)
+
+    async def test_old_copy_deletion_failure_is_retained_for_retry(self):
+        await self.publish(count=1)
+        self.timeline.append(201)
+        await self.store.note(1, 10, 201)
+        error = discord.Forbidden(SimpleNamespace(status=403, reason="Forbidden"), "No access")
+        self.channel.get_partial_message = Mock(
+            return_value=SimpleNamespace(delete=AsyncMock(side_effect=error))
+        )
+        await self.cog.move(1, self.ident)
+        row = await self.store.get(1, self.ident)
+        self.assertEqual(row["message"], 300)
+        self.assertEqual(row["retired"], [dict(channel=10, message=200)])
+        with self.assertRaises(ValueError):
+            await self.cog.move(1, self.ident)
+        self.assertEqual(self.cog.post.await_count, 2)
+
+    async def test_delete_removes_only_own_post_and_stops_sticky(self):
+        await self.publish(count=1)
+        self.timeline.append(201)
+        row = await self.store.get(1, self.ident)
+        await self.store.delete(1, self.ident, row["revision"])
+        self.assertEqual(await self.store.targets(1, 10), [])
+        self.assertTrue(await self.cog.clean(1, self.ident))
+        self.assertEqual(self.timeline, [201])
+        with self.assertRaises(ValueError):
+            await self.store.get(1, self.ident)
+
+    async def test_permission_removal_blocks_editor_and_fresh_publish_check(self):
+        session = Session(self.cog, 50, 1, self.ident)
+        self.assertFalse(await session.allowed(self.interaction(admin=False)))
+        self.assertFalse(await session.allowed(self.interaction(user=51)))
+        cog = CustomEmbeds(self.bot)
+        guild = SimpleNamespace(
+            fetch_member=AsyncMock(
+                return_value=SimpleNamespace(guild_permissions=discord.Permissions.none())
+            )
+        )
+        with self.assertRaises(ValueError):
+            await cog.authorize(SimpleNamespace(guild=guild, user=SimpleNamespace(id=50)))
+
+    async def test_all_editor_pages_and_modals_fit_discord_limits(self):
+        await self.save(header=image_upload(self.png()), footer=image_upload(self.png()))
+        session = Session(self.cog, 50, 1, self.ident)
+        session.row = await self.store.get(1, self.ident)
+        for page in ("main", "content", "images", "style", "delivery", "channel", "publish"):
+            session.page = page
+            view = Editor(session, "Draft saved.")
+            self.assertLessEqual(view.total_children_count, 40)
+            self.assertLessEqual(view.content_length(), 4000)
+            view.to_components()
+            view.stop()
+        for mode in ("content", "color", "count", "format", "header", "footer"):
+            modal = EditModal(session, mode)
+            self.assertLessEqual(len(modal.children), 5)
+            modal.stop()
+        rows = [(str(i), "Saved embed", 10, 200, 0) for i in range(30)]
+        for page in (0, 1):
+            view = Library(self.cog, 50, 1, rows, page=page)
+            self.assertLessEqual(view.total_children_count, 40)
+            view.stop()
+        parent = SettingsView(50, 1, Mock())
+        for section, picker in (
+            ("overview", False),
+            ("overview", "command_center"),
+            ("general", False),
+        ):
+            parent.show_section(section, picker=picker)
+            self.assertLessEqual(parent.total_children_count, 40)
+        parent.stop()
+
+    def png(self):
+        buffer = io.BytesIO()
+        Image.new("RGBA", (4, 4), "teal").save(buffer, format="PNG")
+        return buffer.getvalue()
+
+    async def test_preview_is_private_and_mentions_are_suppressed(self):
+        channel = SimpleNamespace(send=AsyncMock())
+        await CustomEmbeds.post(
+            self.cog, channel, defaults() | dict(body="@everyone **hello**"), private=True
+        )
+        args = channel.send.await_args.kwargs
+        self.assertTrue(args["ephemeral"])
+        self.assertFalse(args["allowed_mentions"].everyone)
+        self.assertFalse(args["allowed_mentions"].roles)
+
+    async def test_stale_publish_revision_does_not_post(self):
+        row = await self.store.get(1, self.ident)
+        await self.save(body="Content", channel=10)
+        with self.assertRaises(ValueError):
+            await self.cog.publish(self.interaction(), self.ident, row["revision"])
+        self.cog.post.assert_not_awaited()
+
+    async def test_cancelled_delete_keeps_draft_and_published_message(self):
+        await self.publish()
+        session = Session(self.cog, 50, 1, self.ident)
+        session.row = await self.store.get(1, self.ident)
+        view = DeleteConfirm(session, session.row["revision"])
+        cancel = next(
+            x
+            for x in view.walk_children()
+            if isinstance(x, discord.ui.Button) and x.label == "Cancel"
+        )
+        with patch.object(session, "show", new=AsyncMock()):
+            await cancel.callback(self.interaction())
+        self.assertEqual((await self.store.get(1, self.ident))["deleted"], 0)
+        self.assertEqual(self.timeline, [200])
+        view.stop()
+
+
+if __name__ == "__main__":
+    unittest.main()
