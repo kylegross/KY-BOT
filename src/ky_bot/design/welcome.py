@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 from ky_bot.admin_functions.settings_repository import WelcomeArtwork
 from ky_bot.design.footers import read_upload
 from ky_bot.design.typography import TypographyError, font_file
+from ky_bot.design.unicode_text import first_grapheme, fit_text, wrap_text
 
 SIZE = (1200, 800)
 
@@ -25,7 +26,9 @@ def font(role: str, size: int):
         return ImageFont.truetype(str(font_file(role)), size)
     except TypographyError:
         # Personal names still work on hosts where the licensed fonts have not been installed.
-        return ImageFont.load_default(size=size)
+        return ImageFont.truetype(
+            str(files("ky_bot.design").joinpath("assets", "fonts", "NotoSans-Regular.ttf")), size
+        )
 
 
 def readable(text: str) -> str:
@@ -68,49 +71,27 @@ def render_welcome(
             avatar = None
     if not avatar:
         draw.ellipse((503, 74, 697, 268), fill="#172331")
-        draw.text(
-            (600, 171),
-            readable(member_name)[:1].upper() or "?",
-            font=font("display", 80),
-            fill=accent,
-            anchor="mm",
+        initial = fit_text(
+            first_grapheme(readable(member_name)), 80, str(font("display", 80).path), accent, 160
         )
+        image.alpha_composite(initial, (600 - initial.width // 2, 171 - initial.height // 2))
 
     def centered(text, y, role, size, colour):
         text = readable(text)
-        chosen = font(role, size)
-        while draw.textlength(text, font=chosen) > 1040 and size > 18:
-            size -= 2
-            chosen = font(role, size)
-        draw.text((600, y), text, font=chosen, fill=colour, anchor="mt")
+        if not text:
+            return
+        tile = fit_text(text, size, str(font(role, size).path), colour, 1040)
+        image.alpha_composite(tile, (600 - tile.width // 2, y))
 
     centered(artwork.title.upper(), 320, "display", 70, accent)
     centered(member_name, 415, "display", 68, "#F5F1E8")
     centered(server_name, 506, "body", 28, accent)
-    body_font = font("body", 30)
-    # Bound the visual copy; the full configured message remains in the accessible caption.
-    body = readable(message)
-    lines = []
-    line = ""
-    for word in body.split():
-        if draw.textlength((line + " " + word).strip(), font=body_font) > 980:
-            if line:
-                lines.append(line)
-                line = ""
-            while draw.textlength(word, font=body_font) > 980:
-                split = len(word) // 2
-                while draw.textlength(word[:split], font=body_font) > 980:
-                    split -= 1
-                lines.append(word[:split])
-                word = word[split:]
-        line = (line + " " + word).strip()
-    if line:
-        lines.append(line)
-    if len(lines) > 5:
-        lines = lines[:5]
-        lines[-1] = lines[-1][:-3] + "…"
+    # Preserve whole graphemes when wrapping names or emoji in the welcome message.
+    primary = str(font("body", 30).path)
+    lines = wrap_text(readable(message), 30, primary, 980, max_lines=5)
     for index, line in enumerate(lines):
-        draw.text((600, 574 + index * 38), line, font=body_font, fill="#E9E6DF", anchor="mt")
+        tile = fit_text(line, 30, primary, "#E9E6DF", 980)
+        image.alpha_composite(tile, (600 - tile.width // 2, 574 + index * 38))
     output = io.BytesIO()
     image.convert("RGB").save(output, format="PNG")
     return output.getvalue()

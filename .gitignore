@@ -25,3 +25,6 @@ design/assets/branding/fonts/private/
 # Review-only drafts and retired artwork; never ship these with the bot.
 previews/
 design/assets/branding/archive/
+
+# Redistributable OFL fallback fonts used for member names and emoji.
+!src/ky_bot/design/assets/fonts/*.ttf

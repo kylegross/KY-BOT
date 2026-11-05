@@ -6,9 +6,10 @@ from importlib.resources import files
 from PIL import Image, ImageDraw, ImageOps
 
 from ky_bot.checklists.artwork import png
-from ky_bot.design.footers import metal, read_upload
+from ky_bot.design.footers import read_upload
 from ky_bot.design.headers import asset
 from ky_bot.design.typography import divided_title_mask
+from ky_bot.design.unicode_text import first_grapheme, fit_text
 from ky_bot.design.welcome import font, readable
 from ky_bot.leveling.store import defaults
 
@@ -47,12 +48,11 @@ def level_card(name, level, date, avatar=None, settings=None):
             avatar = None
     if not avatar:
         draw.ellipse((195, 129, 417, 351), fill="#172331")
-        draw.text(
-            (306, 240),
-            readable(name)[:1] or "?",
-            font=font("display", 90),
-            fill="#D6E2F3",
-            anchor="mm",
+        initial = fit_text(
+            first_grapheme(readable(name)), 90, str(font("display", 90).path), "#D6E2F3", 180
+        )
+        portrait_layer.alpha_composite(
+            initial, (306 - initial.width // 2, 240 - initial.height // 2)
         )
     image.alpha_composite(portrait_layer, (0, (height - 480) // 2))
     draw = ImageDraw.Draw(image)
@@ -69,15 +69,15 @@ def level_card(name, level, date, avatar=None, settings=None):
     center = 830
     image.alpha_composite(layer, (center - title.width // 2, cy - 75))
     text = readable(name) or "Member"
-    pixels = config["name_size"]
-    face = font("display", pixels)
-    while draw.textlength(text, font=face) > 820 and pixels > 18:
-        pixels -= 2
-        face = font("display", pixels)
-    box = face.getbbox(text)
-    mask = Image.new("L", (max(1, box[2] - box[0] + 4), max(1, box[3] - box[1] + 4)))
-    ImageDraw.Draw(mask).text((2 - box[0], 2 - box[1]), text, font=face, fill=255)
-    image.alpha_composite(metal(mask, "silver_neon"), (center - mask.width // 2, cy + 8))
+    name_layer = fit_text(
+        text,
+        config["name_size"],
+        str(font("display", config["name_size"]).path),
+        "#D6E2F3",
+        820,
+        metallic="silver_neon",
+    )
+    image.alpha_composite(name_layer, (center - name_layer.width // 2, cy + 8))
     return png(image)
 
 

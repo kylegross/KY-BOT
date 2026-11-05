@@ -1,0 +1,4 @@
+Unmodified Noto fallback fonts, distributed under the included SIL Open Font License.
+NotoColorEmoji.ttf: https://github.com/googlefonts/noto-emoji
+Other Noto fonts: https://github.com/notofonts/noto-fonts
+Name rendering adapted from the local VICE Arena grapheme-aware renderer.

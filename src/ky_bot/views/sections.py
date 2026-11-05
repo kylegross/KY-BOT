@@ -22,7 +22,7 @@ def navigation_item(item):
 
 
 def section_dividers(panel: discord.ui.Container) -> None:
-    """Separate adjacent sections and footer navigation without doubling rules."""
+    """Space introductions, adjacent sections and navigation without doubling rules."""
     children = list(panel.children)
     for child in children:
         panel.remove_item(child)
@@ -32,7 +32,14 @@ def section_dividers(panel: discord.ui.Container) -> None:
         for child in children
     )
     previous = None
+    seen_control = False
     for child in children:
+        is_control = isinstance(child, (discord.ui.Section, discord.ui.ActionRow))
+        intro_boundary = (
+            not seen_control
+            and is_control
+            and isinstance(previous, discord.ui.TextDisplay)
+        )
         adjacent_sections = (
             not branded_groups
             and isinstance(previous, discord.ui.Section)
@@ -43,12 +50,22 @@ def section_dividers(panel: discord.ui.Container) -> None:
             and not isinstance(previous, discord.ui.Separator)
             and navigation_item(child)
             and not (
+                isinstance(previous, discord.ui.TextDisplay)
+                and len(panel.children) >= 2
+                and isinstance(panel.children[-2], discord.ui.Separator)
+            )
+            and not (
                 isinstance(previous, discord.ui.MediaGallery)
                 and "attachment://ky_strip_" in str(previous.to_component_dict())
             )
         )
-        if adjacent_sections or footer_boundary:
+        if intro_boundary:
+            panel.add_item(
+                discord.ui.Separator(visible=False, spacing=discord.SeparatorSpacing.large)
+            )
+        elif adjacent_sections or footer_boundary:
             panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
+        seen_control = seen_control or is_control
         if (
             isinstance(child, discord.ui.Section)
             and isinstance(child.accessory, discord.ui.Button)
