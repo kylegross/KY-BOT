@@ -21,8 +21,11 @@ def navigation_item(item):
     )
 
 
-def section_dividers(panel: discord.ui.Container) -> None:
+def section_dividers(panel: discord.ui.Container, *, back_on_right: bool = False) -> None:
     """Space introductions, adjacent sections and navigation without doubling rules."""
+    left_navigation = (
+        LEFT_NAVIGATION - {"back", "back to editing"} if back_on_right else LEFT_NAVIGATION
+    )
     # Home always belongs beside its destination text, as a right-side accessory.
     home_text = "**COMMAND CENTER**\nReturn to the main menu."
     for child in list(panel.children):
@@ -117,7 +120,7 @@ def section_dividers(panel: discord.ui.Container) -> None:
         if (
             isinstance(child, discord.ui.Section)
             and isinstance(child.accessory, discord.ui.Button)
-            and (child.accessory.label or "").casefold() in LEFT_NAVIGATION
+            and (child.accessory.label or "").casefold() in left_navigation
         ):
             # Action rows start at the left; keep the original button and callback.
             for text in child.children:
@@ -134,7 +137,7 @@ def section_dividers(panel: discord.ui.Container) -> None:
                     key=lambda item: (
                         not (
                             isinstance(item, discord.ui.Button)
-                            and (item.label or "").casefold() in LEFT_NAVIGATION
+                            and (item.label or "").casefold() in left_navigation
                         )
                     )
                 )

@@ -53,8 +53,9 @@ GROUPS = {
     ),
     "custom_embeds:library": (
         ("CREATE EMBED", ("CREATE EMBED",)),
-        ("SAVED EMBEDS", ("SAVED EMBEDS",)),
+        ("SAVED EMBEDS", ("SAVED EMBEDS", "DELETE EMBED")),
     ),
+    "custom_embeds:selected": (("SAVED EMBEDS", ("SELECTED EMBED", "EDIT EMBED", "DELETE EMBED")),),
     "custom_embeds:content": (
         ("ADD STYLED TEXT", ("ADD STYLED TEXT", "NEW PASSAGE")),
         ("TITLE", ("TITLE STYLE", "TITLE")),
@@ -62,7 +63,9 @@ GROUPS = {
         ("FOOTER TEXT", ("FOOTER TEXT STYLE", "FOOTER TEXT")),
     ),
     "custom_embeds:formatting": (
-        ("DESIGN", ("DECORATIVE TEXT", "TEXT COLOR", "HIGHLIGHT COLOR", "TITLE & FOOTER")),
+        ("TITLE", ("TITLE STYLE",)),
+        ("FOOTER TEXT", ("FOOTER TEXT STYLE",)),
+        ("DESIGN", ("DECORATIVE TEXT FINISH", "CUSTOM TEXT COLOR", "HIGHLIGHT COLOR")),
         ("SECTIONS", ("SECTIONS",)),
     ),
     "custom_embeds:sections": (

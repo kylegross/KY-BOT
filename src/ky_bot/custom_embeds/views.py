@@ -96,7 +96,7 @@ class Base(discord.ui.LayoutView):
 
     def finish(self):
         group_sections(self.panel, self.strip_menu)
-        section_dividers(self.panel)
+        section_dividers(self.panel, back_on_right=True)
         self.panel.add_item(
             discord.ui.MediaGallery(
                 discord.MediaGalleryItem("attachment://ky_footer_create_embed.png")
@@ -123,14 +123,18 @@ class Base(discord.ui.LayoutView):
 
 
 class Library(Base):
-    def __init__(self, cog, owner, guild, rows, *, parent=None, page=0, notice=None):
+    def __init__(
+        self, cog, owner, guild, rows, *, parent=None, page=0, notice=None, deleting=False
+    ):
         super().__init__(owner, guild, timeout=None if parent and parent.panel_manager else 600)
         self.parent = parent
         if notice:
             self.text(notice)
         page = min(max(0, page), max(0, (len(rows) - 1) // 25))
         self.text(
-            "Create a custom channel post or open a saved embed. "
+            "Choose the saved embed you want to delete. You will confirm before it is removed."
+            if deleting
+            else "Create a custom channel post or choose a saved embed to edit or delete. "
             "Editing and previews open privately; publishing is a separate action."
         )
 
@@ -147,7 +151,13 @@ class Library(Base):
         async def reload(i, offset=0):
             await i.response.defer()
             view = Library(
-                cog, owner, guild, await cog.store.listing(guild), parent=parent, page=page + offset
+                cog,
+                owner,
+                guild,
+                await cog.store.listing(guild),
+                parent=parent,
+                page=page + offset,
+                deleting=deleting,
             )
             if parent and parent.panel_manager:
                 attachments = editor_artwork(view)
@@ -166,7 +176,9 @@ class Library(Base):
         )
         if rows:
             select = discord.ui.Select(
-                placeholder="Choose a saved embed",
+                placeholder="Choose an embed to delete"
+                if deleting
+                else "Choose a saved embed to edit or delete",
                 options=[
                     discord.SelectOption(
                         value=ident,
@@ -185,12 +197,34 @@ class Library(Base):
 
             async def choose(i):
                 await i.response.defer(ephemeral=True, thinking=True)
-                await Session(cog, owner, guild, select.values[0]).show(i)
+                session = Session(cog, owner, guild, select.values[0])
+                session.row = await cog.store.get(guild, session.ident)
+                if session.row["deleted"]:
+                    await session.show(i)
+                else:
+                    await editor_display(
+                        i,
+                        DeleteConfirm(session, session.row["revision"])
+                        if deleting
+                        else SavedEmbed(session),
+                    )
 
             select.callback = choose
             self.panel.add_item(discord.ui.ActionRow(select))
         else:
             self.text("No saved embeds yet.")
+
+        async def choose_delete(i):
+            await i.response.defer(ephemeral=True, thinking=True)
+            await editor_display(
+                i, Library(cog, owner, guild, await cog.store.listing(guild), deleting=True)
+            )
+
+        if rows and not deleting:
+            self.row(
+                "**DELETE EMBED**\nChoose a saved embed to remove, then confirm.",
+                button("Delete embed", choose_delete, danger=True),
+            )
 
         if len(rows) > 25:
             previous = button("Previous", lambda i: reload(i, -1))
@@ -227,6 +261,54 @@ class Library(Base):
         if self.parent:
             return await self.parent.interaction_check(i)
         return await super().interaction_check(i)
+
+
+class SavedEmbed(Base):
+    """An explicit action menu for the embed selected in Manage Embeds."""
+
+    def __init__(self, session):
+        super().__init__(session.owner, session.guild)
+        self.session = session
+        self.header_mode = "edit"
+        self.strip_menu = "custom_embeds:selected"
+        self.text("**SELECTED EMBED**\n" + safe(session.row["draft"]["name"]))
+
+        async def edit(i):
+            await i.response.defer()
+            await session.show(i, "main")
+            self.stop()
+
+        async def delete(i):
+            await i.response.defer()
+            await editor_display(i, DeleteConfirm(session, session.row["revision"]))
+            self.stop()
+
+        async def back(i):
+            await i.response.defer()
+            await editor_display(
+                i,
+                Library(
+                    session.cog,
+                    session.owner,
+                    session.guild,
+                    await session.cog.store.listing(session.guild),
+                ),
+            )
+            self.stop()
+
+        self.row(
+            "**EDIT EMBED**\nChange the content, images, formatting or delivery settings.",
+            button("Edit embed", edit),
+        )
+        self.row(
+            "**DELETE EMBED**\nRemove this draft and its published copy.",
+            button("Delete embed", delete, danger=True),
+        )
+        self.row("**SAVED EMBEDS**\nReturn to the saved embed list.", button("All embeds", back))
+        self.finish()
+
+    async def interaction_check(self, i):
+        return await self.session.allowed(i)
 
 
 class Session:
@@ -529,42 +611,65 @@ class Editor(Base):
         elif page == "formatting":
             from ky_bot.design.menu_design import FINISHES
 
+            for key, label in (
+                ("title_style", "TITLE STYLE"),
+                ("footer_style", "FOOTER TEXT STYLE"),
+            ):
+                self.text(f"**{label}**\nChoose how this text is displayed.")
+                picker = discord.ui.Select(
+                    placeholder="Choose " + label.lower(),
+                    options=[
+                        discord.SelectOption(label=label, value=value, default=data[key] == value)
+                        for value, label in FIELD_STYLES.items()
+                    ],
+                )
+
+                async def style_choice(i, picker=picker, key=key):
+                    await i.response.defer()
+                    await s.save(i, revision, **{key: picker.values[0]})
+
+                picker.callback = style_choice
+                self.panel.add_item(discord.ui.ActionRow(picker))
+
             self.text(
-                "**DECORATIVE TEXT**\nUse the Decorative heading style for a title or "
-                "footer, or add section headings. Ordinary message text keeps its Discord style."
-            )
-            self.row(
-                "**TEXT COLOR**\n" + (data.get("text_color") or "Follow finish"),
-                button("Text color", modal("text_color")),
+                "**DECORATIVE TEXT FINISH**\nFor decorative titles, footers and section headings."
             )
             finish = discord.ui.Select(
-                placeholder="Decorative text finish",
+                placeholder="Choose a decorative text finish or custom color",
                 options=[
                     discord.SelectOption(
                         label=label,
                         value=key,
-                        default=key == data.get("text_finish", "dark_silver"),
+                        default=key == data["text_finish"] and not data["text_color"],
                     )
                     for key, label in FINISHES.items()
+                ]
+                + [
+                    discord.SelectOption(
+                        label="Custom color…", value="__custom", default=bool(data["text_color"])
+                    )
                 ],
             )
 
             async def choose_finish(i):
+                if finish.values[0] == "__custom":
+                    await i.response.send_modal(EditModal(s, "text_color"))
+                    return
                 await i.response.defer()
-                await s.save(i, revision, text_finish=finish.values[0])
+                await s.save(i, revision, text_finish=finish.values[0], text_color=None)
 
             finish.callback = choose_finish
             self.panel.add_item(discord.ui.ActionRow(finish))
             self.row(
+                "**CUSTOM TEXT COLOR**\n" + (data["text_color"] or "Using the selected finish."),
+                button("Custom color", modal("text_color")),
+            )
+            self.row(
                 "**HIGHLIGHT COLOR**\nSet the accent beside the message.",
-                button("Highlight color", go("style")),
+                button("Change color", go("style")),
             )
             self.row(
-                "**TITLE & FOOTER**\nChoose Decorative heading in the text styles.",
-                button("Text styles", go("content")),
-            )
-            self.row(
-                "**SECTIONS**\nEach section can have a decorative heading and message.",
+                "**SECTIONS**\nAdd, edit or remove section headings and messages.",
                 button("Manage sections", go("sections")),
             )
         elif page == "sections":
@@ -618,9 +723,36 @@ class Editor(Base):
         elif page == "images":
             for key, title in (("header", "HEADER IMAGE"), ("footer", "FOOTER IMAGE")):
                 self.row(
-                    f"**{title}**\n-# " + ("Image saved" if data[key] else "No image"),
+                    f"**{title}**\n-# "
+                    + (
+                        "Image saved · Choose a standard finish below or upload your own."
+                        if data[key]
+                        else "Choose a standard finish below or upload your own."
+                    ),
                     button("Upload image", modal(key)),
                 )
+                from ky_bot.design.menu_design import FINISHES
+
+                from .artwork import standard_image
+
+                picker = discord.ui.Select(
+                    placeholder=f"Choose a standard {key}",
+                    options=[
+                        discord.SelectOption(
+                            label=label,
+                            value=value,
+                            default=data[key] == standard_image(key, value),
+                        )
+                        for value, label in FINISHES.items()
+                    ],
+                )
+
+                async def standard(i, key=key, picker=picker):
+                    await i.response.defer()
+                    await s.save(i, revision, **{key: standard_image(key, picker.values[0])})
+
+                picker.callback = standard
+                self.panel.add_item(discord.ui.ActionRow(picker))
                 if data[key]:
 
                     async def remove(i, key=key):

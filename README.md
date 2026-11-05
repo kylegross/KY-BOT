@@ -690,7 +690,10 @@ or old channel cleanup jobs are imported.
 
 ## Create custom embeds
 
-Open Command Center > Manage Embeds. Create a new saved draft or choose an existing
+Open Command Center > Manage Embeds. Choose a saved embed to see explicit **Edit embed**
+and **Delete embed** actions. The library also offers **Delete embed** directly;
+choose the embed and confirm to remove its draft and published message.
+Create a new saved draft or choose an existing
 embed from the library. Editors and previews are private to the administrator.
 
 - Content: a private saved name, optional title, message and footer text.
@@ -936,3 +939,10 @@ Confession headings and header titles now use the shared `text_ink` renderer use
 other menus. Standard finishes are iridescent gold, iridescent dark silver, multicolor
 iridescent silver, and multicolor iridescent red; explicit custom hex colors override
 the finish without changing another channel’s settings.
+
+Manage Embeds image settings offer independent standard header and footer dropdowns
+in all four finishes, alongside custom uploads and Remove. Presets are saved as real
+PNG data in the draft; changing a header leaves the footer unchanged. Formatting
+offers title/footer style dropdowns directly, followed by decorative lettering finish,
+custom text color, highlight color and sections. Selecting a standard lettering finish
+clears a custom text-color override. Back remains a right-side button on editor submenus.

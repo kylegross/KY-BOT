@@ -276,16 +276,108 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await cog.authorize(SimpleNamespace(guild=guild, user=SimpleNamespace(id=50)))
 
+    async def test_standard_artwork_dropdowns_save_independent_durable_images(self):
+        from ky_bot.custom_embeds.artwork import standard_image
+        from ky_bot.design.menu_design import FINISHES
+
+        original = image_upload(self.png())
+        await self.save(header=original, footer=original)
+        session = Session(self.cog, 50, 1, self.ident)
+        for key in ("header", "footer"):
+            for finish in FINISHES:
+                session.row = await self.store.get(1, self.ident)
+                session.page = "images"
+                other = "footer" if key == "header" else "header"
+                preserved = session.row["draft"][other]
+                view = Editor(session)
+                picker = next(
+                    item
+                    for item in view.walk_children()
+                    if isinstance(item, discord.ui.Select)
+                    and item.placeholder == f"Choose a standard {key}"
+                )
+                self.assertEqual([option.value for option in picker.options], list(FINISHES))
+                picker._values = [finish]
+                with patch.object(session, "show", new=AsyncMock()):
+                    await picker.callback(self.interaction())
+                saved = (await self.store.get(1, self.ident))["draft"]
+                self.assertEqual(saved[key], standard_image(key, finish))
+                self.assertEqual(saved[other], preserved)
+                self.assertTrue(base64.b64decode(saved[key]).startswith(b"\x89PNG"))
+                self.assertEqual(self.timeline, [])
+                view.stop()
+        # An upload can replace a preset; removing it clears the same saved image field.
+        await self.save(header=original)
+        session.row = await self.store.get(1, self.ident)
+        view = Editor(session)
+        remove = next(
+            item.accessory
+            for item in view.panel.children
+            if isinstance(item, discord.ui.Section)
+            and item.children[0].content.startswith("**REMOVE HEADER IMAGE**")
+        )
+        with patch.object(session, "show", new=AsyncMock()):
+            await remove.callback(self.interaction())
+        self.assertIsNone((await self.store.get(1, self.ident))["draft"]["header"])
+        view.stop()
+
+    async def test_formatting_exposes_styles_and_finish_without_cross_menu_hops(self):
+        await self.save(text_color="#39DCCB")
+        session = Session(self.cog, 50, 1, self.ident)
+        session.row = await self.store.get(1, self.ident)
+        session.page = "formatting"
+        view = Editor(session)
+        pickers = [item for item in view.walk_children() if isinstance(item, discord.ui.Select)]
+        self.assertEqual(len(pickers), 3)
+        self.assertEqual(len(pickers[-1].options), 5)
+        pickers[-1]._values = ["gold"]
+        with patch.object(session, "show", new=AsyncMock()):
+            await pickers[-1].callback(self.interaction())
+        saved = (await self.store.get(1, self.ident))["draft"]
+        self.assertEqual(saved["text_finish"], "gold")
+        self.assertIsNone(saved["text_color"])
+        view.stop()
+
     async def test_all_editor_pages_and_modals_fit_discord_limits(self):
         await self.save(header=image_upload(self.png()), footer=image_upload(self.png()))
         session = Session(self.cog, 50, 1, self.ident)
         session.row = await self.store.get(1, self.ident)
-        for page in ("main", "content", "images", "style", "delivery", "channel", "publish"):
+        for page in (
+            "main",
+            "content",
+            "formatting",
+            "sections",
+            "images",
+            "style",
+            "delivery",
+            "channel",
+            "publish",
+        ):
             session.page = page
             view = Editor(session, "Draft saved.")
             self.assertLessEqual(view.total_children_count, 40)
             self.assertLessEqual(view.content_length(), 4000)
             view.to_components()
+            if page != "main":
+                backs = [
+                    item
+                    for item in view.walk_children()
+                    if isinstance(item, discord.ui.Section)
+                    and isinstance(item.accessory, discord.ui.Button)
+                    and item.accessory.label == "Back"
+                ]
+                self.assertEqual(len(backs), 1, page)
+                self.assertFalse(
+                    any(
+                        isinstance(item, discord.ui.ActionRow)
+                        and any(
+                            isinstance(button, discord.ui.Button) and button.label == "Back"
+                            for button in item.children
+                        )
+                        for item in view.panel.children
+                    ),
+                    page,
+                )
             view.stop()
         for mode in (
             "content",
@@ -316,6 +408,51 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
             parent.show_section(section, picker=picker)
             self.assertLessEqual(parent.total_children_count, 40)
         parent.stop()
+
+    async def test_manage_embeds_selection_exposes_edit_and_confirmed_delete(self):
+        from ky_bot.custom_embeds.views import SavedEmbed, editor_artwork
+
+        rows = await self.store.listing(1)
+        view = Library(self.cog, 50, 1, rows)
+
+        def controls(view):
+            return {
+                item.label: item
+                for item in view.walk_children()
+                if isinstance(item, discord.ui.Button)
+            }
+
+        self.assertIn("Delete embed", controls(view))
+        picker = next(x for x in view.walk_children() if isinstance(x, discord.ui.Select))
+        picker._values = [self.ident]
+        with patch("ky_bot.custom_embeds.views.editor_display", new=AsyncMock()) as display:
+            await picker.callback(self.interaction())
+        selected = display.await_args.args[1]
+        self.assertIsInstance(selected, SavedEmbed)
+        self.assertEqual(set(controls(selected)), {"Edit embed", "Delete embed", "All embeds"})
+        self.assertLessEqual(selected.total_children_count, 40)
+        artwork = editor_artwork(selected)
+        for item in artwork:
+            item.close()
+        with patch.object(selected.session, "show", new=AsyncMock()) as show:
+            await controls(selected)["Edit embed"].callback(self.interaction())
+        show.assert_awaited_once()
+        with patch("ky_bot.custom_embeds.views.editor_display", new=AsyncMock()) as display:
+            await controls(selected)["Delete embed"].callback(self.interaction())
+        self.assertIsInstance(display.await_args.args[1], DeleteConfirm)
+        self.assertEqual((await self.store.get(1, self.ident))["deleted"], 0)
+        with patch("ky_bot.custom_embeds.views.editor_display", new=AsyncMock()) as display:
+            await controls(view)["Delete embed"].callback(self.interaction())
+        deleting = display.await_args.args[1]
+        picker = next(x for x in deleting.walk_children() if isinstance(x, discord.ui.Select))
+        self.assertIn("delete", picker.placeholder)
+        picker._values = [self.ident]
+        with patch("ky_bot.custom_embeds.views.editor_display", new=AsyncMock()) as display:
+            await picker.callback(self.interaction())
+        self.assertIsInstance(display.await_args.args[1], DeleteConfirm)
+        self.assertEqual((await self.store.get(1, self.ident))["deleted"], 0)
+        for menu in (view, selected, deleting, display.await_args.args[1]):
+            menu.stop()
 
     async def test_library_picker_follows_saved_embeds_heading_and_home_is_right(self):
         from ky_bot.views.menu_strips import heading
