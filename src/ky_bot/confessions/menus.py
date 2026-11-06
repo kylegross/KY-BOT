@@ -751,7 +751,9 @@ class Admin(discord.ui.LayoutView):
                     placeholder="Choose a submission to review",
                     options=[
                         discord.SelectOption(
-                            label=p["id"][:8].upper(), value=p["id"], description=p["body"][:90]
+                            label="Confession " + str(p["data"]["number"]),
+                            value=p["id"],
+                            description=p["body"][:90],
                         )
                         for p in posts[:25]
                     ],

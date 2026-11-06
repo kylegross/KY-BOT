@@ -168,10 +168,37 @@ class Store:
             async with result.transaction():
                 for sql in SCHEMA:
                     await result.execute(sql)
+                await result.backfill_numbers()
         except BaseException:
             await db.close()
             raise
         return result
+
+    async def backfill_numbers(self):
+        """Give existing posts stable display numbers without changing action tokens."""
+        rows = await self.execute(
+            "SELECT id,guild,channel,parent,data FROM confession_posts ORDER BY created,operation",
+            many=True,
+        )
+        counters, numbers, changed = {}, {}, []
+        for token, guild, channel, parent, raw in rows:
+            data = json.loads(raw)
+            key = guild, channel, parent
+            number = data.get("number")
+            if type(number) is not int or number < 1:
+                number = counters.get(key, 0) + 1
+                data["number"] = number
+            counters[key] = max(counters.get(key, 0), number)
+            numbers[token] = number
+            changed.append((token, parent, data, raw))
+        for token, parent, data, raw in changed:
+            if parent in numbers:
+                data["parent_number"] = numbers[parent]
+            encoded = json.dumps(data)
+            if encoded != raw:
+                await self.execute(
+                    "UPDATE confession_posts SET data=? WHERE id=?", (encoded, token)
+                )
 
     async def close(self):
         await self.db.close()
@@ -321,14 +348,27 @@ class Store:
                     or source["state"] != "published"
                 ):
                     raise ValueError("This confession is not available for replies.")
+            if parent:
+                count = await self.execute(
+                    "SELECT COUNT(*) FROM confession_posts WHERE parent=?", (parent,)
+                )
+            else:
+                count = await self.execute(
+                    "SELECT COUNT(*) FROM confession_posts WHERE guild=? AND channel=? "
+                    "AND parent IS NULL",
+                    (guild, channel),
+                )
             token = uuid.uuid4().hex
             data = {
+                "number": count[0] + 1,
                 "logging": config["logging"],
                 "approval": config["approval"],
                 "message": 0,
                 "queue": 0,
                 "log": 0,
             }
+            if parent:
+                data["parent_number"] = source["data"]["number"]
             await self.execute(
                 "INSERT INTO confession_posts VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (

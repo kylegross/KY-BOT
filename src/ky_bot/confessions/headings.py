@@ -91,7 +91,7 @@ def title_image(title, finish="silver_neon", text_color=None):
     height, gap = 26, 16
     scaled = []
     for index, glyph in enumerate(glyphs):
-        target_height = 40 if len(parts) == 2 and index == 1 else height
+        target_height = 28 if len(parts) == 2 and index == 1 else height
         scaled.append(
             glyph.resize(
                 (max(1, round(glyph.width * target_height / glyph.height)), target_height),

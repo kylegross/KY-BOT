@@ -615,7 +615,7 @@ class Confessions(commands.Cog):
         details = (
             f"**Reporter:** <@{member.id}> · `{member.id}`\n"
             f"**Reason:** {safe(reason)}\n"
-            f"**Confession:** {token[:8].upper()} · <#{post['channel']}>"
+            f"**Confession:** {post['data']['number']} · <#{post['channel']}>"
         )
         view = Card(
             config,

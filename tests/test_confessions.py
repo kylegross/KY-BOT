@@ -129,6 +129,93 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(menu.config["log_channel"], 40)
         menu.stop()
 
+    async def test_confession_numbers_are_atomic_idempotent_and_per_channel(self):
+        posts = await asyncio.gather(*(self.submit(operation=n) for n in range(1, 6)))
+        self.assertEqual(sorted(post["data"]["number"] for post in posts), [1, 2, 3, 4, 5])
+        first = posts[0]
+        self.assertEqual(
+            (await self.submit(operation=1))["data"]["number"], first["data"]["number"]
+        )
+        await self.store.transition(first["id"], {"ready"}, "published", message=999)
+        reply = await self.submit(operation=6, parent=first["id"])
+        self.assertEqual(reply["data"]["number"], 1)
+        self.assertEqual(reply["data"]["parent_number"], first["data"]["number"])
+        self.assertEqual((await self.submit(operation=7))["data"]["number"], 6)
+        revision, _ = await self.store.configure(1, 11, None, enabled=True, cooldown=0)
+        other = await self.store.submit(1, 11, 123, [], "Other channel", 8, revision)
+        self.assertEqual(other["data"]["number"], 1)
+        card = post_card(self.config, first)
+        self.assertIn("ANONYMOUS CONFESSION", str(card.to_components()))
+        self.assertNotIn(first["id"][:8].upper(), str(card.to_components()))
+        card.stop()
+
+    async def test_existing_posts_get_stable_numbers_on_restart(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "confessions.sqlite3"
+            store = await Store.open(path)
+            try:
+                revision, _ = await store.configure(1, 10, None, enabled=True, cooldown=0)
+                posts = [
+                    await store.submit(1, 10, 123, [], "Existing post", n, revision) for n in (1, 2)
+                ]
+                for post in posts:
+                    legacy = dict(post["data"])
+                    del legacy["number"]
+                    await store.execute(
+                        "UPDATE confession_posts SET data=? WHERE id=?",
+                        (json.dumps(legacy), post["id"]),
+                    )
+            finally:
+                await store.close()
+            store = await Store.open(path)
+            try:
+                self.assertEqual(
+                    [(await store.post(post["id"]))["data"]["number"] for post in posts], [1, 2]
+                )
+                next_post = await store.submit(1, 10, 123, [], "New post", 3, revision)
+                self.assertEqual(next_post["data"]["number"], 3)
+                self.assertEqual((await store.post(posts[0]["id"]))["id"], posts[0]["id"])
+            finally:
+                await store.close()
+
+    async def test_confession_iris_is_compact_beside_number(self):
+        import io
+
+        from PIL import Image
+
+        from ky_bot.confessions.headings import DIVIDER, title_image
+
+        with Image.open(io.BytesIO(title_image("ANONYMOUS CONFESSION" + DIVIDER + "1"))) as image:
+            self.assertEqual(image.height, 60)
+
+    async def test_public_confession_text_is_large_bold_but_staff_text_stays_plain(self):
+        post = await self.store.submit(1, 10, 123, [], "First line\nSecond line", 1, self.revision)
+        public = post_card(self.config, post)
+        staff = post_card(self.config, post, staff=True)
+        public_text = [
+            item.content
+            for item in public.walk_children()
+            if isinstance(item, discord.ui.TextDisplay)
+        ]
+        staff_text = [
+            item.content
+            for item in staff.walk_children()
+            if isinstance(item, discord.ui.TextDisplay)
+        ]
+        self.assertIn("## First line\n## Second line", public_text)
+        self.assertIn("First line\nSecond line", staff_text)
+        self.assertNotIn("KY BOT · Confessions", str(staff.to_components()))
+        post["body"] = "x\n" * 999
+        crowded = post_card(self.config, post)
+        self.assertLessEqual(crowded.content_length(), 4000)
+        public.stop()
+        staff.stop()
+        crowded.stop()
+
     async def test_logging_off_does_not_retain_identifying_author(self):
         post = await self.submit()
         self.assertIsNone(post["author"])

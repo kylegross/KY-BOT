@@ -61,7 +61,16 @@ def uploads(config, view=None):
 
 class Card(discord.ui.LayoutView):
     def __init__(
-        self, config, title, body, *, detail=None, buttons=(), timeout=None, show_footer_text=True
+        self,
+        config,
+        title,
+        body,
+        *,
+        detail=None,
+        buttons=(),
+        timeout=None,
+        show_footer_text=True,
+        large_body=False,
     ):
         super().__init__(timeout=timeout)
         panel = discord.ui.Container(accent_colour=int(config["color"], 16))
@@ -76,7 +85,16 @@ class Card(discord.ui.LayoutView):
                 discord.MediaGalleryItem("attachment://confession_title.png", description=title)
             )
         )
-        panel.add_item(discord.ui.TextDisplay(safe(body)))
+        content = safe(body)
+        if large_body:
+            # Native Discord headings are larger and bold, including wrapped lines.
+            content = "\n".join(
+                "## " + line if line.strip() else "" for line in content.splitlines()
+            )
+            if len(content) > 3000:
+                # Keep all words visible for unusually line-heavy submissions.
+                content = "## " + " ".join(safe(body).splitlines())
+        panel.add_item(discord.ui.TextDisplay(content))
         if detail:
             panel.add_item(discord.ui.TextDisplay(detail))
         if buttons:
@@ -91,12 +109,12 @@ class Card(discord.ui.LayoutView):
 
 
 def post_card(config, post, *, staff=False, buttons=()):
-    title = config["title"] + DIVIDER + post["id"][:8].upper()
+    title = config["title"] + DIVIDER + str(post["data"]["number"])
     if post["parent"]:
-        title = "ANONYMOUS REPLY" + DIVIDER + post["id"][:8].upper()
+        title = "ANONYMOUS REPLY" + DIVIDER + str(post["data"]["number"])
     details = []
     if post["parent"]:
-        details.append("Reply to confession **" + post["parent"][:8].upper() + "**")
+        details.append("Reply to confession **" + str(post["data"]["parent_number"]) + "**")
     if staff:
         author = (
             f"<@{post['author']}> · User ID: `{post['author']}`"
@@ -122,7 +140,8 @@ def post_card(config, post, *, staff=False, buttons=()):
         post["body"],
         detail="\n".join(details) or None,
         buttons=buttons,
-        show_footer_text=staff,
+        show_footer_text=staff and config["footer_text"] != "KY BOT · Confessions",
+        large_body=not staff,
     )
 
 
@@ -145,7 +164,7 @@ def author_log_embed(config, post, display_name=None):
     )
     embed.add_field(name="Author", value=author, inline=False)
     embed.add_field(name="Channel", value=f"<#{post['channel']}>", inline=False)
-    identifier = post["id"][:8].upper()
+    identifier = str(post["data"]["number"])
     if post["data"].get("message"):
         url = (
             f"https://discord.com/channels/{post['guild']}/{post['channel']}/"
@@ -154,7 +173,7 @@ def author_log_embed(config, post, display_name=None):
         identifier = f"[{identifier}]({url})"
     embed.add_field(name="Confession ID", value=identifier, inline=False)
     if post["parent"]:
-        embed.add_field(name="Reply to", value=post["parent"][:8].upper(), inline=False)
+        embed.add_field(name="Reply to", value=str(post["data"]["parent_number"]), inline=False)
     body = safe(post["body"])
     for offset in range(0, len(body), 1024):
         embed.add_field(
