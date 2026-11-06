@@ -10,6 +10,7 @@ import discord
 from discord.ext import commands, tasks
 
 from ky_bot.errors import send_private
+from ky_bot.views.menu_context import menu_parent
 
 from .store import KINDS, Store
 from .views import (
@@ -331,12 +332,14 @@ class AskDM(commands.Cog):
         await self.send_panel(i, view, edit=True)
 
     async def open_menu(self, i, *, command_center=None):
+        command_center = menu_parent(command_center, i)
         if command_center is None or not await command_center.interaction_check(i):
             return
         await i.response.defer()
         await self.admin(i, command_center)
 
     async def admin(self, i, parent, *, picker=None, notice=None):
+        parent = menu_parent(parent, i)
         revision, config = await self.store.config(parent.guild_id)
         view = Admin(self, parent, revision, config, picker=picker, notice=notice)
         attachments = await self.appearance(parent.guild_id, view)

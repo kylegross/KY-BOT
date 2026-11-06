@@ -787,7 +787,7 @@ menus use the design when reopened or refreshed, and sticky copies retain it.
 ### Menu category strips
 
 Main menus now group related controls beneath slim branded serif category strips.
-Command Center: Server Setup, Administration, Tools & Design, Community.
+Command Center: Server Setup, Community, Tools & Design, Administration.
 Leveling: Rankings & Member Management, Rewards & Announcements, XP & Eligibility.
 Welcome Settings: Channel & Delivery, Message, Appearance. Create Embed, Ask to
 DM/FR settings, Server Activity, Help, Automation Menus and the Emoji & Sticker
@@ -946,3 +946,26 @@ PNG data in the draft; changing a header leaves the footer unchanged. Formatting
 offers title/footer style dropdowns directly, followed by decorative lettering finish,
 custom text color, highlight color and sections. Selecting a standard lettering finish
 clears a custom text-color override. Back remains a right-side button on editor submenus.
+
+Confessions setup launched from the shared Command Center updates that shared panel.
+Approval queues and report lists always open in a separate, administrator-only private
+message; their Back/Home destinations remain private and cannot edit the shared panel.
+Ordinary settings omit Refresh; Back is retained only for a different submenu target.
+Shared Home resets the Command Center panel and releases its administrator session.
+
+
+### Consistent Command Center navigation
+
+Ordinary settings opened from the published Command Center update that same shared
+panel: Logs, Server Activity, Checklist Logs, NSFW channel settings, leveling,
+automation, request settings, and menu appearance controls. Home restores the main
+panel and releases the administrator session. Back is kept when it has a distinct
+destination, such as Back to Logs or Back to General Settings; autosaved settings
+do not show a redundant Refresh button.
+
+Member actions, confession review lists, embed-authoring drafts and explicit design
+previews remain private. Private dialogs have detached navigation contexts: their
+Back/Home/Close actions cannot acquire or edit the shared panel. Appearance previews
+use an independent draft copy while the shared appearance editor stays in place.
+Standalone slash-command settings remain private; their subsequent component updates
+edit the existing private response instead of creating another hidden message.

@@ -4,7 +4,14 @@ import discord
 
 LEFT_NAVIGATION = {"back", "close", "close menu", "all guides", "back to editing", "cancel"}
 
-NAVIGATION_LABELS = LEFT_NAVIGATION | {"home", "all embeds"}
+NAVIGATION_LABELS = LEFT_NAVIGATION | {
+    "home",
+    "all embeds",
+    "back to logs",
+    "back to welcome",
+    "back to general",
+    "back to general",
+}
 
 
 def navigation_item(item):

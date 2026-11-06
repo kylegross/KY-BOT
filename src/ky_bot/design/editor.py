@@ -18,6 +18,7 @@ from ky_bot.design.menu_design import (
     profile_for,
 )
 from ky_bot.errors import report_error
+from ky_bot.views.menu_context import display_menu, menu_parent
 from ky_bot.views.menu_strips import add_strip, category_files
 from ky_bot.views.sections import section_dividers
 
@@ -67,6 +68,7 @@ class DesignSession:
         self.selected, self.drafts = [], {}
         self.generation, self.page, self.preview_key = 0, 0, None
         self.lock = asyncio.Lock()
+        self.command_center = None
 
     @classmethod
     async def create(cls, interaction, service):
@@ -80,6 +82,9 @@ class DesignSession:
             and interaction.permissions.administrator
             and generation == self.generation
         ):
+            self.command_center = menu_parent(self.command_center, interaction)
+            if self.command_center is not None:
+                return await self.command_center.interaction_check(interaction)
             return True
         await interaction.response.send_message(
             "Reopen /settings as an administrator to edit designs.", ephemeral=True
@@ -135,18 +140,24 @@ class DesignSession:
         view = Editor(self, page, notice)
         attachments = category_files([view.category_title], "silver_neon")
         try:
-            await interaction.edit_original_response(
-                content=None,
-                embeds=[],
-                attachments=attachments,
-                view=view,
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            self.command_center = menu_parent(self.command_center, interaction)
+            await display_menu(interaction, view, attachments, self.command_center)
         finally:
             for attachment in attachments:
                 attachment.close()
 
     async def preview(self, interaction, key=None):
+        if self.command_center is not None and self.command_center.panel_manager:
+            # A private preview owns its own draft and navigation context. The
+            # shared editor remains active and cannot be edited by its callbacks.
+            preview = copy.copy(self)
+            preview.command_center = None
+            preview.lock = asyncio.Lock()
+            preview.selected = list(self.selected)
+            preview.drafts = copy.deepcopy(self.drafts)
+            preview.profiles = copy.deepcopy(self.profiles)
+            await preview.preview(interaction, key)
+            return
         key = key or self.preview_key or self.selected[0]
         self.preview_key = key
         profile = self.drafts[key]
@@ -470,7 +481,7 @@ class Editor(discord.ui.LayoutView):
         if notice:
             panel.add_item(discord.ui.TextDisplay(notice))
 
-        def row(title, description, label, action, *, disabled=False):
+        def row(title, description, label, action, *, disabled=False, private=False):
             button = discord.ui.Button(label=label, disabled=disabled)
 
             async def click(i):
@@ -482,7 +493,14 @@ class Editor(discord.ui.LayoutView):
                             AppearanceModal(s, action[0], formatting=len(action) > 1)
                         )
                     else:
-                        await i.response.defer()
+                        if (
+                            private
+                            and s.command_center is not None
+                            and s.command_center.panel_manager
+                        ):
+                            await i.response.defer(ephemeral=True, thinking=True)
+                        else:
+                            await i.response.defer()
                         await action(i)
 
             button.callback = click
@@ -690,11 +708,18 @@ class Editor(discord.ui.LayoutView):
                 "Preview",
                 preview,
                 disabled=not active,
+                private=True,
             )
 
         async def cancel(i):
             from ky_bot.admin_functions.settings_view import SettingsView
 
+            parent = menu_parent(s.command_center, i)
+            if parent is not None:
+                parent.section = "general"
+                await parent.refresh(i)
+                self.stop()
+                return
             menu = SettingsView(s.owner, s.guild_id, s.service)
             await menu.refresh(i)
             self.stop()

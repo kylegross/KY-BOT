@@ -12,6 +12,7 @@ from discord.ext import commands
 from ky_bot.checklists.board import safe
 from ky_bot.checklists.inline import InlineView
 from ky_bot.errors import report_error
+from ky_bot.views.menu_context import defer_menu, menu_parent
 from ky_bot.views.menu_strips import category_files, filename, group_sections
 from ky_bot.views.sections import section_dividers
 
@@ -541,7 +542,9 @@ class Menu(discord.ui.LayoutView):
                     discord.MediaGalleryItem("attachment://dark_silver_icon.png")
                 )
             )
-        back = discord.ui.Button(label="Back")
+        back = discord.ui.Button(
+            label="Back to General" if page == "main" and s.command_center is not None else "Back"
+        )
 
         async def go_back(i):
             await i.response.defer()
@@ -649,7 +652,8 @@ class AutoReact(commands.Cog):
         await self.open_menu(interaction)
 
     async def open_menu(self, interaction, *, command_center=None):
-        await interaction.response.defer(ephemeral=True, thinking=command_center is None)
+        command_center = menu_parent(command_center, interaction)
+        await defer_menu(interaction, command_center)
         session = Session(self, interaction)
         session.command_center = command_center
         await session.show(interaction)

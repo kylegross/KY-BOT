@@ -8,6 +8,7 @@ from ky_bot.errors import send_private
 from ky_bot.leveling.menu import Session
 from ky_bot.leveling.service import LevelingService
 from ky_bot.leveling.store import MAX_LEVEL, MAX_XP, LevelStore
+from ky_bot.views.menu_context import defer_menu, menu_parent
 
 
 class Leveling(commands.Cog):
@@ -108,10 +109,11 @@ class Leveling(commands.Cog):
         await self.adjust_command(interaction, member, "level", level)
 
     async def open_menu(self, interaction, *, command_center=None):
+        command_center = menu_parent(command_center, interaction)
         if not interaction.guild or not interaction.permissions.administrator:
             await send_private(interaction, "Open Leveling as a server administrator.")
             return
-        await interaction.response.defer(ephemeral=True, thinking=command_center is None)
+        await defer_menu(interaction, command_center)
         session = Session(self, interaction, command_center)
         await session.show(interaction)
 

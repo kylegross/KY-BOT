@@ -18,12 +18,12 @@ IDLE_SECONDS = 600
 
 def command_center_link(message):
     view = discord.ui.LayoutView(timeout=180)
-    view.add_item(discord.ui.TextDisplay(
-        f"Command Center is available in <#{message.channel.id}>."
-    ))
-    view.add_item(discord.ui.ActionRow(discord.ui.Button(
-        label="Open Command Center", url=message.jump_url
-    )))
+    view.add_item(
+        discord.ui.TextDisplay(f"Command Center is available in <#{message.channel.id}>.")
+    )
+    view.add_item(
+        discord.ui.ActionRow(discord.ui.Button(label="Open Command Center", url=message.jump_url))
+    )
     return view
 
 
@@ -45,9 +45,10 @@ class CommandCenterPanels:
 
     def owns_message(self, guild_id, message_id):
         entry = self.entries.get(guild_id)
-        return bool(entry and entry.message.id == message_id) or (
-            guild_id, message_id
-        ) in self.retired_messages
+        return (
+            bool(entry and entry.message.id == message_id)
+            or (guild_id, message_id) in self.retired_messages
+        )
 
     def lock(self, guild_id):
         return self.locks.setdefault(guild_id, asyncio.Lock())
@@ -149,10 +150,20 @@ class CommandCenterPanels:
             return message
 
     async def allowed(self, parent, interaction):
+        from ky_bot.views.menu_context import is_private_interaction
+
+        if is_private_interaction(interaction):
+            await send_private(
+                interaction,
+                "Use the shared Command Center for shared settings; this menu is private.",
+            )
+            return False
         entry = self.entries.get(parent.guild_id)
         if (
-            entry is None or entry.token != parent.panel_token
-            or interaction.guild_id != parent.guild_id or interaction.guild is None
+            entry is None
+            or entry.token != parent.panel_token
+            or interaction.guild_id != parent.guild_id
+            or interaction.guild is None
             or not interaction.permissions.administrator
         ):
             await send_private(interaction, "Use the current Command Center as an administrator.")
@@ -169,6 +180,17 @@ class CommandCenterPanels:
         return True
 
     async def edit(self, parent, interaction, view, uploads):
+        from ky_bot.views.menu_context import is_private_interaction
+
+        if is_private_interaction(interaction):
+            current = self.entries.get(parent.guild_id)
+            if current is None or current.view is not view:
+                view.stop()
+            await send_private(
+                interaction,
+                "This menu is private. Reopen the shared Command Center to navigate there.",
+            )
+            return None
         async with self.lock(parent.guild_id):
             entry = self.entries.get(parent.guild_id)
             if entry is None or entry.token != parent.panel_token:
@@ -178,7 +200,10 @@ class CommandCenterPanels:
             view.timeout = None
             try:
                 message = await entry.message.edit(
-                    content=None, embeds=[], view=view, attachments=uploads,
+                    content=None,
+                    embeds=[],
+                    view=view,
+                    attachments=uploads,
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
             except BaseException:
@@ -188,7 +213,8 @@ class CommandCenterPanels:
             entry.message, entry.view = message, view
             entry.touched = time.monotonic()
             view.message = message
-            old_view.stop()
+            if old_view is not view:
+                old_view.stop()
             return message
 
     async def _reset(self, guild_id, *, due_only=False):
@@ -209,7 +235,10 @@ class CommandCenterPanels:
                 view.stop()
                 return
             message = await entry.message.edit(
-                content=None, embeds=[], view=view, attachments=uploads,
+                content=None,
+                embeds=[],
+                view=view,
+                attachments=uploads,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
         except BaseException:

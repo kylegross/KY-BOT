@@ -674,8 +674,10 @@ class Menu(discord.ui.LayoutView):
             "reward_role": "rewards",
             "remove_reward": "rewards",
         }.get(page, "main")
-        controls = discord.ui.ActionRow(button("Back", home if page == "main" else go(back_to)))
-        if page in HEADINGS:
+        controls = discord.ui.ActionRow()
+        if not (page == "main" and s.command_center and s.command_center.panel_manager):
+            controls.add_item(button("Back", home if page == "main" else go(back_to)))
+        if page in {"leaderboard", "members"}:
             controls.add_item(button("Refresh", refresh))
         if s.command_center and s.command_center.panel_manager:
             controls.add_item(button("Home", home))

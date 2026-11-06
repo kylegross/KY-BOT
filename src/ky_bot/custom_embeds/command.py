@@ -7,6 +7,8 @@ import time
 import discord
 from discord.ext import commands, tasks
 
+from ky_bot.views.menu_context import menu_parent
+
 from .model import render, validate
 from .store import Store
 
@@ -269,6 +271,7 @@ class CustomEmbeds(commands.Cog):
         )
 
     async def open_menu(self, interaction, *, command_center=None):
+        command_center = menu_parent(command_center, interaction)
         if command_center is None or not await command_center.interaction_check(interaction):
             return
         from .views import Library, editor_artwork

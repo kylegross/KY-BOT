@@ -11,6 +11,7 @@ from discord.ext import commands
 
 from ky_bot.admin_functions.autodelete.autodelete_logging import TYPES
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.menu_context import defer_menu, display_menu, menu_parent
 from ky_bot.views.menu_strips import group_sections, strip_files
 from ky_bot.views.sections import section_dividers
 
@@ -202,34 +203,31 @@ class NSFWFlashLogs(commands.Cog):
             await send_private(i, str(error))
 
     async def open_menu(self, i, *, command_center=None):
+        command_center = menu_parent(command_center, i)
         if command_center is not None and not await command_center.interaction_check(i):
             return
         await self.authorize(i)
-        await i.response.defer(ephemeral=True, thinking=True)
+        await defer_menu(i, command_center)
         source = i.channel_id if isinstance(i.channel, discord.TextChannel) else None
-        await self.show(i, source)
+        await self.show(i, source, command_center=command_center)
 
-    async def show(self, i, source_id=None, notice=None):
+    async def show(self, i, source_id=None, notice=None, *, command_center=None):
+        command_center = menu_parent(command_center, i)
         source = await self.channel(i.guild_id, source_id) if source_id else None
-        view = Menu(self, i.user.id, i.guild_id, source, notice)
+        view = Menu(self, i.user.id, i.guild_id, source, notice, command_center=command_center)
         attachments = uploads()
         try:
-            await i.edit_original_response(
-                content=None,
-                embeds=[],
-                view=view,
-                attachments=attachments,
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            await display_menu(i, view, attachments, command_center)
         finally:
             for item in attachments:
                 item.close()
 
 
 class Menu(discord.ui.LayoutView):
-    def __init__(self, cog, owner, guild, source, notice=None):
+    def __init__(self, cog, owner, guild, source, notice=None, *, command_center=None):
         super().__init__(timeout=600)
         self.cog, self.owner, self.guild = cog, owner, guild
+        self.command_center = command_center
         panel = discord.ui.Container(accent_colour=0xD6E2F3)
         panel.add_item(
             discord.ui.MediaGallery(
@@ -252,7 +250,7 @@ class Menu(discord.ui.LayoutView):
 
         async def choose(i):
             await i.response.defer()
-            await cog.show(i, select.values[0].id)
+            await cog.show(i, select.values[0].id, command_center=self.command_center)
 
         select.callback = choose
         panel.add_item(discord.ui.ActionRow(select))
@@ -264,9 +262,11 @@ class Menu(discord.ui.LayoutView):
                 await i.response.defer()
                 try:
                     await cog.apply(i, source.id, expected=expected, **kwargs)
-                    await cog.show(i, source.id, "Settings saved.")
+                    await cog.show(
+                        i, source.id, "Settings saved.", command_center=self.command_center
+                    )
                 except (ValueError, discord.HTTPException) as error:
-                    await cog.show(i, source.id, str(error))
+                    await cog.show(i, source.id, str(error), command_center=self.command_center)
 
             def row(title, description, label, callback):
                 item = discord.ui.Button(label=label)
@@ -336,6 +336,16 @@ class Menu(discord.ui.LayoutView):
         panel.add_item(discord.ui.TextDisplay(PRIVACY))
 
         async def close(i):
+            parent = menu_parent(self.command_center, i)
+            if parent is not None:
+                await defer_menu(i, parent)
+                if getattr(parent, "panel_manager", None):
+                    await parent.panel_manager.reset(guild)
+                else:
+                    parent.section = "overview"
+                    await parent.refresh(i)
+                self.stop()
+                return
             closed = discord.ui.LayoutView()
             closed.add_item(
                 discord.ui.TextDisplay("NSFW Flash Logs menu closed. Settings are saved.")
@@ -343,11 +353,14 @@ class Menu(discord.ui.LayoutView):
             await i.response.edit_message(content=None, view=closed, attachments=[])
             self.stop()
 
-        item = discord.ui.Button(label="Close")
+        item = discord.ui.Button(label="Home" if command_center is not None else "Close")
         item.callback = close
         panel.add_item(
             discord.ui.Section(
-                "**PRIVATE ADMIN CONTROLS**\nOnly you can use this menu.", accessory=item
+                "**COMMAND CENTER**\nReturn to the main menu."
+                if command_center is not None
+                else "**PRIVATE ADMIN CONTROLS**\nOnly you can use this menu.",
+                accessory=item,
             )
         )
         group_sections(panel, "nsfw")
@@ -360,6 +373,10 @@ class Menu(discord.ui.LayoutView):
         self.add_item(panel)
 
     async def interaction_check(self, i):
+        self.command_center = menu_parent(self.command_center, i)
+        if self.command_center is not None:
+            if not await self.command_center.interaction_check(i):
+                return False
         if i.user.id != self.owner or i.guild_id != self.guild:
             await send_private(i, "Open your own NSFW Flash Logs menu as a server administrator.")
             return False

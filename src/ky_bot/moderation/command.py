@@ -5,6 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ky_bot.errors import send_private
+from ky_bot.views.menu_context import menu_parent
 
 from .service import apply, authorize, parse_duration
 from .views import Confirm, Menu, artwork, display
@@ -105,6 +106,7 @@ class Moderation(commands.Cog):
             await send_private(i, str(error))
 
     async def open_menu(self, i, *, command_center=None):
+        command_center = menu_parent(command_center, i)
         if command_center is None or not await command_center.interaction_check(i):
             return
         await i.response.defer()

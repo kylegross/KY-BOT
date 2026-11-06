@@ -140,3 +140,28 @@ class MenuStripTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(section.accessory, control)
                 await control.callback("interaction")
                 control.callback.assert_awaited_once_with("interaction")
+
+    async def test_command_center_order_and_roomier_rows_preserve_discord_limits(self):
+        expected = ["SERVER SETUP", "COMMUNITY", "TOOLS & DESIGN", "ADMINISTRATION"]
+        for manager in (None, Mock()):
+            view = SettingsView(50, 1, Mock(), panel_manager=manager)
+            self.assertEqual(strip_titles(view), expected)
+            self.assertLessEqual(view.total_children_count, 40)
+            rows = {
+                heading(item): item
+                for item in view.children[0].children
+                if isinstance(item, discord.ui.Section)
+            }
+            spaced = {
+                "COMMAND CENTER CHANNEL",
+                "LEVELING",
+                "CONFESSIONS",
+                "GENERAL SETTINGS",
+                "MODERATION",
+            }
+            for title in spaced:
+                self.assertTrue(rows[title].children[0].content.endswith("\n-# \u200b"), title)
+            for title in ("WELCOME EXPERIENCE", "ASK TO DM/FR", "MANAGE EMBEDS", "LOGS"):
+                self.assertFalse(rows[title].children[0].content.endswith("\n-# \u200b"), title)
+            view.to_components()
+            view.stop()

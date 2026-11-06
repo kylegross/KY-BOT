@@ -689,11 +689,13 @@ class Confessions(commands.Cog):
         await self.bot.wait_until_ready()
 
     async def open_menu(self, interaction, *, command_center=None, logs=False):
+        from ky_bot.views.menu_context import defer_menu, menu_parent
+
         from .menus import Admin
 
         await administrator(interaction)
-        if not interaction.response.is_done():
-            await interaction.response.defer(ephemeral=True, thinking=True)
+        command_center = menu_parent(command_center, interaction)
+        await defer_menu(interaction, command_center)
         menu = Admin(self, interaction.user.id, interaction.guild_id, parent=command_center)
         menu.start_logging = logs
         await menu.show(interaction, "channels")

@@ -8,6 +8,7 @@ import discord
 from PIL import Image
 
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.menu_context import display_menu, menu_parent, private_parent
 from ky_bot.views.sections import section_dividers
 
 from .appearance import standard_artwork
@@ -219,11 +220,15 @@ class Admin(discord.ui.LayoutView):
         self.lock = asyncio.Lock()
         self.page = "channels"
         self.start_logging = False
+        self.new_private_message = False
 
     async def allowed(self, i):
         if i.user.id != self.owner or i.guild_id != self.guild:
             raise ValueError("Open your own Confessions settings menu.")
         await administrator(i)
+        if self.parent and getattr(self.parent, "panel_manager", None):
+            if not await self.parent.interaction_check(i):
+                raise ValueError("Reopen Confessions from the current Command Center panel.")
 
     async def interaction_check(self, i):
         try:
@@ -269,7 +274,7 @@ class Admin(discord.ui.LayoutView):
                     )
                     await i.response.send_modal(modal)
                 else:
-                    await i.response.defer(ephemeral=True)
+                    await i.response.defer()
                     await action(i)
 
         item.callback = click
@@ -284,7 +289,18 @@ class Admin(discord.ui.LayoutView):
     async def show(self, i, page, notice=None):
         from .store import defaults
 
+        self.parent = menu_parent(self.parent, i)
         await self.allowed(i)
+        if page in {"queue", "reports"} and self.parent and self.parent.panel_manager:
+            # Never put queue bodies or identities onto the shared settings panel.
+            if not i.response.is_done():
+                await i.response.defer()
+            private = Admin(self.cog, self.owner, self.guild, parent=private_parent(self.parent, i))
+            private.channel = self.channel
+            private.start_logging = self.start_logging
+            private.new_private_message = True
+            await private.show(i, page, notice)
+            return
         self.page = page
         if self.channel:
             self.revision, self.config = await self.cog.store.config(self.guild, self.channel)
@@ -761,7 +777,7 @@ class Admin(discord.ui.LayoutView):
                 panel.add_item(discord.ui.ActionRow(picker))
                 panel.add_item(
                     discord.ui.TextDisplay(
-                        "-# Showing up to 25 submissions. Refresh after handling these to see more."
+                        "-# Up to 25 submissions. Reload the list after review to see more."
                     )
                 )
         elif page == "bans":
@@ -782,7 +798,9 @@ class Admin(discord.ui.LayoutView):
             )
 
         async def home(event):
-            if self.parent:
+            if self.parent and self.parent.panel_manager:
+                await self.parent.panel_manager.reset(self.guild)
+            elif self.parent:
                 self.parent.section = "overview"
                 await self.parent.refresh(event)
             else:
@@ -799,9 +817,34 @@ class Admin(discord.ui.LayoutView):
             if page in {"queue", "reports", "bans"}
             else "channels"
         )
-        navigation = [self.button("Back", self.go(back))] if page != "channels" else []
-        navigation.extend((self.button("Refresh", self.go(page)), self.button("Home", home)))
-        panel.add_item(discord.ui.ActionRow(*navigation))
+        if page != "channels":
+            panel.add_item(
+                discord.ui.Section(
+                    "**BACK**\nReturn to the previous Confessions menu.",
+                    accessory=self.button("Back", self.go(back)),
+                )
+            )
+        if self.parent:
+            panel.add_item(
+                discord.ui.Section(
+                    "**COMMAND CENTER**\nReturn to the main menu.",
+                    accessory=self.button("Home", home),
+                )
+            )
+        elif page == "channels":
+
+            async def close(event):
+                await event.edit_original_response(
+                    content="Confessions settings closed.", view=None, attachments=[]
+                )
+                self.stop()
+
+            panel.add_item(
+                discord.ui.Section(
+                    "**CLOSE SETTINGS**\nYour settings are saved.",
+                    accessory=self.button("Close", close),
+                )
+            )
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_footer.png"))
         )
@@ -809,17 +852,36 @@ class Admin(discord.ui.LayoutView):
         for child in list(panel.children):
             if isinstance(child, discord.ui.TextDisplay) and child.content == "**QUEUE CONTENT**":
                 panel.remove_item(child)
-        section_dividers(panel)
+        if page in {"queue", "reports"}:
+            # Live lists need an explicit reload, kept beside the private introduction.
+            children = list(panel.children)
+            for index, child in enumerate(children):
+                if isinstance(child, discord.ui.TextDisplay) and child.content.startswith(
+                    ("Administrators only", "Review member reports")
+                ):
+                    children[index] = discord.ui.Section(
+                        child.content, accessory=self.button("Reload list", self.go(page))
+                    )
+                    break
+            for child in list(panel.children):
+                panel.remove_item(child)
+            for child in children:
+                panel.add_item(child)
+        section_dividers(panel, navigation_on_right=True)
         self.add_item(panel)
         files = uploads(config, self) + attachments(page, config)
         try:
-            await i.edit_original_response(
-                content=None,
-                embeds=[],
-                view=self,
-                attachments=files,
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            if self.new_private_message:
+                self.message = await i.followup.send(
+                    view=self,
+                    files=files,
+                    ephemeral=True,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                    wait=True,
+                )
+                self.new_private_message = False
+            else:
+                self.message = await display_menu(i, self, files, self.parent)
         finally:
             for file in files:
                 file.close()

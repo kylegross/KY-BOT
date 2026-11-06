@@ -7,6 +7,7 @@ import discord
 from discord.ext import commands
 
 from ky_bot.errors import send_private
+from ky_bot.views.menu_context import defer_menu, display_menu, menu_parent
 from ky_bot.views.menu_strips import add_strip, filename
 from ky_bot.views.sections import section_dividers
 
@@ -20,9 +21,12 @@ class Logs(commands.Cog):
         self.bot = bot
 
     async def open_menu(self, interaction, *, command_center=None):
+        command_center = menu_parent(command_center, interaction)
         await administrator(interaction)
-        if not interaction.response.is_done():
-            await interaction.response.defer(ephemeral=True, thinking=True)
+        if command_center is not None and hasattr(command_center, "interaction_check"):
+            if not await command_center.interaction_check(interaction):
+                return
+        await defer_menu(interaction, command_center)
         await LogMenu(self, interaction.user.id, interaction.guild_id, command_center).show(
             interaction
         )
@@ -34,6 +38,10 @@ class LogMenu(discord.ui.LayoutView):
         self.cog, self.owner, self.guild, self.parent = cog, owner, guild, parent
 
     async def interaction_check(self, i):
+        self.parent = menu_parent(self.parent, i)
+        if self.parent is not None and hasattr(self.parent, "interaction_check"):
+            if not await self.parent.interaction_check(i):
+                return False
         if i.user.id != self.owner or i.guild_id != self.guild:
             await send_private(i, "Open your own Logs menu.")
             return False
@@ -44,7 +52,13 @@ class LogMenu(discord.ui.LayoutView):
             await send_private(i, str(error))
             return False
 
+    async def return_to(self, i):
+        replacement = LogMenu(self.cog, self.owner, self.guild, menu_parent(self.parent, i))
+        await replacement.show(i, getattr(self, "automation", False))
+
     async def show(self, i, automation=False):
+        self.parent = menu_parent(self.parent, i)
+        self.automation = automation
         self.clear_items()
         config = defaults()
         config["header"] = base64.b64encode(
@@ -70,6 +84,7 @@ class LogMenu(discord.ui.LayoutView):
 
         def feature(name, **kwargs):
             async def open_feature(event):
+                self.parent = menu_parent(self.parent, event)
                 await administrator(event)
                 cog = self.cog.bot.get_cog(name)
                 if not cog:
@@ -80,9 +95,12 @@ class LogMenu(discord.ui.LayoutView):
 
         async def server_activity(event):
             await administrator(event)
-            await event.response.defer(ephemeral=True)
+            await defer_menu(event, self.parent)
+            self.parent = menu_parent(self.parent, event)
             self.parent.section = "logging"
+            self.parent.back_menu = self
             await self.parent.refresh(event)
+            self.stop()
 
         async def checklist_logs(event):
             from .checklist_logs import ChecklistLogs
@@ -91,14 +109,15 @@ class LogMenu(discord.ui.LayoutView):
             cog = self.cog.bot.get_cog("Checklists")
             if not cog:
                 return await send_private(event, "Checklists are temporarily unavailable.")
-            await event.response.send_message(
-                "**CHECKLIST LOGS**\nChoose an existing checklist, then its log destination.",
-                view=ChecklistLogs(cog.service, event.user.id, event.guild_id),
-                ephemeral=True,
+            self.parent = menu_parent(self.parent, event)
+            view = ChecklistLogs(
+                cog.service, event.user.id, event.guild_id, parent=self.parent, back_menu=self
             )
+            await view.show(event)
+            self.stop()
 
         async def automation_menu(event):
-            await event.response.defer(ephemeral=True)
+            await defer_menu(event, self.parent)
             await self.show(event, True)
 
         if automation:
@@ -142,15 +161,28 @@ class LogMenu(discord.ui.LayoutView):
             )
 
         async def home(event):
-            await event.response.defer(ephemeral=True)
-            self.parent.section = "overview"
-            await self.parent.refresh(event)
+            self.parent = menu_parent(self.parent, event)
+            await defer_menu(event, self.parent)
+            if self.parent is not None and getattr(self.parent, "panel_manager", None):
+                await self.parent.panel_manager.reset(self.guild)
+            elif self.parent is not None and hasattr(self.parent, "refresh"):
+                self.parent.section = "overview"
+                self.parent.back_menu = None
+                await self.parent.refresh(event)
+            else:
+                closed = discord.ui.LayoutView(timeout=1)
+                closed.add_item(discord.ui.TextDisplay("Logs menu closed."))
+                await event.edit_original_response(content=None, view=closed, attachments=[])
+                closed.stop()
+            self.stop()
 
         async def back(event):
-            await event.response.defer(ephemeral=True)
+            await defer_menu(event, self.parent)
             await self.show(event)
 
-        navigation = ([button("Back", back)] if automation else []) + [button("Home", home)]
+        navigation = ([button("Back", back)] if automation else []) + [
+            button("Home" if self.parent is not None else "Close", home)
+        ]
         panel.add_item(discord.ui.ActionRow(*navigation))
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_footer.png"))
@@ -172,13 +204,7 @@ class LogMenu(discord.ui.LayoutView):
             for title in (("ACTIVITY LOGS",) if automation else ("SERVER ACTIVITY", "OTHER LOGS"))
         )
         try:
-            await i.edit_original_response(
-                view=self,
-                attachments=attachments,
-                content=None,
-                embeds=[],
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            await display_menu(i, self, attachments, self.parent)
         finally:
             for file in attachments:
                 file.close()

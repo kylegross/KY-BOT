@@ -1,4 +1,4 @@
-"""Private server settings arranged as inline Components V2 sections."""
+"""Server settings arranged as inline Components V2 sections."""
 
 import io
 from importlib.resources import files
@@ -8,6 +8,7 @@ import discord
 from ky_bot.admin_functions.settings_repository import GuildSettings
 from ky_bot.admin_functions.settings_service import SETTINGS_TITLES, SettingsService
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.menu_context import defer_menu, menu_parent
 from ky_bot.views.menu_strips import group_sections, strip_files
 from ky_bot.views.sections import section_dividers
 
@@ -95,6 +96,7 @@ class SettingsView(discord.ui.LayoutView):
         self.section = "overview"
         self.picker = False
         self.design = None
+        self.back_menu = None
         self.show_section("overview")
 
     def button(self, label: str, callback) -> discord.ui.Button:
@@ -423,17 +425,32 @@ class SettingsView(discord.ui.LayoutView):
 
         separator()
         controls = discord.ui.ActionRow()
-        if section != "overview":
-            controls.add_item(
-                self.navigation("Back", "welcome" if section == "welcome_design" else "overview")
+        if section == "logging" and self.back_menu is not None:
+
+            async def back_to_logs(interaction):
+                await defer_menu(interaction, self)
+                await self.back_menu.return_to(interaction)
+                self.stop()
+
+            row(
+                "**LOGS**\nReturn to the log categories.", self.button("Back to Logs", back_to_logs)
+            )
+        elif section == "welcome_design":
+            row(
+                "**WELCOME SETTINGS**\nReturn to welcome delivery and message settings.",
+                self.navigation("Back to Welcome", "welcome"),
             )
         if section in {"welcome", "welcome_design"}:
             controls.add_item(self.button("Preview", self.preview_welcome))
-        controls.add_item(self.button("Refresh", self.reload_settings))
-        if not self.panel_manager or section != "overview":
-            controls.add_item(
-                self.button("Home" if self.panel_manager else "Close", self.close_menu)
-            )
+        if section == "overview":
+            controls.add_item(self.button("Refresh", self.reload_settings))
+        if self.panel_manager:
+            if section != "overview":
+                controls.add_item(self.button("Home", self.close_menu))
+        elif section == "overview":
+            controls.add_item(self.button("Close", self.close_menu))
+        else:
+            controls.add_item(self.navigation("Home", "overview"))
         if section != "overview":
             panel.add_item(
                 discord.ui.TextDisplay(
@@ -451,7 +468,7 @@ class SettingsView(discord.ui.LayoutView):
         )
         panel.add_item(controls)
         group_sections(panel, "settings:" + section)
-        section_dividers(panel)
+        section_dividers(panel, navigation_on_right=True)
         self.add_item(panel)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
@@ -472,6 +489,10 @@ class SettingsView(discord.ui.LayoutView):
         return True
 
     async def refresh(self, interaction: discord.Interaction, notice: str | None = None) -> None:
+        parent = menu_parent(self, interaction)
+        if parent is not self:
+            parent.back_menu = None
+            return await parent.refresh(interaction, notice)
         replacement = SettingsView(
             self.owner_id,
             self.guild_id,
@@ -479,6 +500,7 @@ class SettingsView(discord.ui.LayoutView):
             panel_manager=self.panel_manager,
             panel_token=self.panel_token,
         )
+        replacement.back_menu = self.back_menu
         replacement.settings = await self.service.repository.get(self.guild_id)
         replacement.guild = interaction.guild
         _, profiles = await self.service.repository.get_designs(self.guild_id)
@@ -511,12 +533,10 @@ class SettingsView(discord.ui.LayoutView):
     async def open_embed_design(self, interaction):
         from ky_bot.design.editor import DesignSession
 
-        await interaction.response.defer(
-            ephemeral=bool(self.panel_manager), thinking=bool(self.panel_manager)
-        )
-        if self.panel_manager:
-            await self.panel_manager.reset(self.guild_id)
+        parent = menu_parent(self, interaction)
+        await defer_menu(interaction, parent)
         session = await DesignSession.create(interaction, self.service)
+        session.command_center = parent
         await session.show(interaction)
         self.stop()
 
@@ -594,6 +614,9 @@ class SettingsView(discord.ui.LayoutView):
         await self.refresh(interaction)
 
     async def close_menu(self, interaction: discord.Interaction) -> None:
+        parent = menu_parent(self, interaction)
+        if parent is not self:
+            return await parent.close_menu(interaction)
         if self.panel_manager:
             await interaction.response.defer()
             await self.panel_manager.reset(self.guild_id)

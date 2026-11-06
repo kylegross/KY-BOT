@@ -20,9 +20,9 @@ GROUPS = {
     ),
     "settings:overview": (
         ("SERVER SETUP", ("COMMAND CENTER CHANNEL", "WELCOME EXPERIENCE")),
-        ("ADMINISTRATION", ("MODERATION", "LOGS")),
-        ("TOOLS & DESIGN", ("GENERAL SETTINGS", "MANAGE EMBEDS")),
         ("COMMUNITY", ("LEVELING", "CONFESSIONS", "ASK TO DM/FR")),
+        ("TOOLS & DESIGN", ("GENERAL SETTINGS", "MANAGE EMBEDS")),
+        ("ADMINISTRATION", ("MODERATION", "LOGS")),
     ),
     "settings:general": (
         ("AUTOMATION", ("AUTODELETE", "AUTOTHREAD", "AUTOREACT")),
@@ -226,6 +226,25 @@ def group_sections(panel, menu):
                     _, separator, body = text.content.partition("\n")
                     if separator and body.strip():
                         text.content = body
+                if (
+                    menu == "settings:overview"
+                    and label != labels[-1]
+                    and isinstance(child, discord.ui.Section)
+                    and not any(
+                        isinstance(item, discord.ui.ActionRow)
+                        and any(
+                            not isinstance(control, discord.ui.Button) for control in item.children
+                        )
+                        for item in blocks.get(label, ())
+                    )
+                ):
+                    # A small blank subtext line separates overview entries without
+                    # spending components needed for the inline buttons. Picker
+                    # descriptions and bottom navigation remain compact.
+                    text = child.children[-1]
+                    gap = "\n-# \u200b"
+                    if not text.content.endswith(gap):
+                        text.content += gap
                 panel.add_item(child)
     if tail:
         for child in tail:

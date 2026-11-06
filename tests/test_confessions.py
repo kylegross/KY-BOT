@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import discord
 
@@ -234,6 +234,100 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("files", arguments)
         self.assertNotIn("view", arguments)
 
+    async def test_shared_confession_settings_and_detached_sensitive_reviews(self):
+        permissions = discord.Permissions(administrator=True)
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=7),
+            guild_id=1,
+            guild=SimpleNamespace(
+                fetch_member=AsyncMock(return_value=SimpleNamespace(guild_permissions=permissions))
+            ),
+            message=SimpleNamespace(flags=SimpleNamespace(ephemeral=False)),
+            response=SimpleNamespace(is_done=Mock(return_value=True), defer=AsyncMock()),
+            followup=SimpleNamespace(send=AsyncMock(return_value=SimpleNamespace(id=500))),
+            edit_original_response=AsyncMock(),
+        )
+        manager = SimpleNamespace(
+            edit=AsyncMock(return_value=SimpleNamespace(id=100)), reset=AsyncMock()
+        )
+        shared = SimpleNamespace(
+            panel_manager=manager,
+            interaction_check=AsyncMock(return_value=True),
+            section="overview",
+            refresh=AsyncMock(),
+        )
+        detached = SimpleNamespace(panel_manager=None, section="overview", refresh=AsyncMock())
+        cog = SimpleNamespace(store=self.store)
+        menu = Admin(cog, 7, 1, parent=shared)
+        menu.channel = 10
+        for page in (
+            "channels",
+            "channel",
+            "behavior",
+            "logging",
+            "appearance",
+            "artwork",
+            "lettering",
+            "permissions",
+            "bans",
+        ):
+            await menu.show(interaction, page)
+            self.assertIs(manager.edit.await_args.args[2], menu)
+        interaction.edit_original_response.assert_not_awaited()
+        interaction.followup.send.assert_not_awaited()
+        await self.configure(approval=True)
+        await self.submit()
+        await menu.show(interaction, "logging")
+        count = manager.edit.await_count
+        for page in ("queue", "reports"):
+            with patch("ky_bot.confessions.menus.private_parent", return_value=detached):
+                await menu.show(interaction, page)
+            private = interaction.followup.send.await_args.kwargs["view"]
+            self.assertTrue(interaction.followup.send.await_args.kwargs["ephemeral"])
+            self.assertIsNot(private, menu)
+            self.assertIs(private.parent, detached)
+            self.assertEqual(menu.page, "logging")
+            self.assertEqual(private.page, page)
+            self.assertEqual(manager.edit.await_count, count)
+            self.assertNotIn("A private thought", str(menu.to_components()))
+            interaction.message.flags.ephemeral = True
+            reload = next(
+                item
+                for item in private.walk_children()
+                if isinstance(item, discord.ui.Button) and item.label == "Reload list"
+            )
+            await reload.callback(interaction)
+            self.assertEqual(private.page, page)
+            self.assertEqual(manager.edit.await_count, count)
+            back = next(
+                item
+                for item in private.walk_children()
+                if isinstance(item, discord.ui.Button) and item.label == "Back"
+            )
+            await back.callback(interaction)
+            self.assertEqual(private.page, "logging")
+            self.assertEqual(manager.edit.await_count, count)
+            home = next(
+                item
+                for item in private.walk_children()
+                if isinstance(item, discord.ui.Button) and item.label == "Home"
+            )
+            await home.callback(interaction)
+            detached.refresh.assert_awaited()
+            shared.refresh.assert_not_awaited()
+            self.assertEqual(manager.edit.await_count, count)
+            private.stop()
+            interaction.message.flags.ephemeral = False
+        home = next(
+            item
+            for item in menu.walk_children()
+            if isinstance(item, discord.ui.Button) and item.label == "Home"
+        )
+        await home.callback(interaction)
+        manager.reset.assert_awaited_once_with(1)
+        shared.refresh.assert_not_awaited()
+        menu.stop()
+
     async def test_every_admin_page_serializes_within_discord_component_limit(self):
         permissions = discord.Permissions(administrator=True)
         interaction = SimpleNamespace(
@@ -267,8 +361,12 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
             intros = [
                 index
                 for index, child in enumerate(panel.children)
-                if isinstance(child, discord.ui.TextDisplay)
-                and child.content.startswith(
+                if isinstance(child, (discord.ui.TextDisplay, discord.ui.Section))
+                and (
+                    child.content
+                    if isinstance(child, discord.ui.TextDisplay)
+                    else child.children[0].content
+                ).startswith(
                     (
                         "Configure ",
                         "Anonymous member submissions.",
@@ -282,6 +380,12 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(
                 sum(isinstance(child, discord.ui.Separator) for child in panel.children), 1, page
             )
+            labels = [
+                item.label for item in menu.walk_children() if isinstance(item, discord.ui.Button)
+            ]
+            self.assertNotIn("Refresh", labels, page)
+            self.assertEqual("Reload list" in labels, page in {"queue", "reports"}, page)
+            self.assertNotIn("Home", labels, page)
             self.assertTrue(menu.header_art, page)
             self.assertFalse(
                 any(
@@ -308,7 +412,7 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
                     isinstance(left, discord.ui.Section)
                     and isinstance(middle, discord.ui.Separator)
                     and isinstance(right, discord.ui.Section)
-                    and not (right.accessory.label or "").lower() == "home",
+                    and (right.accessory.label or "").lower() not in {"home", "back", "close"},
                     page,
                 )
         menu.stop()
