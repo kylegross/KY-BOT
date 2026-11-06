@@ -307,7 +307,7 @@ class SavedEmbed(Base):
         self.session = session
         self.header_mode = "edit"
         self.strip_menu = "custom_embeds:selected"
-        self.text("**SELECTED EMBED**\n" + safe(session.row["draft"]["name"]))
+        self.text("**SELECTED EMBED**\n" + safe(session.row["draft"]["name"]) + "\n-# \u200b")
 
         async def edit(i):
             await i.response.defer()
@@ -895,7 +895,14 @@ class Editor(Base):
         if page != "main" and not row["deleted"]:
             self.row(
                 "**EMBED EDITOR**\n-# Return to editing options.",
-                button("Back", go("content" if page == "sections" else "main")),
+                button(
+                    "Back",
+                    go(
+                        {"sections": "content", "style": "formatting", "channel": "delivery"}.get(
+                            page, "main"
+                        )
+                    ),
+                ),
             )
 
         async def library(i):

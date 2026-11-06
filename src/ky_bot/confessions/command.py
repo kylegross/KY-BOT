@@ -651,6 +651,7 @@ class Confessions(commands.Cog):
                 config["panel_title"],
                 config["panel_text"],
                 detail=("Use the button below or `/confess`."),
+                show_footer_text=config["footer_text"] != "KY BOT · Confessions",
                 buttons=[Action(channel_id, "submit", label=config["submit_label"])],
             )
             message = await self.send_card(channel, config, view)

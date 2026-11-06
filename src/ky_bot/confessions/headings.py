@@ -67,6 +67,8 @@ def title_image(title, finish="silver_neon", text_color=None):
 
     if title == PROMPT:
         mask = lettering(title)
+        # Two compact menu-sized lines; the archived prompt mask was oversized.
+        mask = mask.resize((round(mask.width * 66 / mask.height), 66), Image.Resampling.LANCZOS)
         image = Image.new("RGBA", (1120, mask.height + 32))
         left = (1120 - mask.width) // 2
         image.alpha_composite(paint(mask), (left, 16))

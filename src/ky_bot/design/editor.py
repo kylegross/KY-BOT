@@ -752,7 +752,15 @@ class Editor(discord.ui.LayoutView):
             await menu.refresh(i)
             self.stop()
 
-        row("CANCEL", "Discard this draft and return to server settings.", "Cancel", cancel)
+        if s.command_center is not None and page == "edit":
+            row(
+                "GENERAL SETTINGS",
+                "Return to General Settings; unapplied changes are discarded.",
+                "Back",
+                cancel,
+            )
+        else:
+            row("CANCEL", "Discard this draft and return to server settings.", "Cancel", cancel)
         # Keep navigation as ordinary buttons, reserving section rows for settings.
         navigation = []
         for item in list(panel.children):
@@ -763,7 +771,7 @@ class Editor(discord.ui.LayoutView):
                 navigation.append(item.accessory)
         if navigation:
             panel.add_item(discord.ui.ActionRow(*navigation))
-        section_dividers(panel)
+        section_dividers(panel, navigation_on_right=True)
         # Notices (including the post-apply confirmation) need a component too.
         # Sacrifice only decorative rules, never draft data or working controls.
         if not sample:

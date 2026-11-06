@@ -30,6 +30,30 @@ def navigation_item(item):
 
 def section_dividers(panel: discord.ui.Container, *, navigation_on_right: bool = False) -> None:
     """Space introductions, adjacent sections and navigation without doubling rules."""
+    # Nested pages return one level; never stack a root shortcut beside Back.
+    has_back = any(
+        isinstance(item, discord.ui.Button)
+        and (item.label or "").casefold() in NAVIGATION_LABELS
+        and (item.label or "").casefold().startswith("back")
+        for item in panel.walk_children()
+    )
+    if has_back:
+        for child in list(panel.children):
+            if (
+                isinstance(child, discord.ui.Section)
+                and isinstance(child.accessory, discord.ui.Button)
+                and (child.accessory.label or "").casefold() == "home"
+            ):
+                panel.remove_item(child)
+            elif isinstance(child, discord.ui.ActionRow):
+                for button in list(child.children):
+                    if (
+                        isinstance(button, discord.ui.Button)
+                        and (button.label or "").casefold() == "home"
+                    ):
+                        child.remove_item(button)
+                if not child.children:
+                    panel.remove_item(child)
     left_navigation = set() if navigation_on_right else LEFT_NAVIGATION
     # Home always belongs beside its destination text, as a right-side accessory.
     home_text = "**COMMAND CENTER**\nReturn to the main menu."

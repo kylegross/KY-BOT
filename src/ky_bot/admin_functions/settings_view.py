@@ -125,6 +125,7 @@ class SettingsView(discord.ui.LayoutView):
                     interaction, "This menu is unavailable right now. Please try again later."
                 )
                 return
+            self.back_menu = None
             await cog.open_menu(interaction, command_center=self)
             self.stop()
 

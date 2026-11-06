@@ -8,7 +8,7 @@ import discord
 from PIL import Image
 
 from ky_bot.errors import report_error, send_private
-from ky_bot.views.menu_context import display_menu, menu_parent, private_parent
+from ky_bot.views.menu_context import defer_menu, display_menu, menu_parent, private_parent
 from ky_bot.views.sections import section_dividers
 
 from .appearance import standard_artwork
@@ -79,6 +79,7 @@ class Edit(discord.ui.Modal):
             }[kind]
         )
         self.menu, self.kind, self.revision, self.channel = menu, kind, menu.revision, menu.channel
+        self.return_page = menu.page
         fields = {
             "header": (("header_title", "Header banner title", 80),),
             "lettercolor": (("text_color", "Hex color (blank follows selected finish)", 7),),
@@ -125,12 +126,7 @@ class Edit(discord.ui.Modal):
             if "color" in values:
                 values["color"] = values["color"].lstrip("#")
             await self.menu.save(i, self.revision, **values)
-            target = {
-                "header": "artwork",
-                "lettercolor": "lettering",
-                "style": "appearance",
-                "text": "appearance",
-            }.get(self.kind, "behavior")
+            target = self.return_page
             await self.menu.show(i, target, "Settings saved for this channel only.")
         except ValueError as error:
             await send_private(i, str(error))
@@ -143,13 +139,14 @@ class Artwork(discord.ui.Modal):
     def __init__(self, menu, kind):
         super().__init__(title="Upload confession " + kind)
         self.menu, self.kind, self.revision, self.channel = menu, kind, menu.revision, menu.channel
+        self.return_page = menu.page
         self.upload = discord.ui.FileUpload(max_values=1, required=True)
         self.add_item(
             discord.ui.Label(text="Image (PNG, JPEG or WebP; up to 8 MB)", component=self.upload)
         )
 
     async def on_submit(self, i):
-        await i.response.defer(ephemeral=True, thinking=True)
+        await defer_menu(i, self.menu.parent)
         try:
             await self.menu.allowed(i)
             if self.menu.channel != self.channel:
@@ -174,7 +171,7 @@ class Artwork(discord.ui.Modal):
 
             value = await asyncio.to_thread(normalize)
             await self.menu.save(i, self.revision, **{self.kind: value})
-            await self.menu.show(i, "appearance", "Artwork saved.")
+            await self.menu.show(i, self.return_page, "Artwork saved.")
         except (ValueError, OSError) as error:
             await send_private(i, str(error))
 
@@ -305,8 +302,10 @@ class Admin(discord.ui.LayoutView):
         if self.channel:
             self.revision, self.config = await self.cog.store.config(self.guild, self.channel)
         config = self.config or defaults()
+        # Channel appearance belongs to the published panel/cards, not its editor.
+        menu_style = defaults()
         self.clear_items()
-        panel = discord.ui.Container(accent_colour=int(config["color"], 16))
+        panel = discord.ui.Container(accent_colour=int(menu_style["color"], 16))
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_header.png"))
         )
@@ -325,10 +324,10 @@ class Admin(discord.ui.LayoutView):
         }[page]
         self.header_art = standard_artwork(
             "header",
-            config["artwork_finish"],
+            menu_style["artwork_finish"],
             "CONFESSIONS" + DIVIDER + heading,
-            config["text_finish"],
-            config["text_color"],
+            menu_style["text_finish"],
+            menu_style["text_color"],
         )
         panel.add_item(
             discord.ui.TextDisplay(
@@ -654,6 +653,7 @@ class Admin(discord.ui.LayoutView):
                     config["panel_title"],
                     config["panel_text"],
                     detail="Private preview · No submission will be sent.",
+                    show_footer_text=config["footer_text"] != "KY BOT · Confessions",
                     buttons=[discord.ui.Button(label=config["submit_label"], disabled=True)],
                 )
                 files = uploads(config, view)
@@ -798,7 +798,9 @@ class Admin(discord.ui.LayoutView):
             )
 
         async def home(event):
-            if self.parent and self.parent.panel_manager:
+            if self.parent and getattr(self.parent, "back_menu", None) is not None:
+                await self.parent.back_menu.return_to(event)
+            elif self.parent and self.parent.panel_manager:
                 await self.parent.panel_manager.reset(self.guild)
             elif self.parent:
                 self.parent.section = "overview"
@@ -811,8 +813,10 @@ class Admin(discord.ui.LayoutView):
             if page in {"artwork", "lettering"}
             else "channels"
             if page == "channel"
+            else "behavior"
+            if page == "permissions"
             else "channel"
-            if page in {"appearance", "logging", "behavior", "permissions"}
+            if page in {"appearance", "logging", "behavior"}
             else "logging"
             if page in {"queue", "reports", "bans"}
             else "channels"
@@ -839,7 +843,17 @@ class Admin(discord.ui.LayoutView):
                 )
             )
         else:
-            if page != "channels":
+            entry_page = "logging" if self.start_logging and self.channel else "channels"
+            entry_back = (
+                self.parent is not None and getattr(self.parent, "back_menu", None) is not None
+            )
+            if entry_back and page in {"channels", entry_page}:
+                panel.add_item(
+                    discord.ui.Section(
+                        "**BACK**\nReturn to Logs.", accessory=self.button("Back", home)
+                    )
+                )
+            elif page != "channels":
                 panel.add_item(
                     discord.ui.Section(
                         "**BACK**\nReturn to the previous Confessions menu.",
@@ -884,7 +898,7 @@ class Admin(discord.ui.LayoutView):
                 panel.add_item(child)
         section_dividers(panel, navigation_on_right=True)
         self.add_item(panel)
-        files = uploads(config, self) + attachments(page, config)
+        files = uploads(menu_style, self) + attachments(page, menu_style)
         try:
             if self.new_private_message:
                 self.message = await i.followup.send(

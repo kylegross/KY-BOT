@@ -273,6 +273,11 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
         ):
             await menu.show(interaction, page)
             self.assertIs(manager.edit.await_args.args[2], menu)
+            labels = {
+                item.label for item in menu.walk_children() if isinstance(item, discord.ui.Button)
+            }
+            self.assertEqual("Home" in labels, page == "channels")
+            self.assertEqual("Back" in labels, page != "channels")
         interaction.edit_original_response.assert_not_awaited()
         interaction.followup.send.assert_not_awaited()
         await self.configure(approval=True)
@@ -318,6 +323,7 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(manager.edit.await_count, count)
             private.stop()
             interaction.message.flags.ephemeral = False
+        await menu.show(interaction, "channels")
         home = next(
             item
             for item in menu.walk_children()
@@ -455,6 +461,50 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
         picker = ChecklistLogs(SimpleNamespace(), 7, 1)
         picker.to_components()
         picker.stop()
+
+    async def test_channel_appearance_does_not_restyle_its_admin_menu(self):
+        from ky_bot.confessions.cards import uploads
+
+        permissions = discord.Permissions(administrator=True)
+        interaction = SimpleNamespace(
+            user=SimpleNamespace(id=7),
+            guild_id=1,
+            guild=SimpleNamespace(
+                fetch_member=AsyncMock(return_value=SimpleNamespace(guild_permissions=permissions))
+            ),
+            edit_original_response=AsyncMock(),
+        )
+        menu = Admin(SimpleNamespace(store=self.store), 7, 1)
+        menu.channel = 10
+        await menu.show(interaction, "artwork")
+        original_header = menu.header_art
+        original_accent = menu.children[0].accent_colour
+        await self.configure(
+            artwork_finish="red_iridescent",
+            text_finish="gold",
+            text_color="#FF3366",
+            color="FF3366",
+        )
+        with (
+            patch("ky_bot.confessions.menus.uploads", wraps=uploads) as menu_uploads,
+            patch("ky_bot.confessions.menus.attachments", return_value=[]) as strips,
+        ):
+            await menu.show(interaction, "artwork")
+            self.assertEqual(menu.header_art, original_header)
+            self.assertEqual(menu.children[0].accent_colour, original_accent)
+            self.assertEqual(menu_uploads.call_args.args[0]["artwork_finish"], "silver_neon")
+            self.assertEqual(strips.call_args.args[1]["text_finish"], "silver_neon")
+            self.assertIsNone(strips.call_args.args[1]["text_color"])
+        self.assertEqual(menu.config["artwork_finish"], "red_iridescent")
+        public_files = uploads(menu.config)
+        standard_files = uploads(defaults())
+        try:
+            self.assertNotEqual(public_files[0].fp.getvalue(), standard_files[0].fp.getvalue())
+            self.assertNotEqual(public_files[1].fp.getvalue(), standard_files[1].fp.getvalue())
+        finally:
+            for file in public_files + standard_files:
+                file.close()
+        menu.stop()
 
     async def test_channel_appearance_never_changes_another_channel(self):
         from ky_bot.confessions.cards import uploads

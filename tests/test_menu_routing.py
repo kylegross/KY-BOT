@@ -91,7 +91,7 @@ class MenuRoutingTests(unittest.IsolatedAsyncioTestCase):
             item.label for item in settings.walk_children() if isinstance(item, discord.ui.Button)
         }
         self.assertIn("Back to Logs", labels)
-        self.assertIn("Home", labels)
+        self.assertNotIn("Home", labels)
         self.assertNotIn("Refresh", labels)
         self.assertNotIn("Back", labels)
         self.assertTrue(logs.is_finished())
@@ -122,8 +122,8 @@ class MenuRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(settings.panel_manager)
         self.assertEqual(settings.section, "logging")
         home = self.interaction(True)
-        await control(settings, "Home").callback(home)
-        self.assertEqual(home.edit_original_response.await_args.kwargs["view"].section, "overview")
+        await control(settings, "Back to Logs").callback(home)
+        self.assertIsInstance(home.edit_original_response.await_args.kwargs["view"], LogMenu)
         self.message.edit.assert_not_awaited()
         self.assertFalse(self.parent.is_finished())
 
@@ -144,6 +144,23 @@ class MenuRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(detached.owner_id, 50)
         self.assertIs(menu_parent(self.parent, self.interaction()), self.parent)
         detached.stop()
+
+    async def test_flash_opened_from_logs_returns_to_logs_not_command_center(self):
+        logs = LogMenu(Logs(self.bot), 50, 1, self.parent)
+        self.parent.back_menu = logs
+        source = SimpleNamespace(id=10, is_nsfw=lambda: True)
+        store = SimpleNamespace(flash_config=lambda *_: None, spoiler_required=lambda *_: False)
+        cog = SimpleNamespace(
+            logs=store, apply=AsyncMock(), show=AsyncMock(), authorize=AsyncMock()
+        )
+        view = FlashMenu(cog, 50, 1, source, command_center=self.parent)
+        self.assertNotIn(
+            "Home",
+            [item.label for item in view.walk_children() if isinstance(item, discord.ui.Button)],
+        )
+        await control(view, "Back").callback(self.interaction())
+        self.assertIsInstance(self.manager.entries[1].view, LogMenu)
+        self.assertEqual(self.manager.entries[1].owner_id, 50)
 
     async def test_flash_settings_preserve_parent_through_changes_and_private_home(self):
         source = SimpleNamespace(id=10, is_nsfw=lambda: True)
@@ -269,7 +286,7 @@ class MenuRoutingTests(unittest.IsolatedAsyncioTestCase):
                     if isinstance(item, discord.ui.Button)
                 }
                 self.assertIn("Back to General", labels)
-                self.assertIn("Home", labels)
+                self.assertNotIn("Home", labels)
                 self.assertNotIn("Back", labels)
                 await control(view, "Back to General").callback(interaction)
                 self.assertEqual(parent.section, "general")
@@ -333,7 +350,7 @@ class MenuRoutingTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(hasattr(closed, "session"))
         self.assertIn("Continue editing in the Command Center", str(closed.to_components()))
         self.assertEqual(self.message.edit.await_count, before)
-        await control(shared_editor, "Cancel").callback(self.interaction())
+        await control(shared_editor, "Back").callback(self.interaction())
         self.assertEqual(self.manager.entries[1].view.section, "general")
 
     async def test_manage_embeds_entire_workflow_stays_shared_except_preview(self):

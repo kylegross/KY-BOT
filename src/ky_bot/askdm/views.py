@@ -473,14 +473,24 @@ class Admin(Panel):
 
         async def home(i):
             await i.response.defer()
-            if parent.panel_manager:
+            if picker:
+                await cog.admin(i, parent)
+            elif getattr(parent, "back_menu", None) is not None:
+                await parent.back_menu.return_to(i)
+            elif parent.panel_manager:
                 await parent.panel_manager.reset(guild)
             else:
                 parent.section = "overview"
                 await parent.refresh(i)
             self.stop()
 
-        self.row("**COMMAND CENTER**\nReturn to the main menu.", button("Home", home))
+        nested = bool(picker or getattr(parent, "back_menu", None))
+        self.row(
+            "**BACK**\nReturn to the previous menu."
+            if nested
+            else "**COMMAND CENTER**\nReturn to the main menu.",
+            button("Back" if nested else "Home", home),
+        )
         self.finish()
 
     async def interaction_check(self, i):

@@ -22,6 +22,22 @@ class HelpTests(unittest.IsolatedAsyncioTestCase):
                 view.to_components()
             view.stop()
 
+    async def test_nested_help_back_returns_to_its_parent_guide(self):
+        view = HelpView(1, 2, administrator=True)
+        for page, expected in (("embeds", "admin"), ("server", "admin"), ("admin", "home")):
+            view.show(page)
+            back = next(
+                item
+                for item in view.walk_children()
+                if isinstance(item, discord.ui.Button) and item.label == "Back"
+            )
+            interaction = SimpleNamespace(
+                response=SimpleNamespace(defer=AsyncMock()), edit_original_response=AsyncMock()
+            )
+            await back.callback(interaction)
+            self.assertEqual(view.page, expected)
+        view.stop()
+
     async def test_ownership_and_current_permissions(self):
         view = HelpView(1, 2, administrator=True)
         i = SimpleNamespace(

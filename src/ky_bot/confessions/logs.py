@@ -89,6 +89,8 @@ class LogMenu(discord.ui.LayoutView):
                 cog = self.cog.bot.get_cog(name)
                 if not cog:
                     return await send_private(event, "This feature is temporarily unavailable.")
+                if self.parent is not None:
+                    self.parent.back_menu = self
                 await cog.open_menu(event, command_center=self.parent, **kwargs)
 
             return open_feature

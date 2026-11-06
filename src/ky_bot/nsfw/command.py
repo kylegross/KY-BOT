@@ -339,7 +339,9 @@ class Menu(discord.ui.LayoutView):
             parent = menu_parent(self.command_center, i)
             if parent is not None:
                 await defer_menu(i, parent)
-                if getattr(parent, "panel_manager", None):
+                if getattr(parent, "back_menu", None) is not None:
+                    await parent.back_menu.return_to(i)
+                elif getattr(parent, "panel_manager", None):
                     await parent.panel_manager.reset(guild)
                 else:
                     parent.section = "overview"
@@ -353,11 +355,18 @@ class Menu(discord.ui.LayoutView):
             await i.response.edit_message(content=None, view=closed, attachments=[])
             self.stop()
 
-        item = discord.ui.Button(label="Home" if command_center is not None else "Close")
+        nested = (
+            command_center is not None and getattr(command_center, "back_menu", None) is not None
+        )
+        item = discord.ui.Button(
+            label="Back" if nested else "Home" if command_center is not None else "Close"
+        )
         item.callback = close
         panel.add_item(
             discord.ui.Section(
-                "**COMMAND CENTER**\nReturn to the main menu."
+                "**BACK**\nReturn to Logs."
+                if nested
+                else "**COMMAND CENTER**\nReturn to the main menu."
                 if command_center is not None
                 else "**PRIVATE ADMIN CONTROLS**\nOnly you can use this menu.",
                 accessory=item,

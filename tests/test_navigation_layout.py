@@ -62,6 +62,25 @@ class NavigationLayoutTests(unittest.IsolatedAsyncioTestCase):
         await first.accessory.callback("interaction")
         first.accessory.callback.assert_awaited_once_with("interaction")
 
+    async def test_nested_footer_keeps_back_and_removes_root_shortcut(self):
+        for label in ("Back", "Back to Logs", "Back to Welcome", "Back to General"):
+            for home_section in (True, False):
+                panel = discord.ui.Container()
+                back = discord.ui.Button(label=label)
+                panel.add_item(discord.ui.Section("**BACK**\nReturn one level.", accessory=back))
+                home = discord.ui.Button(label="Home")
+                panel.add_item(
+                    discord.ui.Section("**COMMAND CENTER**\nReturn home.", accessory=home)
+                    if home_section
+                    else discord.ui.ActionRow(home)
+                )
+                section_dividers(panel, navigation_on_right=True)
+                buttons = [
+                    item for item in panel.walk_children() if isinstance(item, discord.ui.Button)
+                ]
+                self.assertEqual(buttons, [back])
+                self.assertNotIn("COMMAND CENTER", str(panel.to_component_dict()))
+
     async def test_every_dropdown_type_stays_adjacent_to_its_description(self):
         pickers = (
             discord.ui.Select(options=[discord.SelectOption(label="Example")]),

@@ -567,8 +567,10 @@ class HelpView(discord.ui.LayoutView):
         if page != "home":
             panel.add_item(
                 discord.ui.Section(
-                    "**HELP CENTER**\n-# Explore another guide.",
-                    accessory=self.navigation("All guides", "home"),
+                    "**BACK**\n-# Return to the previous guide.",
+                    accessory=self.navigation(
+                        "Back", "admin" if page in {"embeds", "server"} else "home"
+                    ),
                 )
             )
         panel.add_item(
@@ -582,7 +584,7 @@ class HelpView(discord.ui.LayoutView):
         )
         if page == "home":
             group_sections(panel, "help")
-        section_dividers(panel)
+        section_dividers(panel, navigation_on_right=True)
         self.add_item(panel)
 
     async def interaction_check(self, interaction):
