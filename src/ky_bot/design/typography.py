@@ -22,6 +22,10 @@ class TypographyError(ValueError):
     """A font or text configuration that cannot produce branded lettering."""
 
 
+class UnsupportedCharacterError(TypographyError):
+    """Never publish a missing-glyph box as if it were the requested text."""
+
+
 def section_heading_mask(text: str) -> Image.Image:
     """Keep section metrics unchanged while strengthening small displayed edges.
 
@@ -93,6 +97,32 @@ def text_mask(
     if not text or len(text) > 80 or any(ord(c) < 32 for c in text):
         raise TypographyError("Use a single-line slogan with 1–80 characters.")
     path = font_path if font_path is not None else font_file(role)
+    from ky_bot.design.unicode_text import font_info, needs_fallback, runs, text_image
+
+    for selected, value in runs(text, str(path)):
+        required = {
+            ord(char)
+            for char in value
+            if char not in ("\u200d", "\ufe0e", "\ufe0f") and not 0xE0020 <= ord(char) <= 0xE007F
+        }
+        missing = required - font_info(selected)[0]
+        if missing:
+            points = ", ".join(f"U+{point:04X}" for point in sorted(missing))
+            raise UnsupportedCharacterError(
+                f"The image fonts cannot render {points}. Choose another symbol before publishing."
+            )
+
+    # The normal brand-font path keeps its exact metrics and tracking. Mixed
+    # Unicode uses the same grapheme-aware fallback stack as member cards.
+    if needs_fallback(text, str(path)):
+        try:
+            for pixels in range(size, min_size - 1, -1):
+                rendered = text_image(text, pixels, str(path), "white")
+                if rendered.width <= max_width:
+                    return rendered.getchannel("A")
+            raise TypographyError("That slogan is too wide. Please shorten it.")
+        except OSError:
+            raise TypographyError("The configured font could not be loaded.") from None
     tracking = ROLES[role][2]
     try:
         for pixels in range(size, min_size - 1, -1):

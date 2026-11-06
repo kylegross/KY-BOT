@@ -17,13 +17,15 @@ def png(image):
 
 
 def title_image(title, style, text_color=None):
-    from ky_bot.design.typography import TypographyError
+    from ky_bot.design.typography import TypographyError, UnsupportedCharacterError
 
     text = title.upper()
     while True:
         try:
             mask = section_heading_mask(text)
             break
+        except UnsupportedCharacterError:
+            raise
         except TypographyError:
             if len(text) <= 4:
                 raise

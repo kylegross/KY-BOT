@@ -647,7 +647,7 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
     async def test_navigation_places_styles_with_content_and_saved_embeds_only_at_home(self):
         session = Session(self.cog, 50, 1, self.ident)
         session.row = await self.store.get(1, self.ident)
-        for page in ("main", "content", "images", "style", "delivery", "publish"):
+        for page in ("main", "content", "formatting", "images", "style", "delivery", "publish"):
             session.page = page
             view = Editor(session)
             labels = [x.label for x in view.walk_children() if isinstance(x, discord.ui.Button)]
@@ -657,10 +657,29 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(len(selects), 3)
                 self.assertNotIn("Add styled text", labels)
                 self.assertIn("Edit title", labels)
+                self.assertIn("Manage sections", labels)
+            if page == "formatting":
+                self.assertNotIn("Manage sections", labels)
             if page == "style":
                 self.assertEqual(len(selects), 1)
                 self.assertNotIn("Add styled text", labels)
             view.stop()
+
+    async def test_section_back_returns_to_text_controls(self):
+        session = Session(self.cog, 50, 1, self.ident)
+        session.row = await self.store.get(1, self.ident)
+        session.page = "sections"
+        session.show = AsyncMock()
+        view = Editor(session)
+        back = next(
+            item
+            for item in view.walk_children()
+            if isinstance(item, discord.ui.Button) and item.label == "Back"
+        )
+        interaction = self.interaction()
+        await back.callback(interaction)
+        session.show.assert_awaited_once_with(interaction, "content")
+        view.stop()
 
     async def test_new_draft_keeps_initial_channel_and_channel_picker_displays_it(self):
         from ky_bot.custom_embeds.views import initial_channel

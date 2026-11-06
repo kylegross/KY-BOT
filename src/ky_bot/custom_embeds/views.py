@@ -578,7 +578,7 @@ class Editor(Base):
                 ),
                 (
                     "FORMATTING",
-                    "Text color, decorative headings, sections and highlight color.",
+                    "Text color, decorative headings and highlight color.",
                     "formatting",
                 ),
                 ("STICKY DELIVERY", "Choose how often this post moves to the bottom.", "delivery"),
@@ -626,6 +626,10 @@ class Editor(Base):
                 value = safe(data[key][:160]) if data[key] else "No text yet"
                 self.row(f"**{label}**\n{value}", button("Edit " + label.lower(), modal(key)))
             self.text("-# You can also enter Discord Markdown directly. Mentions never ping.")
+            self.row(
+                "**SECTIONS**\nAdd, edit or remove section headings and messages.",
+                button("Manage sections", go("sections")),
+            )
         elif page == "formatting":
             from ky_bot.design.menu_design import FINISHES
 
@@ -686,10 +690,6 @@ class Editor(Base):
                 "**HIGHLIGHT COLOR**\nSet the accent beside the message.",
                 button("Change color", go("style")),
             )
-            self.row(
-                "**SECTIONS**\nAdd, edit or remove section headings and messages.",
-                button("Manage sections", go("sections")),
-            )
         elif page == "sections":
             sections = data.get("sections", [])
             self.text(
@@ -734,10 +734,6 @@ class Editor(Base):
                     "**REMOVE SECTION**\nRemove this heading and its message from the draft.",
                     button("Remove section", remove_section),
                 )
-            self.row(
-                "**FORMATTING**\nSet the finish and color used by decorative headings.",
-                button("Formatting", go("formatting")),
-            )
         elif page == "images":
             for key, title in (("header", "HEADER IMAGE"), ("footer", "FOOTER IMAGE")):
                 self.row(
@@ -896,7 +892,10 @@ class Editor(Base):
                 button("Delete", delete),
             )
         if page != "main" and not row["deleted"]:
-            self.row("**EMBED EDITOR**\n-# Return to editing options.", button("Back", go("main")))
+            self.row(
+                "**EMBED EDITOR**\n-# Return to editing options.",
+                button("Back", go("content" if page == "sections" else "main")),
+            )
 
         async def library(i):
             await i.response.defer()

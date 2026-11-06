@@ -60,17 +60,14 @@ GROUPS = {
         ("TITLE", ("TITLE STYLE", "TITLE")),
         ("MESSAGE", ("MESSAGE STYLE", "MESSAGE")),
         ("FOOTER TEXT", ("FOOTER TEXT STYLE", "FOOTER TEXT")),
+        ("SECTIONS", ("SECTIONS",)),
     ),
     "custom_embeds:formatting": (
         ("TITLE", ("TITLE STYLE",)),
         ("FOOTER TEXT", ("FOOTER TEXT STYLE",)),
         ("DESIGN", ("DECORATIVE TEXT FINISH", "CUSTOM TEXT COLOR", "HIGHLIGHT COLOR")),
-        ("SECTIONS", ("SECTIONS",)),
     ),
-    "custom_embeds:sections": (
-        ("SECTIONS", ("SECTIONS", "SELECTED SECTION", "REMOVE SECTION")),
-        ("DESIGN", ("FORMATTING",)),
-    ),
+    "custom_embeds:sections": (("SECTIONS", ("SECTIONS", "SELECTED SECTION", "REMOVE SECTION")),),
     "custom_embeds:images": (
         ("HEADER IMAGE", ("HEADER IMAGE", "HEADER IMAGE TITLE", "REMOVE HEADER IMAGE")),
         ("FOOTER IMAGE", ("FOOTER IMAGE", "REMOVE FOOTER IMAGE")),
@@ -145,16 +142,23 @@ def category_files(titles, style="dark_silver", text_color=None):
             .joinpath("assets", "strips", style + "_" + filename(title))
             .read_bytes()
         )
-        if text_color:
-            from PIL import Image
+        from PIL import Image
 
-            from ky_bot.design.footers import text_ink
+        # Remove blank vertical canvas without scaling the lettering or moving
+        # its horizontal inset. Keep a small breathing space around the ink.
+        with Image.open(io.BytesIO(data)) as image:
+            image = image.convert("RGBA")
+            bounds = image.getchannel("A").getbbox()
+            if bounds:
+                image = image.crop(
+                    (0, max(0, bounds[1] - 6), image.width, min(image.height, bounds[3] + 6))
+                )
+            if text_color:
+                from ky_bot.design.footers import text_ink
 
-            # Reuse the packaged mask, including its inset and trailing rule.
-            with Image.open(io.BytesIO(data)) as image:
-                ink = text_ink(image.getchannel("A"), style, text_color)
+                image = text_ink(image.getchannel("A"), style, text_color)
             stream = io.BytesIO()
-            ink.save(stream, format="PNG")
+            image.save(stream, format="PNG")
             data = stream.getvalue()
         result.append(discord.File(io.BytesIO(data), filename=filename(title)))
     return result

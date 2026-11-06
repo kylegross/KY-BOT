@@ -110,12 +110,16 @@ class MenuStripTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_all_finishes_ship_ready_to_use_transparent_strip_images(self):
         for menu in GROUPS:
-            for style in ("dark_silver", "gold", "silver_neon"):
+            for style in ("dark_silver", "gold", "silver_neon", "red_iridescent"):
                 attachments = strip_files(menu, style)
                 try:
                     for file in attachments:
                         with Image.open(io.BytesIO(file.fp.read())) as image:
-                            self.assertEqual(image.size, (1120, 76))
+                            self.assertEqual(image.width, 1120)
+                            self.assertLess(image.height, 76)
+                            bounds = image.getbbox()
+                            self.assertEqual(bounds[1], 6)
+                            self.assertEqual(image.height - bounds[3], 6)
                             self.assertEqual(image.mode, "RGBA")
                 finally:
                     for file in attachments:

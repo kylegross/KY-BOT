@@ -2,3 +2,5 @@ Unmodified Noto fallback fonts, distributed under the included SIL Open Font Lic
 NotoColorEmoji.ttf: https://github.com/googlefonts/noto-emoji
 Other Noto fonts: https://github.com/notofonts/noto-fonts
 Name rendering adapted from the local VICE Arena grapheme-aware renderer.
+NotoSansBamum-Regular.ttf: https://github.com/notofonts/noto-fonts/blob/main/hinted/ttf/NotoSansBamum/NotoSansBamum-Regular.ttf
+License: NotoSansBamum-OFL.txt; copyright retained from the font name table.

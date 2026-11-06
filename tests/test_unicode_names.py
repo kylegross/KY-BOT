@@ -7,7 +7,7 @@ from unittest.mock import patch
 from PIL import Image
 
 from ky_bot.admin_functions.settings_repository import WelcomeArtwork
-from ky_bot.design.typography import TypographyError
+from ky_bot.design.typography import TypographyError, font_file
 from ky_bot.design.unicode_text import (
     choose_font,
     emoji_bitmap,
@@ -29,6 +29,61 @@ class UnicodeNameTests(unittest.TestCase):
             str(path)
             for path in Path(str(files("ky_bot.design").joinpath("assets", "fonts"))).glob("*.ttf")
         )
+
+    def test_decorative_masks_support_symbols_emoji_and_special_letters(self):
+        from ky_bot.design.typography import text_mask
+
+        choose_font.cache_clear()
+        try:
+            with patch("ky_bot.design.unicode_text.fallback_paths", return_value=self.bundled):
+                for text in (
+                    "BLACKOUT ♡♢ EXPOSED",
+                    "BLACKOUT  ✴︎  EXPOSED",
+                    "𝘼𝙁𝙏𝙀𝙍 𝘿𝘼𝙍𝙆",
+                    "Title 👩🏽‍💻✨",
+                    "ΩЖ ᐊᓂ",
+                    "Title 𖥸",
+                ):
+                    with self.subTest(text=text):
+                        mask = text_mask(text, role="display", size=64, min_size=24, max_width=900)
+                        self.assertEqual(mask.mode, "L")
+                        self.assertIsNotNone(mask.getbbox())
+                        self.assertLessEqual(mask.width, 900)
+                        for path, value in runs(text, self.primary):
+                            required = {
+                                ord(c) for c in value if c not in ("\u200d", "\ufe0f", "\ufe0e")
+                            }
+                            self.assertTrue(required <= font_info(path)[0], value)
+        finally:
+            choose_font.cache_clear()
+
+    def test_decorative_ascii_keeps_original_renderer_and_fallback_fits_whole_graphemes(self):
+        from ky_bot.design.typography import text_mask
+
+        with patch(
+            "ky_bot.design.unicode_text.text_image",
+            side_effect=AssertionError("ASCII must keep brand metrics"),
+        ):
+            self.assertIsNotNone(text_mask("BLACKOUT EXPOSED", role="display").getbbox())
+        actual = text_image("👩🏽‍💻♡", 40, str(font_file("display")), "white").getchannel("A")
+        mask = text_mask("👩🏽‍💻♡", role="display", size=40, min_size=40, max_width=300)
+        self.assertEqual(mask.tobytes(), actual.tobytes())
+
+    def test_all_printable_ascii_and_unsupported_character_guard(self):
+        from ky_bot.checklists.artwork import title_image
+        from ky_bot.design.typography import UnsupportedCharacterError, text_mask
+
+        for code in range(32, 127):
+            with self.subTest(character=chr(code)):
+                self.assertIsNotNone(
+                    text_mask("A A" if code == 32 else chr(code), role="display").getbbox()
+                )
+        for renderer in (
+            lambda: text_mask("Title \U0010ffff", role="display"),
+            lambda: title_image("Title \U0010ffff", "dark_silver"),
+        ):
+            with self.assertRaises(UnsupportedCharacterError):
+                renderer()
 
     def test_athena_keeps_primary_letters_and_uses_color_emoji_for_sparkles(self):
         parts = runs("Athena✨", self.primary)

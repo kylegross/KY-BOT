@@ -245,6 +245,7 @@ def render(data):
                         else:
                             panel.add_item(discord.ui.TextDisplay(field_text(data, field)))
             for index, section in enumerate(data["sections"]):
+                panel.add_item(discord.ui.Separator())
                 decorative(section["heading"], f"custom_section_{index}.png")
                 if section["body"].strip():
                     panel.add_item(discord.ui.TextDisplay(section["body"]))

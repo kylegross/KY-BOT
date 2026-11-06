@@ -94,6 +94,17 @@ class DecorativeTextTests(unittest.IsolatedAsyncioTestCase):
         view, attachments = render(data)
         try:
             self.assertLessEqual(view.total_children_count, 40)
+            children = list(view.children[0].children)
+            section_indices = [
+                n
+                for n, item in enumerate(children)
+                if isinstance(item, discord.ui.MediaGallery)
+                and any("custom_section_" in entry.media.url for entry in item.items)
+            ]
+            self.assertEqual(len(section_indices), 5)
+            for n in section_indices:
+                self.assertIsInstance(children[n - 1], discord.ui.Separator)
+                self.assertTrue(children[n - 1].visible)
             self.assertEqual(len(attachments), 10)
             names = [f.filename for f in attachments]
             self.assertEqual(names[0], "custom_header.png")
