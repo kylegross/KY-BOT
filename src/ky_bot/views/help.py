@@ -40,7 +40,7 @@ GUIDES = {
                 "One-minute member/conversation summaries update in place; long "
                 "summaries use continuation embeds. KY BOT AutoDelete removals are "
                 "suppressed, including "
-                "VICE's five-minute cleanup timing rule. Posted logs remain in "
+                "the five-minute cleanup timing rule. Posted logs remain in "
                 "Discord. Confirmed delivered "
                 "payload copies are compacted after two minutes; retry payloads, receipts and live "
                 "source snapshots for edits/deletions remain available.",

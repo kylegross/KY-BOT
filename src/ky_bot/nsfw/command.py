@@ -23,7 +23,7 @@ PRIVACY = (
     "updates the same staff-log embed. Linked replies use a conversation summary. "
     "Long summaries continue in another embed. KY BOT AutoDelete removals are suppressed; "
     "Discord does not identify who manually deleted a message. "
-    "Like VICE, the five-minute cleanup timing filter can also omit a manual deletion "
+    "The five-minute cleanup timing filter can also omit a manual deletion "
     "in the same 300–330 second window.\n\n"
     "**IMAGES AND VIDEOS ARE NOT SAVED.**\nNo image/video files, filenames, direct media URLs "
     "or previews are copied to these logs. Logging starts after you enable it; it does not "
