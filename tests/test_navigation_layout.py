@@ -39,6 +39,29 @@ class NavigationLayoutTests(unittest.IsolatedAsyncioTestCase):
         await saved.accessory.callback("interaction")
         saved.accessory.callback.assert_awaited_once_with("interaction")
 
+    async def test_grouped_button_rows_have_one_gap_without_extra_components(self):
+        panel = discord.ui.Container()
+        panel.add_item(
+            discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://ky_strip_design.png"))
+        )
+        first = discord.ui.Section(
+            "**IMAGES**\nHeader and footer.", accessory=discord.ui.Button(label="Manage")
+        )
+        second = discord.ui.Section(
+            "**CONTENT**\nEdit text.", accessory=discord.ui.Button(label="Manage")
+        )
+        first.accessory.callback = AsyncMock()
+        panel.add_item(first)
+        panel.add_item(second)
+        count = len(panel.children)
+        section_dividers(panel, navigation_on_right=True)
+        section_dividers(panel, navigation_on_right=True)
+        self.assertEqual(len(panel.children), count)
+        self.assertEqual(first.children[0].content.count("\n-# \u200b"), 1)
+        self.assertFalse(second.children[0].content.endswith("\n-# \u200b"))
+        await first.accessory.callback("interaction")
+        first.accessory.callback.assert_awaited_once_with("interaction")
+
     async def test_every_dropdown_type_stays_adjacent_to_its_description(self):
         pickers = (
             discord.ui.Select(options=[discord.SelectOption(label="Example")]),

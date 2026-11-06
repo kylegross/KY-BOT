@@ -105,6 +105,7 @@ class DecorativeTextTests(unittest.IsolatedAsyncioTestCase):
             for n in section_indices:
                 self.assertIsInstance(children[n - 1], discord.ui.Separator)
                 self.assertTrue(children[n - 1].visible)
+                self.assertEqual(children[n - 1].spacing, discord.SeparatorSpacing.large)
             self.assertEqual(len(attachments), 10)
             names = [f.filename for f in attachments]
             self.assertEqual(names[0], "custom_header.png")

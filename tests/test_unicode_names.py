@@ -85,6 +85,29 @@ class UnicodeNameTests(unittest.TestCase):
             with self.assertRaises(UnsupportedCharacterError):
                 renderer()
 
+    def test_text_presentation_symbol_has_no_extra_selector_advance(self):
+        from ky_bot.design.unicode_text import face_at, measure
+
+        choose_font.cache_clear()
+        try:
+            with patch("ky_bot.design.unicode_text.fallback_paths", return_value=self.bundled):
+                path = choose_font(self.primary, "✴︎")
+                self.assertFalse(font_info(path)[1])
+                face, scale = face_at(path, 64)
+                expected = (
+                    measure("A", 64, self.primary)
+                    + face.getlength("✴") * scale
+                    + measure("B", 64, self.primary)
+                )
+                self.assertAlmostEqual(measure("A✴︎B", 64, self.primary), expected)
+                with patch("ky_bot.design.unicode_text.choose_font", return_value=path):
+                    actual = text_image("✴︎", 64, self.primary, "white")
+                    plain = text_image("✴", 64, self.primary, "white")
+                    self.assertEqual(actual.size, plain.size)
+                    self.assertEqual(actual.tobytes(), plain.tobytes())
+        finally:
+            choose_font.cache_clear()
+
     def test_athena_keeps_primary_letters_and_uses_color_emoji_for_sparkles(self):
         parts = runs("Athena✨", self.primary)
         self.assertEqual(parts[0], (self.primary, "Athena"))

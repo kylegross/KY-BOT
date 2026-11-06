@@ -118,7 +118,7 @@ class MenuStripTests(unittest.IsolatedAsyncioTestCase):
                             self.assertEqual(image.width, 1120)
                             self.assertLess(image.height, 76)
                             bounds = image.getbbox()
-                            self.assertEqual(bounds[1], 6)
+                            self.assertEqual(bounds[1], 18)
                             self.assertEqual(image.height - bounds[3], 6)
                             self.assertEqual(image.mode, "RGBA")
                 finally:

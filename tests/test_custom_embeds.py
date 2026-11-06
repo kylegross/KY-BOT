@@ -50,6 +50,8 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
             if isinstance(item, discord.ui.MediaGallery) and "ky_strip_" in item.items[0].media.url
         ]
         self.assertEqual([name for _, name in headings], ["HEADER IMAGE", "FOOTER IMAGE"])
+        for label in ("HEADER FILE", "HEADER FINISH", "FOOTER FILE", "FOOTER FINISH"):
+            self.assertIn("**" + label + "**", str(view.to_components()))
         footer_index = headings[1][0]
         back_index = next(
             n

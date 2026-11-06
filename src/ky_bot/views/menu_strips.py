@@ -69,8 +69,17 @@ GROUPS = {
     ),
     "custom_embeds:sections": (("SECTIONS", ("SECTIONS", "SELECTED SECTION", "REMOVE SECTION")),),
     "custom_embeds:images": (
-        ("HEADER IMAGE", ("HEADER IMAGE", "HEADER IMAGE TITLE", "REMOVE HEADER IMAGE")),
-        ("FOOTER IMAGE", ("FOOTER IMAGE", "REMOVE FOOTER IMAGE")),
+        (
+            "HEADER IMAGE",
+            (
+                "HEADER IMAGE",
+                "HEADER FILE",
+                "HEADER FINISH",
+                "HEADER IMAGE TITLE",
+                "REMOVE HEADER IMAGE",
+            ),
+        ),
+        ("FOOTER IMAGE", ("FOOTER IMAGE", "FOOTER FILE", "FOOTER FINISH", "REMOVE FOOTER IMAGE")),
     ),
     "custom_embeds:style": (("DESIGN", ("HIGHLIGHT COLOR",)),),
     "custom_embeds:delivery": (
@@ -150,9 +159,11 @@ def category_files(titles, style="dark_silver", text_color=None):
             image = image.convert("RGBA")
             bounds = image.getchannel("A").getbbox()
             if bounds:
-                image = image.crop(
-                    (0, max(0, bounds[1] - 6), image.width, min(image.height, bounds[3] + 6))
-                )
+                ink = image.crop((0, bounds[1], image.width, bounds[3]))
+                # Separate the preceding controls from the next category without
+                # enlarging the gap between this heading and its own controls.
+                image = Image.new("RGBA", (ink.width, ink.height + 24))
+                image.alpha_composite(ink, (0, 18))
             if text_color:
                 from ky_bot.design.footers import text_ink
 

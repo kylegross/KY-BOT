@@ -737,11 +737,11 @@ class Editor(Base):
         elif page == "images":
             for key, title in (("header", "HEADER IMAGE"), ("footer", "FOOTER IMAGE")):
                 self.row(
-                    f"**{title}**\n-# "
+                    f"**{key.upper()} FILE**\n"
                     + (
-                        "Image saved · Choose a standard finish below or upload your own."
+                        "Image saved. Upload a replacement."
                         if data[key]
-                        else "Choose a standard finish below or upload your own."
+                        else "Upload your own image."
                     ),
                     button("Upload image", modal(key)),
                 )
@@ -749,6 +749,7 @@ class Editor(Base):
 
                 from .artwork import standard_image
 
+                self.text(f"**{key.upper()} FINISH**\nOr choose a standard KY BOT design.")
                 picker = discord.ui.Select(
                     placeholder=f"Choose a standard {key}",
                     options=[
@@ -790,7 +791,7 @@ class Editor(Base):
                         await s.save(i, revision, **{key: None})
 
                     self.row(
-                        f"**REMOVE {title}**\n-# Clear it from this draft.",
+                        f"**REMOVE {title}**\nClear it from this draft.",
                         button("Remove", remove),
                     )
             self.text(

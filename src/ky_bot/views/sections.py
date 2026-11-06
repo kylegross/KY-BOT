@@ -118,6 +118,23 @@ def section_dividers(panel: discord.ui.Container, *, navigation_on_right: bool =
             )
             and not navigation_item(previous)
         )
+        if (
+            branded_groups
+            and isinstance(previous, discord.ui.Section)
+            and (
+                isinstance(child, discord.ui.Section)
+                or isinstance(child, discord.ui.TextDisplay)
+                and child.content.startswith("**")
+            )
+            and not navigation_item(previous)
+            and not navigation_item(child)
+        ):
+            # Give ordinary control rows breathing room without adding components
+            # to menus close to Discord's limit. Pickers remain beside their labels.
+            text = previous.children[-1]
+            gap = "\n-# \u200b"
+            if not text.content.endswith(gap):
+                text.content += gap
         if adjacent_sections or footer_boundary:
             panel.add_item(
                 discord.ui.Separator(

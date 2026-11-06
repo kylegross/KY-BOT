@@ -124,6 +124,8 @@ def choose_font(primary, cluster):
             p for p in fallback_paths() if "emoji" in p.lower() or "seguiemj" in p.lower()
         )
         candidates = colored + candidates
+    if "\ufe0e" in cluster:
+        candidates = tuple(path for path in candidates if not font_info(path)[1])
     for path in dict.fromkeys(candidates):
         if path and required <= font_info(path)[0]:
             return path
@@ -160,6 +162,9 @@ def runs(text, primary):
 def measure(text, size, primary):
     width = 0
     for path, value in runs(text, primary):
+        if not font_info(path)[1]:
+            # Presentation selectors are invisible instructions, not extra glyphs.
+            value = value.replace("\ufe0e", "").replace("\ufe0f", "")
         bitmap = emoji_bitmap(path, value, size)
         width += (
             bitmap[3]
@@ -175,6 +180,9 @@ def text_image(text, size, primary, color, stroke_width=0, stroke_fill=None, met
     top = 0
     bottom = 0
     for path, value in runs(text, primary):
+        if not font_info(path)[1]:
+            # Presentation selectors are invisible instructions, not extra glyphs.
+            value = value.replace("\ufe0e", "").replace("\ufe0f", "")
         bitmap = emoji_bitmap(path, value, size)
         if bitmap:
             tile, left, y, width = bitmap
