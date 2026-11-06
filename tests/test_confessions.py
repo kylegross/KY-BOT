@@ -29,6 +29,106 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
     async def configure(self, **values):
         self.revision, self.config = await self.store.configure(1, 10, self.revision, **values)
 
+    async def test_logging_destinations_can_be_saved_independently(self):
+        await self.configure(queue_channel=0)
+        menu = Admin(SimpleNamespace(store=self.store), 7, 1)
+        menu.channel = 10
+        menu.allowed = AsyncMock()
+        interaction = SimpleNamespace(guild=SimpleNamespace())
+        with patch("ky_bot.confessions.menus.destination") as check:
+            await menu.save(interaction, self.revision, log_channel=30)
+            self.assertEqual([call.args[1] for call in check.call_args_list], [10, 30])
+            self.assertEqual(menu.config["queue_channel"], 0)
+            self.assertEqual(menu.config["log_channel"], 30)
+            check.reset_mock()
+            await menu.save(interaction, menu.revision, logging=True)
+            self.assertEqual([call.args[1] for call in check.call_args_list], [10, 30])
+            check.reset_mock()
+            await menu.save(interaction, menu.revision, queue_channel=40)
+            self.assertEqual([call.args[1] for call in check.call_args_list], [10, 40])
+        menu.stop()
+
+    async def test_enabling_logs_requires_named_destination_and_private_checks(self):
+        await self.configure(queue_channel=0)
+        menu = Admin(SimpleNamespace(store=self.store), 7, 1)
+        menu.channel = 10
+        menu.allowed = AsyncMock()
+        interaction = SimpleNamespace(guild=SimpleNamespace())
+        with patch("ky_bot.confessions.menus.destination"):
+            for values, label in (
+                (dict(logging=True), "Author log channel"),
+                (dict(approval=True), "Approval & report channel"),
+            ):
+                with self.assertRaisesRegex(ValueError, label):
+                    await menu.save(interaction, self.revision, **values)
+        with patch(
+            "ky_bot.confessions.menus.destination",
+            side_effect=[None, ValueError("must be private")],
+        ):
+            with self.assertRaisesRegex(ValueError, "Author log channel: must be private"):
+                await menu.save(interaction, self.revision, log_channel=30)
+        _, config = await self.store.config(1, 10)
+        self.assertEqual(config["log_channel"], 0)
+        menu.stop()
+
+    async def test_log_destinations_can_be_removed_and_replaced_from_selector(self):
+        await self.configure(
+            logging=True, log_channel=30, approval=True, reports=True, queue_channel=20
+        )
+        menu = Admin(SimpleNamespace(store=self.store), 7, 1)
+        menu.channel = 10
+        menu.allowed = AsyncMock()
+        permissions = discord.Permissions(administrator=True)
+        interaction = SimpleNamespace(
+            guild=SimpleNamespace(
+                fetch_member=AsyncMock(return_value=SimpleNamespace(guild_permissions=permissions))
+            ),
+            guild_id=1,
+            user=SimpleNamespace(id=7),
+            response=SimpleNamespace(defer=AsyncMock()),
+            edit_original_response=AsyncMock(),
+        )
+        menu.show = AsyncMock(wraps=menu.show)
+        await menu.show(interaction, "logging")
+        picker = next(
+            item
+            for item in menu.walk_children()
+            if isinstance(item, discord.ui.ChannelSelect)
+            and item.placeholder == "Author log channel"
+        )
+        self.assertEqual(picker.min_values, 0)
+        picker._values = []
+        with patch("ky_bot.confessions.menus.destination"):
+            await picker.callback(interaction)
+        _, config = await self.store.config(1, 10)
+        self.assertEqual(config["log_channel"], 0)
+        self.assertFalse(config["logging"])
+        self.assertTrue(config["approval"])
+        picker = next(
+            item
+            for item in menu.walk_children()
+            if isinstance(item, discord.ui.ChannelSelect)
+            and item.placeholder == "Author log channel"
+        )
+        picker._values = [SimpleNamespace(id=40)]
+        with patch("ky_bot.confessions.menus.destination"):
+            await picker.callback(interaction)
+        self.assertEqual(menu.config["log_channel"], 40)
+        picker = next(
+            item
+            for item in menu.walk_children()
+            if isinstance(item, discord.ui.ChannelSelect)
+            and item.placeholder == "Approval & report channel"
+        )
+        picker._values = []
+        with patch("ky_bot.confessions.menus.destination"):
+            await picker.callback(interaction)
+        self.assertEqual(menu.config["queue_channel"], 0)
+        self.assertFalse(menu.config["approval"])
+        self.assertFalse(menu.config["reports"])
+        self.assertEqual(menu.config["log_channel"], 40)
+        menu.stop()
+
     async def test_logging_off_does_not_retain_identifying_author(self):
         post = await self.submit()
         self.assertIsNone(post["author"])

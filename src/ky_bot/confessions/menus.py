@@ -246,10 +246,24 @@ class Admin(discord.ui.LayoutView):
         _, old = await self.cog.store.config(self.guild, self.channel)
         config = old | changes
         destination(i.guild, self.channel)
-        if config["approval"] or config["reports"]:
-            destination(i.guild, config["queue_channel"], private=True)
-        if config["logging"]:
-            destination(i.guild, config["log_channel"], private=True)
+        # Set up destinations independently. Validate a destination when changing
+        # it or enabling its feature, rather than blocking on another unset field.
+        for key, flags, label in (
+            ("queue_channel", ("approval", "reports"), "Approval & report channel"),
+            ("log_channel", ("logging",), "Author log channel"),
+        ):
+            required = any(changes.get(flag) is True for flag in flags) or (
+                changes.get("enabled") is True and any(config[flag] for flag in flags)
+            )
+            if key in changes or required:
+                if not config[key]:
+                    if required or any(config[flag] for flag in flags):
+                        raise ValueError(f"Choose the {label} first in Logging & Approval.")
+                    continue
+                try:
+                    destination(i.guild, config[key], private=True)
+                except ValueError as error:
+                    raise ValueError(f"{label}: {error}") from None
         self.revision, self.config = await self.cog.store.configure(
             self.guild, self.channel, revision, **changes
         )
@@ -494,18 +508,35 @@ class Admin(discord.ui.LayoutView):
                         + label.upper()
                         + "**\n-# "
                         + (f"<#{config[key]}>" if config[key] else "Not selected")
+                        + "\n-# Select another channel, or clear × to remove it."
                     )
                 )
                 picker = discord.ui.ChannelSelect(
-                    placeholder=label, channel_types=[discord.ChannelType.text]
+                    placeholder=label,
+                    channel_types=[discord.ChannelType.text],
+                    min_values=0,
+                    default_values=[discord.Object(id=config[key])] if config[key] else [],
                 )
                 revision = self.revision
 
                 async def choose(event, key=key, picker=picker, revision=revision):
                     await event.response.defer(ephemeral=True)
-                    destination(event.guild, picker.values[0].id, private=True)
-                    await self.save(event, revision, **{key: picker.values[0].id})
-                    await self.show(event, "logging", "Private destination saved.")
+                    selected = picker.values[0].id if picker.values else 0
+                    changes = {key: selected}
+                    if not selected:
+                        changes.update(
+                            {"logging": False}
+                            if key == "log_channel"
+                            else {"approval": False, "reports": False}
+                        )
+                    await self.save(event, revision, **changes)
+                    await self.show(
+                        event,
+                        "logging",
+                        "Private destination saved."
+                        if selected
+                        else "Destination removed; its dependent features are off.",
+                    )
 
                 picker.callback = choose
                 panel.add_item(discord.ui.ActionRow(picker))
