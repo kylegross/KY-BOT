@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-SECTION_HEADING_LEFT = 3
+SECTION_HEADING_LEFT = 4
 
 TAGLINE = "POWERFUL BY NATURE. SIMPLE BY DESIGN."
 ROLES = {

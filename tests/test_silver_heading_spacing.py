@@ -10,13 +10,13 @@ from ky_bot.views.menu_strips import GROUPS, strip_files
 
 
 class SilverHeadingSpacingTests(unittest.TestCase):
-    def test_shared_custom_embed_heading_retains_glyph_size_with_three_pixel_inset(self):
+    def test_shared_custom_embed_heading_retains_glyph_size_with_four_pixel_inset(self):
         mask = section_heading_mask("SAVED EMBEDS")
         with Image.open(io.BytesIO(title_image("SAVED EMBEDS", "silver_neon"))) as image:
             alpha = image.getchannel("A")
             self.assertEqual(image.size, (1120, mask.height + 32))
-            self.assertIsNone(alpha.crop((0, 0, 3, image.height)).getbbox())
-            rendered = alpha.crop((3, 16, 3 + mask.width, 16 + mask.height))
+            self.assertIsNone(alpha.crop((0, 0, 4, image.height)).getbbox())
+            rendered = alpha.crop((4, 16, 4 + mask.width, 16 + mask.height))
             self.assertIsNone(ImageChops.difference(rendered, mask).getbbox())
 
     def test_all_packaged_categories_keep_the_left_inset_and_canvas_size(self):
@@ -28,7 +28,7 @@ class SilverHeadingSpacingTests(unittest.TestCase):
                     Image.open(stream) as image,
                 ):
                     self.assertEqual(image.width, 1120)
-                    self.assertGreaterEqual(image.getchannel("A").getbbox()[0], 3)
+                    self.assertGreaterEqual(image.getchannel("A").getbbox()[0], 4)
 
     def test_every_menu_group_has_packaged_iridescent_category_artwork(self):
         for menu in GROUPS:
