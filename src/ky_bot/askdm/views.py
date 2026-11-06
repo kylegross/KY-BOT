@@ -5,6 +5,7 @@ from importlib.resources import files
 import discord
 
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_strips import group_sections, strip_files
 from ky_bot.views.sections import section_dividers
 
@@ -37,7 +38,7 @@ class Panel(discord.ui.LayoutView):
         super().__init__(timeout=timeout)
         self.panel = discord.ui.Container(accent_colour=0xBDC3CA)
         self.panel.add_item(
-            discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://ask_header.png"))
+            discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://ask_header.png"))
         )
         self.add_item(self.panel)
 
@@ -52,7 +53,7 @@ class Panel(discord.ui.LayoutView):
             group_sections(self.panel, self.category_menu)
         section_dividers(self.panel)
         self.panel.add_item(
-            discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://ask_footer.png"))
+            discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://ask_footer.png"))
         )
 
     async def on_error(self, interaction, error, item):

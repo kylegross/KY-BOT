@@ -8,6 +8,7 @@ import discord
 from ky_bot.admin_functions.settings_repository import GuildSettings
 from ky_bot.admin_functions.settings_service import SETTINGS_TITLES, SettingsService
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import defer_menu, menu_parent
 from ky_bot.views.menu_strips import group_sections, strip_files
 from ky_bot.views.sections import section_dividers
@@ -142,7 +143,7 @@ class SettingsView(discord.ui.LayoutView):
         panel = discord.ui.Container(accent_colour=colour)
         panel.add_item(
             discord.ui.MediaGallery(
-                discord.MediaGalleryItem(
+                NoAltMediaGalleryItem(
                     HEADER_URL,
                 )
             )
@@ -462,7 +463,7 @@ class SettingsView(discord.ui.LayoutView):
             )
         panel.add_item(
             discord.ui.MediaGallery(
-                discord.MediaGalleryItem(
+                NoAltMediaGalleryItem(
                     "attachment://ky_settings_footer.png",
                 )
             )

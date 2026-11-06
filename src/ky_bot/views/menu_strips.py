@@ -6,6 +6,7 @@ from importlib.resources import files
 
 import discord
 
+from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.sections import navigation_item
 
 GROUPS = {
@@ -177,7 +178,7 @@ def category_files(titles, style="dark_silver", text_color=None):
 
 def add_strip(panel, title):
     panel.add_item(
-        discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://" + filename(title)))
+        discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://" + filename(title)))
     )
 
 

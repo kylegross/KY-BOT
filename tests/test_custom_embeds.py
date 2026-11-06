@@ -17,6 +17,41 @@ from ky_bot.custom_embeds.views import DeleteConfirm, EditModal, Editor, Library
 
 
 class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
+    async def test_publishing_and_editing_explicitly_clear_all_image_alt_text(self):
+        encoded = image_upload(self.png())
+        data = defaults() | dict(
+            header=encoded,
+            footer=encoded,
+            title="Title",
+            title_style="decorative",
+            footer_text="Footer",
+            footer_style="decorative",
+            sections=[dict(heading="Section", body="Text")],
+        )
+        cog = CustomEmbeds(self.bot)
+        channel = SimpleNamespace(send=AsyncMock(return_value=SimpleNamespace(id=42)))
+        message = SimpleNamespace(edit=AsyncMock(return_value=SimpleNamespace(id=42)))
+        await cog.post(channel, data)
+        await cog.post(channel, data, message=message)
+        for kwargs, key in (
+            (channel.send.await_args.kwargs, "files"),
+            (message.edit.await_args.kwargs, "attachments"),
+        ):
+            galleries = [
+                item
+                for item in kwargs["view"].walk_children()
+                if isinstance(item, discord.ui.MediaGallery)
+            ]
+            self.assertEqual(len(galleries), 5)
+            for gallery in galleries:
+                for item in gallery.to_component_dict()["items"]:
+                    self.assertIn("description", item)
+                    self.assertIsNone(item["description"])
+            for index, file in enumerate(kwargs[key]):
+                self.assertEqual(file.to_dict(index)["description"], "")
+        channel.send.assert_awaited_once()
+        message.edit.assert_awaited_once()
+
     async def test_header_title_persists_and_renders_inside_image(self):
         from ky_bot.custom_embeds.artwork import standard_image
 

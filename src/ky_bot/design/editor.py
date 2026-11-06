@@ -18,6 +18,7 @@ from ky_bot.design.menu_design import (
     profile_for,
 )
 from ky_bot.errors import report_error
+from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import display_menu, menu_parent
 from ky_bot.views.menu_strips import add_strip, category_files
 from ky_bot.views.sections import section_dividers
@@ -233,7 +234,7 @@ class DesignSession:
             image = await self.service.render_welcome_card(interaction.user, design=profile)
             sample = discord.ui.LayoutView()
             sample.add_item(
-                discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://welcome_draft.png"))
+                discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://welcome_draft.png"))
             )
             uploads = [discord.File(io.BytesIO(image), filename="welcome_draft.png")]
         else:

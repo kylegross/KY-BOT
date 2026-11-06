@@ -9,6 +9,7 @@ from discord.ext import commands
 from ky_bot.checklists.board import safe
 from ky_bot.design.menu_design import automation_files, automation_profile, default_profile
 from ky_bot.errors import report_error
+from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import defer_menu, menu_parent
 from ky_bot.views.menu_strips import category_files, filename, group_sections
 from ky_bot.views.sections import section_dividers
@@ -167,12 +168,12 @@ class Menu(discord.ui.LayoutView):
         if main:
             for name in ("autodelete_header.png", "autodelete_title.png"):
                 panel.add_item(
-                    discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://" + name))
+                    discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://" + name))
                 )
         else:
             panel.add_item(
                 discord.ui.MediaGallery(
-                    discord.MediaGalleryItem(
+                    NoAltMediaGalleryItem(
                         "attachment://" + filename(PAGE_TITLES.get(page, "AUTODELETE")),
                     )
                 )
@@ -618,9 +619,7 @@ class Menu(discord.ui.LayoutView):
             )
         if main:
             panel.add_item(
-                discord.ui.MediaGallery(
-                    discord.MediaGalleryItem("attachment://autodelete_footer.png")
-                )
+                discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://autodelete_footer.png"))
             )
 
         async def back(i):

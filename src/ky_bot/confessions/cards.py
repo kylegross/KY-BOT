@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import discord
 
 from ky_bot.log_style import style_log
+from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.sections import section_dividers
 
 from .appearance import standard_artwork
@@ -76,13 +77,13 @@ class Card(discord.ui.LayoutView):
         super().__init__(timeout=timeout)
         panel = discord.ui.Container(accent_colour=int(config["color"], 16))
         panel.add_item(
-            discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_header.png"))
+            discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://confession_header.png"))
         )
         self.title_art = title_image(
             title, config.get("text_finish", "silver_neon"), config.get("text_color")
         )
         panel.add_item(
-            discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_title.png"))
+            discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://confession_title.png"))
         )
         content = safe(body)
         if large_body:
@@ -101,7 +102,7 @@ class Card(discord.ui.LayoutView):
         if show_footer_text and config["footer_text"]:
             panel.add_item(discord.ui.TextDisplay("-# " + safe(config["footer_text"])))
         panel.add_item(
-            discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_footer.png"))
+            discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://confession_footer.png"))
         )
         section_dividers(panel)
         self.add_item(panel)

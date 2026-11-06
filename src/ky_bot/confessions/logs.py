@@ -7,6 +7,7 @@ import discord
 from discord.ext import commands
 
 from ky_bot.errors import send_private
+from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import defer_menu, display_menu, menu_parent
 from ky_bot.views.menu_strips import add_strip, filename
 from ky_bot.views.sections import section_dividers
@@ -66,7 +67,7 @@ class LogMenu(discord.ui.LayoutView):
         ).decode("ascii")
         panel = discord.ui.Container(accent_colour=int(config["color"], 16))
         panel.add_item(
-            discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_header.png"))
+            discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://confession_header.png"))
         )
         panel.add_item(discord.ui.TextDisplay("Manage destinations and delivery for all logs."))
 
@@ -187,7 +188,7 @@ class LogMenu(discord.ui.LayoutView):
         ]
         panel.add_item(discord.ui.ActionRow(*navigation))
         panel.add_item(
-            discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_footer.png"))
+            discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://confession_footer.png"))
         )
         section_dividers(panel)
         self.add_item(panel)

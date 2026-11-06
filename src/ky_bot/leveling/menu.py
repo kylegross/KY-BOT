@@ -11,6 +11,7 @@ from ky_bot.errors import report_error, send_private
 from ky_bot.leveling.artwork import announcement, card_file
 from ky_bot.leveling.service import role_allowed
 from ky_bot.leveling.store import MAX_LEVEL, MAX_XP, defaults, level_for, threshold
+from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_strips import category_files, filename, group_sections, strip_files
 from ky_bot.views.sections import section_dividers
 
@@ -244,12 +245,12 @@ class Menu(discord.ui.LayoutView):
         if page in HEADINGS:
             for name in (NAMES[0], NAMES[2]):
                 panel.add_item(
-                    discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://" + name))
+                    discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://" + name))
                 )
         else:
             panel.add_item(
                 discord.ui.MediaGallery(
-                    discord.MediaGalleryItem(
+                    NoAltMediaGalleryItem(
                         "attachment://" + filename(PAGE_TITLES.get(page, "LEVELING")),
                     )
                 )
@@ -700,7 +701,7 @@ class Menu(discord.ui.LayoutView):
                 )
             )
             panel.add_item(
-                discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://" + NAMES[1]))
+                discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://" + NAMES[1]))
             )
         panel.add_item(controls)
         if page == "main":

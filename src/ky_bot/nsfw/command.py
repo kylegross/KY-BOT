@@ -11,6 +11,7 @@ from discord.ext import commands
 
 from ky_bot.admin_functions.autodelete.autodelete_logging import TYPES
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import defer_menu, display_menu, menu_parent
 from ky_bot.views.menu_strips import group_sections, strip_files
 from ky_bot.views.sections import section_dividers
@@ -236,9 +237,7 @@ class Menu(discord.ui.LayoutView):
         self.command_center = command_center
         panel = discord.ui.Container(accent_colour=0xD6E2F3)
         panel.add_item(
-            discord.ui.MediaGallery(
-                discord.MediaGalleryItem("attachment://ky_header_nsfw_flash.png")
-            )
+            discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://ky_header_nsfw_flash.png"))
         )
         if notice:
             panel.add_item(discord.ui.TextDisplay(discord.utils.escape_mentions(str(notice))))
@@ -381,9 +380,7 @@ class Menu(discord.ui.LayoutView):
         group_sections(panel, "nsfw")
         section_dividers(panel)
         panel.add_item(
-            discord.ui.MediaGallery(
-                discord.MediaGalleryItem("attachment://ky_footer_nsfw_flash.png")
-            )
+            discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://ky_footer_nsfw_flash.png"))
         )
         self.add_item(panel)
 

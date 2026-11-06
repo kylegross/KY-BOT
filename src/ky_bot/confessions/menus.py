@@ -8,6 +8,7 @@ import discord
 from PIL import Image
 
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import defer_menu, display_menu, menu_parent, private_parent
 from ky_bot.views.sections import section_dividers
 
@@ -321,7 +322,7 @@ class Admin(discord.ui.LayoutView):
         self.clear_items()
         panel = discord.ui.Container(accent_colour=int(menu_style["color"], 16))
         panel.add_item(
-            discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_header.png"))
+            discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://confession_header.png"))
         )
         heading = {
             "channels": "CHANNELS",
@@ -908,7 +909,7 @@ class Admin(discord.ui.LayoutView):
                     )
                 )
         panel.add_item(
-            discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_footer.png"))
+            discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://confession_footer.png"))
         )
         arrange(panel, page)
         for child in list(panel.children):

@@ -113,7 +113,11 @@ class DecorativeTextTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(names), len(set(names)))
             payload = str(view.to_components())
             self.assertLess(payload.index("Message 0"), payload.index("Message 4"))
-            self.assertNotIn("description", payload)
+            for item in view.walk_children():
+                if isinstance(item, discord.ui.MediaGallery):
+                    for media in item.to_component_dict()["items"]:
+                        self.assertIn("description", media)
+                        self.assertIsNone(media["description"])
         finally:
             view.stop()
             for file in attachments:

@@ -8,6 +8,8 @@ import warnings
 import discord
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from ky_bot.views.media import NoAltMediaGalleryItem
+
 STYLES = {
     "bold": "Bold",
     "italic": "Italic",
@@ -225,9 +227,9 @@ def render(data):
                 from ky_bot.checklists.artwork import title_image
 
                 image = title_image(text, data["text_finish"], data["text_color"])
-                attachments.append(discord.File(io.BytesIO(image), filename=name))
+                attachments.append(discord.File(io.BytesIO(image), filename=name, description=""))
                 panel.add_item(
-                    discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://" + name))
+                    discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://" + name))
                 )
 
             # Keep the original combined text block for existing drafts.
@@ -267,10 +269,8 @@ def render(data):
                     data["header_finish"],
                 )
                 raw = render_header(raw, finish, height=280, title=data["header_title"])
-            attachments.append(discord.File(io.BytesIO(raw), filename=name))
-            panel.add_item(
-                discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://" + name))
-            )
+            attachments.append(discord.File(io.BytesIO(raw), filename=name, description=""))
+            panel.add_item(discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://" + name)))
     if not panel.children:
         panel.add_item(discord.ui.TextDisplay("Add text or an image to this draft."))
     view.add_item(panel)

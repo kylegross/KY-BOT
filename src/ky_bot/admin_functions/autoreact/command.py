@@ -12,6 +12,7 @@ from discord.ext import commands
 from ky_bot.checklists.board import safe
 from ky_bot.checklists.inline import InlineView
 from ky_bot.errors import report_error
+from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import defer_menu, menu_parent
 from ky_bot.views.menu_strips import category_files, filename, group_sections
 from ky_bot.views.sections import section_dividers
@@ -180,12 +181,12 @@ class Menu(discord.ui.LayoutView):
         if main:
             for name in ("ky_header_autoreact.png", "ky_autothread_title.png"):
                 panel.add_item(
-                    discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://" + name))
+                    discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://" + name))
                 )
         else:
             panel.add_item(
                 discord.ui.MediaGallery(
-                    discord.MediaGalleryItem(
+                    NoAltMediaGalleryItem(
                         "attachment://" + filename(PAGE_TITLES.get(page, "AUTOREACT")),
                     )
                 )
@@ -537,9 +538,7 @@ class Menu(discord.ui.LayoutView):
                 )
         if main:
             panel.add_item(
-                discord.ui.MediaGallery(
-                    discord.MediaGalleryItem("attachment://dark_silver_icon.png")
-                )
+                discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://dark_silver_icon.png"))
             )
         back = discord.ui.Button(
             label="Back to General" if page == "main" and s.command_center is not None else "Back"

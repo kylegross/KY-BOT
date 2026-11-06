@@ -9,6 +9,7 @@ import aiohttp
 import discord
 
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_strips import add_strip, strip_files
 from ky_bot.views.sections import section_dividers
 
@@ -120,7 +121,7 @@ class Batch(discord.ui.LayoutView):
         self.clear_items()
         panel = discord.ui.Container(accent_colour=0xD6E2F3)
         panel.add_item(
-            discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://ky_header_steal.png"))
+            discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://ky_header_steal.png"))
         )
         add_strip(panel, "DESTINATION")
         panel.add_item(
@@ -267,7 +268,7 @@ class Batch(discord.ui.LayoutView):
         )
         section_dividers(panel)
         panel.add_item(
-            discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://ky_footer_steal.png"))
+            discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://ky_footer_steal.png"))
         )
         self.add_item(panel)
 

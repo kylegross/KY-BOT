@@ -24,6 +24,7 @@ from ky_bot.admin_functions.autothread.store import (
 from ky_bot.checklists.board import safe
 from ky_bot.checklists.inline import InlineView
 from ky_bot.errors import report_error
+from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import defer_menu, menu_parent
 from ky_bot.views.menu_strips import category_files, group_sections
 from ky_bot.views.menu_strips import filename as category_filename
@@ -166,12 +167,12 @@ class Menu(discord.ui.LayoutView):
         if main:
             for filename in ("ky_header_autothread.png", "ky_autothread_title.png"):
                 panel.add_item(
-                    discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://" + filename))
+                    discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://" + filename))
                 )
         else:
             panel.add_item(
                 discord.ui.MediaGallery(
-                    discord.MediaGalleryItem(
+                    NoAltMediaGalleryItem(
                         "attachment://" + category_filename(PAGE_TITLES.get(page, "AUTOTHREAD")),
                     )
                 )
@@ -492,9 +493,7 @@ class Menu(discord.ui.LayoutView):
         )
         if main:
             panel.add_item(
-                discord.ui.MediaGallery(
-                    discord.MediaGalleryItem("attachment://dark_silver_icon.png")
-                )
+                discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://dark_silver_icon.png"))
             )
         back = discord.ui.Button(
             label="Back to General"

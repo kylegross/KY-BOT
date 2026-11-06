@@ -7,6 +7,7 @@ from ky_bot.checklists.manage import ManageCategories
 from ky_bot.checklists.permissions import access
 from ky_bot.design.collection import COLOURS
 from ky_bot.errors import report_error
+from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.private_style import private_title
 
 PAGE_SIZE = 4  # Bound Components V2's 40-item budget, even with four separate categories.
@@ -45,7 +46,7 @@ class BoardView(discord.ui.LayoutView):
 
         def gallery(filename):
             panel.add_item(
-                discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://" + filename))
+                discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://" + filename))
             )
 
         def action(label, key, callback, *, disabled=False):
@@ -58,7 +59,7 @@ class BoardView(discord.ui.LayoutView):
         gallery("checklist_header.png")
         panel.add_item(
             discord.ui.TextDisplay(
-                '-# *Type a message within this channel to add a task to the checklist. '
+                "-# *Type a message within this channel to add a task to the checklist. "
                 'Select the "Manage" button to the right of each task to edit, reorder, '
                 "open its discussion thread, or mark the task as complete.*"
             )
@@ -143,6 +144,7 @@ class BoardView(discord.ui.LayoutView):
                 accessory=action("Manage", "categories", categories_menu),
             )
         )
+
         async def delete_checklist(interaction):
             from ky_bot.checklists.deletion import open_delete
 
