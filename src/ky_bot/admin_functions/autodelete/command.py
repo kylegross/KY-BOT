@@ -174,7 +174,6 @@ class Menu(discord.ui.LayoutView):
                 discord.ui.MediaGallery(
                     discord.MediaGalleryItem(
                         "attachment://" + filename(PAGE_TITLES.get(page, "AUTODELETE")),
-                        description=PAGE_TITLES.get(page, "AUTODELETE"),
                     )
                 )
             )

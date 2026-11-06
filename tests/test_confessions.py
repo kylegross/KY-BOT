@@ -145,7 +145,7 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
         other = await self.store.submit(1, 11, 123, [], "Other channel", 8, revision)
         self.assertEqual(other["data"]["number"], 1)
         card = post_card(self.config, first)
-        self.assertIn("ANONYMOUS CONFESSION", str(card.to_components()))
+        self.assertTrue(card.title_art)
         self.assertNotIn(first["id"][:8].upper(), str(card.to_components()))
         card.stop()
 
@@ -630,7 +630,7 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
         menu = LogMenu(cog, 7, 1, parent)
         await menu.show(interaction)
         self.assertLessEqual(menu.total_children_count, 40)
-        self.assertIn("OTHER LOGS", str(menu.to_components()))
+        self.assertIn("ky_strip_other_logs.png", str(menu.to_components()))
         section = next(
             child
             for child in menu.children[0].children

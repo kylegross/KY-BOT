@@ -12,12 +12,13 @@ from ky_bot.design.editor import Editor as DesignEditor
 from ky_bot.design.menu_design import default_profile
 from ky_bot.leveling.menu import Menu as LevelMenu
 from ky_bot.leveling.store import defaults
-from ky_bot.views.menu_strips import GROUPS, group_sections, heading, strip_files
+from ky_bot.views.menu_strips import GROUPS, filename, group_sections, heading, strip_files
 
 
 def strip_titles(view):
+    titles = {filename(title): title for groups in GROUPS.values() for title, _ in groups}
     return [
-        item.description
+        titles[item.media.url.rsplit("/", 1)[-1]]
         for child in view.walk_children()
         if isinstance(child, discord.ui.MediaGallery)
         for item in child.items

@@ -227,9 +227,7 @@ def render(data):
                 image = title_image(text, data["text_finish"], data["text_color"])
                 attachments.append(discord.File(io.BytesIO(image), filename=name))
                 panel.add_item(
-                    discord.ui.MediaGallery(
-                        discord.MediaGalleryItem("attachment://" + name, description=text)
-                    )
+                    discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://" + name))
                 )
 
             # Keep the original combined text block for existing drafts.

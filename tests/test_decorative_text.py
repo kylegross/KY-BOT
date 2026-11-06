@@ -113,7 +113,7 @@ class DecorativeTextTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(names), len(set(names)))
             payload = str(view.to_components())
             self.assertLess(payload.index("Message 0"), payload.index("Message 4"))
-            self.assertIn("description", payload)
+            self.assertNotIn("description", payload)
         finally:
             view.stop()
             for file in attachments:

@@ -251,7 +251,6 @@ class Menu(discord.ui.LayoutView):
                 discord.ui.MediaGallery(
                     discord.MediaGalleryItem(
                         "attachment://" + filename(PAGE_TITLES.get(page, "LEVELING")),
-                        description=PAGE_TITLES.get(page, "LEVELING"),
                     )
                 )
             )

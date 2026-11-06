@@ -173,7 +173,6 @@ class Menu(discord.ui.LayoutView):
                 discord.ui.MediaGallery(
                     discord.MediaGalleryItem(
                         "attachment://" + category_filename(PAGE_TITLES.get(page, "AUTOTHREAD")),
-                        description=PAGE_TITLES.get(page, "AUTOTHREAD"),
                     )
                 )
             )

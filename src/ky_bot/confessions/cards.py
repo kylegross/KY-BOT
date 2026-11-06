@@ -82,9 +82,7 @@ class Card(discord.ui.LayoutView):
             title, config.get("text_finish", "silver_neon"), config.get("text_color")
         )
         panel.add_item(
-            discord.ui.MediaGallery(
-                discord.MediaGalleryItem("attachment://confession_title.png", description=title)
-            )
+            discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_title.png"))
         )
         content = safe(body)
         if large_body:

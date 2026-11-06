@@ -177,9 +177,7 @@ def category_files(titles, style="dark_silver", text_color=None):
 
 def add_strip(panel, title):
     panel.add_item(
-        discord.ui.MediaGallery(
-            discord.MediaGalleryItem("attachment://" + filename(title), description=title)
-        )
+        discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://" + filename(title)))
     )
 
 

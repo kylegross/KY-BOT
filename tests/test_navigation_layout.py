@@ -32,7 +32,9 @@ class NavigationLayoutTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(
             any(
                 isinstance(child, discord.ui.MediaGallery)
-                and any(item.description == "SAVED EMBEDS" for item in child.items)
+                and any(
+                    item.media.url.endswith("ky_strip_saved_embeds.png") for item in child.items
+                )
                 for child in children
             )
         )
