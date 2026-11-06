@@ -257,6 +257,9 @@ GUIDES = {
             ),
             (
                 "AUTOMATION COMMANDS",
+                "`/purge` opens one-time cleanup in the current channel. Select content, "
+                "timeframe and scan limit, then Review → Delete now. "
+                "It does not create an automatic rule.\n"
                 "`/autodelete` · `/autothread` · `/autoreact`\n"
                 "These configuration commands require **Manage Server**. Review the selected "
                 "channels, permissions and rules before enabling automation.",

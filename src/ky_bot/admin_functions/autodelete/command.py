@@ -751,6 +751,18 @@ class AutoDelete(commands.Cog):
     async def autodelete(self, interaction):
         await self.open_menu(interaction)
 
+    @app_commands.command(
+        name="purge", description="Review a one-time message cleanup in this channel."
+    )
+    @app_commands.guild_only()
+    @app_commands.default_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
+    async def purge(self, interaction: discord.Interaction):
+        await defer_menu(interaction)
+        session = Session(self, interaction)
+        session.clean = True
+        await session.show(interaction, "clean")
+
     async def open_menu(self, interaction, *, command_center=None):
         command_center = menu_parent(command_center, interaction)
         await defer_menu(interaction, command_center)
