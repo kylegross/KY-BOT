@@ -44,7 +44,7 @@ class SettingsService:
         await self.repository.set_welcome_appearance(guild_id, title, accent, darkening)
 
     async def set_log_channel(self, guild: discord.Guild, channel_id: int) -> None:
-        channel = await self.validate_channel(guild, channel_id)
+        channel = await self.validate_channel(guild, channel_id, require_images=True)
         await self.repository.set_log_channel(guild.id, channel.id)
 
     async def set_welcome_channel(self, guild: discord.Guild, channel_id: int) -> None:
@@ -80,9 +80,7 @@ class SettingsService:
         if not (permissions.view_channel and permissions.send_messages and permissions.embed_links):
             raise ValueError("I need View Channel, Send Messages, and Embed Links in that channel.")
         if require_images and not permissions.attach_files:
-            raise ValueError(
-                "I need Attach Files permission to send images in that channel."
-            )
+            raise ValueError("I need Attach Files permission to send images in that channel.")
         return channel
 
     async def render_welcome_card(self, member: discord.Member, design=None) -> bytes:

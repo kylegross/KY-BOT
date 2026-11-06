@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import time
+from datetime import UTC, datetime
 
 import discord
 
@@ -14,6 +15,7 @@ from ky_bot.checklists.inline import InlineView
 from ky_bot.checklists.notices import dismiss_later, notice
 from ky_bot.checklists.permissions import access, admin
 from ky_bot.checklists.store import ChecklistStore
+from ky_bot.log_style import send_log
 
 
 class DeleteTaskConfirm(InlineView):
@@ -102,7 +104,7 @@ class ChecklistService:
     def check_permissions(self, channel, *, logs=False):
         if not isinstance(channel, discord.TextChannel):
             raise ValueError("Use a server text channel for the checklist and its logs.")
-        needed = ["view_channel", "send_messages", "embed_links"]
+        needed = ["view_channel", "send_messages", "embed_links", "attach_files"]
         if not logs:
             needed += [
                 "manage_messages",
@@ -354,6 +356,7 @@ class ChecklistService:
             key = f"checklist:{board['channel']}"
             if key in profiles or "checklist" in profiles:
                 from ky_bot.design.menu_design import board_with_profile, profile_for
+
                 board = board_with_profile(board, profile_for(profiles, key))
         channel = await self.channel(board["channel"])
         dots = await self.priority_dots.for_guild(channel.guild)
@@ -498,13 +501,16 @@ class ChecklistService:
                 if channel.guild.id != board["guild"]:
                     raise ValueError("Checklist log must belong to the same server.")
                 embed = discord.Embed(
+                    title="CHECKLIST TASK COMPLETED",
+                    timestamp=datetime.fromtimestamp(event["created"], UTC),
                     description=(
                         f"**{safe(event['title'])[:3500]}** — checked off by <@{event['actor']}>"
                     ),
                     color=0xE8C47C,
                 )
-                embed.set_footer(text=f"Task #{event['task']} • Completion #{event['id']}")
-                await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+                embed.add_field(name="Task ID", value=str(event["task"]), inline=True)
+                embed.add_field(name="Completion ID", value=str(event["id"]), inline=True)
+                await send_log(channel, embed)
                 self.store.sent(event["id"])
             except (discord.HTTPException, ValueError):
                 logging.exception("Checklist completion log pending; will retry")

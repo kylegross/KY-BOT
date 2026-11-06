@@ -86,10 +86,16 @@ class NSFWFlashLogs(commands.Cog):
         permissions = channel.permissions_for(channel.guild.me)
         if not all(
             getattr(permissions, k)
-            for k in ("view_channel", "send_messages", "embed_links", "read_message_history")
+            for k in (
+                "view_channel",
+                "send_messages",
+                "embed_links",
+                "attach_files",
+                "read_message_history",
+            )
         ):
             raise ValueError(
-                "KY BOT needs View Channel, Send Messages, Embed Links and "
+                "KY BOT needs View Channel, Send Messages, Embed Links, Attach Files and "
                 "Read Message History in the log channel."
             )
         return channel

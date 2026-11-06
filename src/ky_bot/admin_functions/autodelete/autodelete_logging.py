@@ -12,6 +12,8 @@ from urllib.parse import urlparse
 
 import discord
 
+from ky_bot.log_style import send_log, style_log
+
 DESTINATION = 0
 DEFAULTS = {}
 TYPES = {
@@ -475,6 +477,12 @@ class ActivityLogs:
         actor_label = config.get("actor_label", "User ID")
         actor = f"**{safe(s['name'])}** ({actor_label}: `{s['user']}`)"
         event = f"**{action}** · {actor} · <t:{int(stamp)}:T>\n" + details
+        if (
+            config.get("mode") == "server"
+            and action == "MEMBER ROLES CHANGED"
+            and s.get("role_changes") is not None
+        ):
+            event = "KY_ROLE_CHANGE:" + json.dumps(s["role_changes"])
         member = str(s["user"]) if s["user"] != "unknown" else f"unknown:{message}"
         if context:
             member = "conversation:" + str(context["root"])
@@ -516,13 +524,43 @@ class ActivityLogs:
                     + excerpt
                     + "\n\n"
                 )
+            entries = [
+                row["body"]
+                for row in self.db.execute(
+                    "SELECT body FROM activity_log_events WHERE batch=? ORDER BY event_order,token",
+                    (batch["id"],),
+                )
+            ]
+            role_events = [
+                json.loads(entry.removeprefix("KY_ROLE_CHANGE:"))
+                for entry in entries
+                if entry.startswith("KY_ROLE_CHANGE:")
+            ]
+            only_roles = bool(role_events) and len(role_events) == len(entries)
+            if role_events:
+                summary = []
+                for key, label in (("added", "Roles added"), ("removed", "Roles removed")):
+                    roles = dict.fromkeys(
+                        str(role["id"]) for event in role_events for role in event.get(key, [])
+                    )
+                    chunk = []
+                    for role in roles:
+                        mention = "<@&" + role + ">"
+                        if sum(len(value) + 2 for value in chunk) + len(mention) > 950:
+                            summary.append("**" + label + "**\n" + ", ".join(chunk))
+                            chunk = []
+                        chunk.append(mention)
+                    if chunk:
+                        summary.append("**" + label + "**\n" + ", ".join(chunk))
+                entries = summary + [
+                    entry for entry in entries if not entry.startswith("KY_ROLE_CHANGE:")
+                ]
+            if only_roles:
+                header = f"**Member**\n<@{s['user']}> · User ID: `{s['user']}`\n\n"
             pages = [""]
             limit = 3900 - len(header)
-            for entry in self.db.execute(
-                "SELECT body FROM activity_log_events WHERE batch=? ORDER BY event_order,token",
-                (batch["id"],),
-            ):
-                remaining = entry["body"]
+            for entry in entries:
+                remaining = entry
                 if (
                     pages[-1]
                     and len(remaining) <= limit
@@ -543,8 +581,12 @@ class ActivityLogs:
                     dict(
                         nsfw=config.get("mode") == "nsfw",
                         source=channel,
-                        title=config["title"]
-                        + (" — CONVERSATION" if context else " — MEMBER ACTIVITY")
+                        title=(
+                            "MEMBER ROLES CHANGED"
+                            if only_roles
+                            else config["title"]
+                            + (" — CONVERSATION" if context else " — MEMBER ACTIVITY")
+                        )
                         + (f" · {n + 1}" if n else ""),
                         color=config["color"],
                         text=header + page,
@@ -874,6 +916,7 @@ class ActivityLogs:
                     color=data["color"],
                     timestamp=dt.datetime.fromtimestamp(row["created"], dt.UTC),
                 )
+                style_log(embed)
                 message = None
                 if row["message"]:
                     try:
@@ -889,7 +932,10 @@ class ActivityLogs:
                     ):
                         if m.author.id == self.client.user.id and any(
                             e.footer.text == "KY BOT activity record · " + row["id"]
-                            or (e.timestamp == embed.timestamp and e.title == embed.title)
+                            or (
+                                e.timestamp == embed.timestamp
+                                and e.title in {embed.title, data["title"]}
+                            )
                             for e in m.embeds
                         ):
                             message = m
@@ -902,11 +948,9 @@ class ActivityLogs:
                 if not changed:
                     continue
                 if message is None:
-                    message = await channel.send(
-                        embed=embed, allowed_mentions=discord.AllowedMentions.none()
-                    )
+                    message = await send_log(channel, embed)
                 else:
-                    await message.edit(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+                    await send_log(message, embed, edit=True)
                 self.track_retention(row["guild"], row["destination"], message.id)
                 with self.db:
                     self.db.execute(

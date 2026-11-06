@@ -46,6 +46,7 @@ class Steal(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.upload_locks = defaultdict(asyncio.Lock)
+        self.reply_waiters = {}
         self.menu = app_commands.ContextMenu(
             name="Steal emojis / stickers",
             callback=self.message_menu,
@@ -59,6 +60,11 @@ class Steal(commands.Cog):
 
     async def cog_unload(self):
         self.bot.tree.remove_command(self.menu.name, type=self.menu.type)
+        waiters = list(self.reply_waiters.values())
+        self.reply_waiters.clear()
+        for waiter in waiters:
+            waiter.cancel()
+        await asyncio.gather(*waiters, return_exceptions=True)
         await self.http.close()
 
     @property
@@ -173,6 +179,66 @@ class Steal(commands.Cog):
                     raise ValueError("You must belong to that private source thread.") from None
         return await channel.fetch_message(int(match["message"]))
 
+    async def reply_source(self, interaction, kind):
+        """Ask for an explicit reply; slash interactions do not carry reply targets."""
+        guild_id, channel_id = interaction.guild_id, interaction.channel_id
+        if guild_id is None or self.bot.get_guild(guild_id) is None:
+            raise ValueError(
+                "For this message, use Apps → Steal emojis / stickers. "
+                "Reply selection requires KY BOT to be installed in the source server."
+            )
+        await self.destination(interaction)
+        key = interaction.user.id, guild_id, channel_id
+        if key in self.reply_waiters:
+            raise ValueError(
+                "Your reply selection is already waiting in this channel. "
+                "Reply to the source message, or wait for it to expire."
+            )
+
+        def check(message):
+            reference = getattr(message, "reference", None)
+            return (
+                not message.author.bot
+                and message.author.id == interaction.user.id
+                and getattr(message.guild, "id", None) == guild_id
+                and message.channel.id == channel_id
+                and reference is not None
+                and reference.message_id is not None
+                and reference.channel_id == channel_id
+            )
+
+        waiter = asyncio.create_task(self.bot.wait_for("message", check=check, timeout=60))
+        self.reply_waiters[key] = waiter
+        try:
+            await interaction.edit_original_response(
+                content=(
+                    f"Reply to the message containing the {kind} in this channel "
+                    "with `copy` (or any short text) within **60 seconds**. "
+                    "Your private picker will open next; nothing is copied until you confirm."
+                ),
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            try:
+                reply = await waiter
+            except TimeoutError:
+                await interaction.edit_original_response(
+                    content=(
+                        "Reply selection expired. Run the command again, or use "
+                        "Apps → Steal emojis / stickers on the original message."
+                    )
+                )
+                return None
+            # Reuse the existing source visibility/private-thread checks before reading it.
+            url = (
+                f"https://discord.com/channels/{guild_id}/{channel_id}/{reply.reference.message_id}"
+            )
+            return await self.source_message(interaction, url)
+        finally:
+            if not waiter.done():
+                waiter.cancel()
+            await asyncio.gather(waiter, return_exceptions=True)
+            self.reply_waiters.pop(key, None)
+
     async def assets(self, interaction, source, kind):
         message = await self.source_message(interaction, source)
         if message is not None:
@@ -229,39 +295,63 @@ class Steal(commands.Cog):
         name="emoji", description="Pick custom emojis from text or a message and copy them."
     )
     @app_commands.describe(
-        source="Paste custom emojis, an emoji ID/link, or a message link",
+        source="Emojis, emoji ID/link or message link; leave blank to select by replying",
         name="Optional name for a single emoji; otherwise keep its original name",
     )
     async def emoji(
         self,
         interaction: discord.Interaction,
-        source: app_commands.Range[str, 1, 4000],
+        source: app_commands.Range[str, 1, 4000] | None = None,
         name: app_commands.Range[str, 2, 32] | None = None,
     ):
         await interaction.response.defer(ephemeral=ephemeral(interaction), thinking=True)
         try:
-            await self.start(interaction, await self.assets(interaction, source, "emoji"), name)
+            if source is None:
+                message = await self.reply_source(interaction, "emoji")
+                if message is None:
+                    return
+                assets = [asset for asset in from_message(message) if asset.kind == "emoji"]
+            else:
+                assets = await self.assets(interaction, source, "emoji")
+            await self.start(interaction, assets, name)
         except (ValueError, discord.NotFound, discord.Forbidden) as error:
-            await send_private(interaction, str(error))
+            if source is None:
+                await interaction.edit_original_response(
+                    content=str(error), allowed_mentions=discord.AllowedMentions.none()
+                )
+            else:
+                await send_private(interaction, str(error))
 
     @steal.command(
         name="sticker", description="Pick posted stickers and copy them to your destination."
     )
     @app_commands.describe(
-        source="Sticker ID, Discord sticker link, or a link to the posted message",
+        source="Sticker ID/link or message link; leave blank to select by replying",
         name="Optional custom sticker name; blank keeps the original name",
     )
     async def sticker(
         self,
         interaction: discord.Interaction,
-        source: app_commands.Range[str, 1, 4000],
+        source: app_commands.Range[str, 1, 4000] | None = None,
         name: app_commands.Range[str, 2, 30] | None = None,
     ):
         await interaction.response.defer(ephemeral=ephemeral(interaction), thinking=True)
         try:
-            await self.start(interaction, await self.assets(interaction, source, "sticker"), name)
+            if source is None:
+                message = await self.reply_source(interaction, "sticker")
+                if message is None:
+                    return
+                assets = [asset for asset in from_message(message) if asset.kind == "sticker"]
+            else:
+                assets = await self.assets(interaction, source, "sticker")
+            await self.start(interaction, assets, name)
         except (ValueError, discord.NotFound, discord.Forbidden) as error:
-            await send_private(interaction, str(error))
+            if source is None:
+                await interaction.edit_original_response(
+                    content=str(error), allowed_mentions=discord.AllowedMentions.none()
+                )
+            else:
+                await send_private(interaction, str(error))
 
     async def message_menu(self, interaction: discord.Interaction, message: discord.Message):
         # Discord supplies this specific message to the user-installed context action.

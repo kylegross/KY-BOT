@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 import discord
 
+from ky_bot.log_style import style_log
 from ky_bot.views.sections import section_dividers
 
 from .appearance import standard_artwork
@@ -181,5 +182,4 @@ def author_log_embed(config, post, display_name=None):
             value=body[offset : offset + 1024],
             inline=False,
         )
-    embed.set_footer(text="KY BOT · CONFESSIONS")
-    return embed
+    return style_log(embed)

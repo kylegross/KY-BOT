@@ -216,6 +216,82 @@ class ExpressionCopyTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(DestinationError):
             await self.cog.authorize(50, GUILD)
 
+    async def test_slash_emoji_reply_selection_is_owner_scoped_and_reuses_source_checks(self):
+        source_guild = SimpleNamespace(id=SOURCE)
+        self.bot.get_guild.side_effect = lambda ident: (
+            self.guild if ident == GUILD else source_guild if ident == SOURCE else None
+        )
+        reply = SimpleNamespace(
+            author=SimpleNamespace(id=50, bot=False),
+            guild=source_guild,
+            channel=SimpleNamespace(id=CHANNEL),
+            reference=SimpleNamespace(message_id=MESSAGE, channel_id=CHANNEL),
+        )
+
+        async def receive(event, *, check, timeout):
+            self.assertEqual(event, "message")
+            self.assertEqual(timeout, 60)
+            self.assertTrue(check(reply))
+            wrong = SimpleNamespace(**vars(reply))
+            wrong.author = SimpleNamespace(id=51, bot=False)
+            self.assertFalse(check(wrong))
+            wrong.author = reply.author
+            wrong.channel = SimpleNamespace(id=CHANNEL + 1)
+            self.assertFalse(check(wrong))
+            wrong.channel = reply.channel
+            wrong.reference = None
+            self.assertFalse(check(wrong))
+            return reply
+
+        self.bot.wait_for = AsyncMock(side_effect=receive)
+        self.cog.source_message = AsyncMock(
+            return_value=SimpleNamespace(
+                content=f"<:first:{E1}> <a:second:{E2}>", stickers=[], embeds=[], components=[]
+            )
+        )
+        interaction = self.interaction()
+        await Steal.emoji.callback(self.cog, interaction)
+        self.cog.source_message.assert_awaited_once_with(
+            interaction, f"https://discord.com/channels/{SOURCE}/{CHANNEL}/{MESSAGE}"
+        )
+        view = interaction.edit_original_response.await_args.kwargs["view"]
+        self.assertIsInstance(view, Batch)
+        self.assertEqual(len(view.assets), 2)
+        self.assertEqual(self.cog.reply_waiters, {})
+        self.guild.create_custom_emoji.assert_not_awaited()
+        view.stop()
+
+    async def test_reply_selection_timeout_and_personal_only_source_are_explicit(self):
+        source_guild = SimpleNamespace(id=SOURCE)
+        self.bot.get_guild.side_effect = lambda ident: (
+            self.guild if ident == GUILD else source_guild if ident == SOURCE else None
+        )
+        self.bot.wait_for = AsyncMock(side_effect=TimeoutError)
+        interaction = self.interaction()
+        self.assertIsNone(await self.cog.reply_source(interaction, "emoji"))
+        self.assertIn("expired", interaction.edit_original_response.await_args.kwargs["content"])
+        self.assertEqual(self.cog.reply_waiters, {})
+        self.bot.get_guild.side_effect = lambda ident: self.guild if ident == GUILD else None
+        self.bot.wait_for.reset_mock()
+        with self.assertRaisesRegex(ValueError, "Apps"):
+            await self.cog.reply_source(interaction, "sticker")
+        self.bot.wait_for.assert_not_awaited()
+
+    async def test_sticker_reply_filters_kind_and_preserves_custom_name(self):
+        interaction = self.interaction()
+        target = SimpleNamespace()
+        self.cog.reply_source = AsyncMock(return_value=target)
+        self.cog.start = AsyncMock()
+        assets = [Asset("emoji", E1, "first"), Asset("sticker", E2, "second")]
+        with patch("ky_bot.stealing.command.from_message", return_value=assets):
+            await Steal.sticker.callback(self.cog, interaction, name="Custom sticker")
+        self.cog.start.assert_awaited_once_with(interaction, [assets[1]], "Custom sticker")
+        for command in (Steal.emoji, Steal.sticker):
+            parameter = next(
+                parameter for parameter in command.parameters if parameter.name == "source"
+            )
+            self.assertFalse(parameter.required)
+
     async def test_personal_message_action_uses_payload_without_fetching_history(self):
         message = SimpleNamespace(
             content=f"<:first:{E1}> <a:second:{E2}>", stickers=[], embeds=[], components=[]

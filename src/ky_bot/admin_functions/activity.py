@@ -4,11 +4,12 @@ import asyncio
 import json
 import logging
 import re
-from importlib.resources import files
 from typing import TYPE_CHECKING
 
 import discord
 from discord.ext import commands
+
+from ky_bot.log_style import send_log
 
 if TYPE_CHECKING:
     from ky_bot.bot import KYBot
@@ -132,6 +133,7 @@ class Activity(commands.Cog):
         *,
         source_channel_id: int | None = None,
         subject=None,
+        role_changes=None,
     ) -> None:
         if guild_id is None or title in {"INVITE CREATED", "INVITE DELETED"}:
             return
@@ -218,7 +220,7 @@ class Activity(commands.Cog):
                     source_channel_id or 0,
                     fields.get("Message ID") or ident,
                     title,
-                    dict(name=name, user=ident, gifs=[]),
+                    dict(name=name, user=ident, gifs=[], role_changes=role_changes),
                     details,
                 )
                 return
@@ -234,23 +236,7 @@ class Activity(commands.Cog):
                 avatar = getattr(subject, "display_avatar", None)
                 if avatar:
                     embed.set_thumbnail(url=str(avatar.url))
-            if member_event:
-                embed.set_footer(text="KY BOT", icon_url="attachment://ky_bot_logo.png")
-                logo = discord.File(
-                    files("ky_bot.design")
-                    .joinpath("assets", "footer", "ky_member_log_logo.png")
-                    .open("rb"),
-                    filename="ky_bot_logo.png",
-                )
-                try:
-                    await channel.send(
-                        embed=embed, file=logo, allowed_mentions=discord.AllowedMentions.none()
-                    )
-                finally:
-                    logo.close()
-            else:
-                embed.set_footer(text="KY BOT · SERVER ACTIVITY")
-                await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+            await send_log(channel, embed)
         except (ValueError, discord.HTTPException):
             log.warning("Activity log delivery failed in guild %s", guild_id)
 
@@ -403,7 +389,16 @@ class Activity(commands.Cog):
             fields["Roles removed"] = text(
                 ", ".join(f"{old[i].name} (`{i}`)" for i in sorted(removed))
             )
-        await self.emit(after.guild.id, "MEMBER ROLES CHANGED", fields, subject=after)
+        await self.emit(
+            after.guild.id,
+            "MEMBER ROLES CHANGED",
+            fields,
+            subject=after,
+            role_changes={
+                "added": [{"id": role, "name": new[role].name} for role in sorted(added)],
+                "removed": [{"id": role, "name": old[role].name} for role in sorted(removed)],
+            },
+        )
 
     @commands.Cog.listener()
     async def on_guild_role_create(self, role: discord.Role) -> None:

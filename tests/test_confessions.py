@@ -400,7 +400,7 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(embed.colour.value, 0xCAB6DF)
         self.assertNotIn("image", data)
         self.assertNotIn("thumbnail", data)
-        self.assertEqual(embed.footer.text, "KY BOT · CONFESSIONS")
+        self.assertEqual(embed.footer.text, "KY BOT")
         self.assertIn("https://discord.com/channels/1/10/999", fields["Confession ID"])
         post["body"] = "A" * 2000
         long_log = author_log_embed(self.config, post)

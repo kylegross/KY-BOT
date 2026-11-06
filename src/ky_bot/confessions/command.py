@@ -8,6 +8,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from ky_bot.errors import report_error, send_private
+from ky_bot.log_style import send_log
 
 from .cards import Card, author_log_embed, post_card, privacy, safe, uploads
 from .store import Store
@@ -451,9 +452,8 @@ class Confessions(commands.Cog):
                     member = await guild.fetch_member(post["author"])
                 except discord.HTTPException:
                     pass
-        return await channel.send(
-            embed=author_log_embed(config, post, getattr(member, "display_name", None)),
-            allowed_mentions=discord.AllowedMentions.none(),
+        return await send_log(
+            channel, author_log_embed(config, post, getattr(member, "display_name", None))
         )
 
     async def refresh_queue(self, guild, post, config):

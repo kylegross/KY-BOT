@@ -227,8 +227,8 @@ class FlashTests(unittest.IsolatedAsyncioTestCase):
         await activity.on_member_update(second, third)
         rows = self.store.db.execute("SELECT payload FROM activity_log_queue").fetchall()
         self.assertEqual(len(rows), 1)
-        self.assertIn("Role One", rows[0]["payload"])
-        self.assertIn("Role Two", rows[0]["payload"])
+        self.assertIn("<@&10>", rows[0]["payload"])
+        self.assertIn("<@&11>", rows[0]["payload"])
         self.assertNotIn("<#0>", json.loads(rows[0]["payload"])["text"])
 
     async def test_excluded_category_suppresses_thread_server_events(self):

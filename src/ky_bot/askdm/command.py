@@ -10,6 +10,7 @@ import discord
 from discord.ext import commands, tasks
 
 from ky_bot.errors import send_private
+from ky_bot.log_style import send_log, style_log
 from ky_bot.views.menu_context import menu_parent
 
 from .store import KINDS, Store
@@ -521,8 +522,8 @@ class AskDM(commands.Cog):
             embed.add_field(
                 name="Private decline reason", value=safe(data["decline_reason"]), inline=False
             )
-        embed.set_footer(text=f"Request {request['id']} · {state}")
-        return embed
+        embed.add_field(name="Request ID", value=request["id"], inline=False)
+        return style_log(embed)
 
     async def notify(self, event, request, data, actor, receipt):
         key = str(actor)
@@ -585,15 +586,9 @@ class AskDM(commands.Cog):
                 current_config["log_channel"] or data["log_channel"], request["guild"]
             )
             await self.check_channel(channel, logs=True)
-            message = await channel.send(
-                embed=self.record(request, data, request["state"]),
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            message = await send_log(channel, self.record(request, data, request["state"]))
         else:
-            await message.edit(
-                embed=self.record(request, data, request["state"]),
-                allowed_mentions=discord.AllowedMentions.none(),
-            )
+            await send_log(message, self.record(request, data, request["state"]), edit=True)
         await self.store.save_log_reference(rid, message.id, channel.id)
         receipt.update(log=message.id, log_channel=channel.id)
         await self.store.checkpoint(eid, receipt)

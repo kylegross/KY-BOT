@@ -298,6 +298,14 @@ GUIDES = {
                 "Discord size, duration and server-slot limits still apply.",
             ),
             (
+                "SELECT BY REPLY",
+                "Run `/steal emoji` or `/steal sticker` without source, then reply to the "
+                "original message with `copy` within 60 seconds. KY BOT must be installed "
+                "in that source server. The picker opens privately; you still choose what "
+                "to copy. Slash commands do not receive an already-selected reply target; "
+                "use the message’s Apps action for one-step selection or personal-only installs.",
+            ),
+            (
                 "CHECK THE ITEMS YOU WANT",
                 "A private multi-select popup lists the assets individually. All begin "
                 "checked. Uncheck any to leave behind, use pages for long lists and Rename "

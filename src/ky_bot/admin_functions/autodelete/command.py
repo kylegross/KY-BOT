@@ -588,10 +588,14 @@ class Menu(discord.ui.LayoutView):
                     raise ValueError("Choose an accessible log destination.")
                 p = channel.permissions_for(s.guild.me)
                 if not (
-                    p.view_channel and p.send_messages and p.embed_links and p.read_message_history
+                    p.view_channel
+                    and p.send_messages
+                    and p.embed_links
+                    and p.attach_files
+                    and p.read_message_history
                 ):
                     raise ValueError(
-                        "The bot needs View Channel, Send Messages, Embed Links "
+                        "The bot needs View Channel, Send Messages, Embed Links, Attach Files "
                         "and Read Message History in the log destination."
                     )
                 active = s.cog.service.logs.active_channels(s.guild.id)
