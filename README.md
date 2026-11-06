@@ -694,7 +694,7 @@ Open Command Center > Manage Embeds. Choose a saved embed to see explicit **Edit
 and **Delete embed** actions. The library also offers **Delete embed** directly;
 choose the embed and confirm to remove its draft and published message.
 Create a new saved draft or choose an existing
-embed from the library. Editors and previews are private to the administrator.
+embed from the library. Editors opened from Command Center stay on that shared panel; previews are private to the administrator.
 
 - Content: a private saved name, optional title, message and footer text.
 - Images: upload an optional header and/or footer (8 MB per source image).
@@ -949,7 +949,8 @@ clears a custom text-color override. Back remains a right-side button on editor 
 
 Confessions setup launched from the shared Command Center updates that shared panel.
 Approval queues and report lists always open in a separate, administrator-only private
-message; their Back/Home destinations remain private and cannot edit the shared panel.
+message with Reload list and Close. Closing a review leaves the existing shared panel
+unchanged; private reviews do not open ordinary configuration menus.
 Ordinary settings omit Refresh; Back is retained only for a different submenu target.
 Shared Home resets the Command Center panel and releases its administrator session.
 
@@ -963,8 +964,8 @@ panel and releases the administrator session. Back is kept when it has a distinc
 destination, such as Back to Logs or Back to General Settings; autosaved settings
 do not show a redundant Refresh button.
 
-Member actions, confession review lists, embed-authoring drafts and explicit design
-previews remain private. Private dialogs have detached navigation contexts: their
+Member actions, confession review lists and explicit previews remain private. Embed
+authoring opened from Command Center stays on that shared panel until explicitly published. Private dialogs have detached navigation contexts: their
 Back/Home/Close actions cannot acquire or edit the shared panel. Appearance previews
 use an independent draft copy while the shared appearance editor stays in place.
 Standalone slash-command settings remain private; their subsequent component updates

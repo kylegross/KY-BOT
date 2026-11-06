@@ -57,7 +57,6 @@ GROUPS = {
     ),
     "custom_embeds:selected": (("SAVED EMBEDS", ("SELECTED EMBED", "EDIT EMBED", "DELETE EMBED")),),
     "custom_embeds:content": (
-        ("ADD STYLED TEXT", ("ADD STYLED TEXT", "NEW PASSAGE")),
         ("TITLE", ("TITLE STYLE", "TITLE")),
         ("MESSAGE", ("MESSAGE STYLE", "MESSAGE")),
         ("FOOTER TEXT", ("FOOTER TEXT STYLE", "FOOTER TEXT")),
@@ -73,7 +72,7 @@ GROUPS = {
         ("DESIGN", ("FORMATTING",)),
     ),
     "custom_embeds:images": (
-        ("HEADER IMAGE", ("HEADER IMAGE", "REMOVE HEADER IMAGE")),
+        ("HEADER IMAGE", ("HEADER IMAGE", "HEADER IMAGE TITLE", "REMOVE HEADER IMAGE")),
         ("FOOTER IMAGE", ("FOOTER IMAGE", "REMOVE FOOTER IMAGE")),
     ),
     "custom_embeds:style": (("DESIGN", ("HIGHLIGHT COLOR",)),),

@@ -1,4 +1,4 @@
-"""Private custom-embed editor and saved-post library in the Command Center."""
+"""Custom-embed editing in the Command Center, with explicit private previews."""
 
 import asyncio
 import io
@@ -7,6 +7,7 @@ from importlib.resources import files
 import discord
 
 from ky_bot.errors import report_error, send_private
+from ky_bot.views.menu_context import defer_menu, display_menu, menu_parent
 from ky_bot.views.menu_strips import group_sections, strip_files
 from ky_bot.views.sections import section_dividers
 
@@ -14,7 +15,6 @@ from .model import (
     FIELD_STYLES,
     MAX_SECTIONS,
     PRESETS,
-    STYLES,
     color,
     defaults,
     image_upload,
@@ -48,13 +48,14 @@ def _base_editor_artwork(mode=None):
 async def editor_display(i, view):
     attachments = editor_artwork(view)
     try:
-        return await i.edit_original_response(
-            content=None,
-            embeds=[],
-            attachments=attachments,
-            view=view,
-            allowed_mentions=discord.AllowedMentions.none(),
-        )
+        session = getattr(view, "session", None)
+        parent = getattr(view, "parent", getattr(session, "parent", None))
+        parent = menu_parent(parent, i)
+        if session is not None:
+            session.parent = parent
+        elif hasattr(view, "parent"):
+            view.parent = parent
+        return await display_menu(i, view, attachments, parent)
     finally:
         for attachment in attachments:
             attachment.close()
@@ -155,13 +156,15 @@ class Library(Base):
             "Choose the saved embed you want to delete. You will confirm before it is removed."
             if deleting
             else "Create a custom channel post or choose a saved embed to edit or delete. "
-            "Editing and previews open privately; publishing is a separate action."
+            "Edit here; previews open privately. Publishing is a separate action."
         )
 
         async def create(i):
-            await i.response.defer(ephemeral=True, thinking=True)
+            await defer_menu(i, menu_parent(self.parent, i))
             ident = await cog.store.create(guild, initial_channel(i))
-            await Session(cog, owner, guild, ident, creating=True).show(i)
+            await Session(
+                cog, owner, guild, ident, creating=True, parent=menu_parent(self.parent, i)
+            ).show(i)
 
         self.row(
             "**CREATE EMBED**\nImages, formatted text, custom color and optional sticky delivery.",
@@ -169,6 +172,7 @@ class Library(Base):
         )
 
         async def reload(i, offset=0):
+            parent = menu_parent(self.parent, i)
             await i.response.defer()
             view = Library(
                 cog,
@@ -216,8 +220,10 @@ class Library(Base):
             )
 
             async def choose(i):
-                await i.response.defer(ephemeral=True, thinking=True)
-                session = Session(cog, owner, guild, select.values[0])
+                await defer_menu(i, menu_parent(self.parent, i))
+                session = Session(
+                    cog, owner, guild, select.values[0], parent=menu_parent(self.parent, i)
+                )
                 session.row = await cog.store.get(guild, session.ident)
                 if session.row["deleted"]:
                     await session.show(i)
@@ -235,9 +241,17 @@ class Library(Base):
             self.text("No saved embeds yet.")
 
         async def choose_delete(i):
-            await i.response.defer(ephemeral=True, thinking=True)
+            await defer_menu(i, menu_parent(self.parent, i))
             await editor_display(
-                i, Library(cog, owner, guild, await cog.store.listing(guild), deleting=True)
+                i,
+                Library(
+                    cog,
+                    owner,
+                    guild,
+                    await cog.store.listing(guild),
+                    parent=menu_parent(self.parent, i),
+                    deleting=True,
+                ),
             )
 
         if rows and not deleting:
@@ -254,6 +268,7 @@ class Library(Base):
             self.panel.add_item(discord.ui.ActionRow(previous, following))
 
         async def home(i):
+            parent = menu_parent(self.parent, i)
             await i.response.defer()
             if parent and parent.panel_manager:
                 await parent.panel_manager.reset(guild)
@@ -278,6 +293,7 @@ class Library(Base):
         self.finish()
 
     async def interaction_check(self, i):
+        self.parent = menu_parent(self.parent, i)
         if self.parent:
             return await self.parent.interaction_check(i)
         return await super().interaction_check(i)
@@ -312,6 +328,7 @@ class SavedEmbed(Base):
                     session.owner,
                     session.guild,
                     await session.cog.store.listing(session.guild),
+                    parent=session.parent,
                 ),
             )
             self.stop()
@@ -332,20 +349,24 @@ class SavedEmbed(Base):
 
 
 class Session:
-    def __init__(self, cog, owner, guild, ident, *, creating=False):
+    def __init__(self, cog, owner, guild, ident, *, creating=False, parent=None):
         self.cog, self.owner, self.guild, self.ident = cog, owner, guild, ident
         self.lock = asyncio.Lock()
         self.row = None
         self.creating = creating
+        self.parent = parent
         self.page = "main"
         self.style = "bold"
         self.section_index = 0
         self.view = None
 
     async def allowed(self, i):
+        self.parent = menu_parent(self.parent, i)
+        if self.parent is not None and not await self.parent.interaction_check(i):
+            return False
         if i.user.id == self.owner and i.guild_id == self.guild and i.permissions.administrator:
             return True
-        await send_private(i, "Only the administrator who opened this private editor can use it.")
+        await send_private(i, "Only the administrator using this editor can use it.")
         return False
 
     async def save(self, i, revision, **changes):
@@ -377,6 +398,7 @@ class EditModal(discord.ui.Modal):
             title={
                 "content": "Embed content",
                 "title": "Edit title",
+                "header_title": "Header image title",
                 "body": "Edit message",
                 "footer_text": "Edit footer text",
                 "name": "Saved draft name",
@@ -407,6 +429,7 @@ class EditModal(discord.ui.Modal):
             return
         field_specs = {
             "title": ("Title · large heading by default", 200),
+            "header_title": ("Title inside the header image (optional)", 80),
             "body": ("Message · Discord formatting supported", 3500),
             "footer_text": ("Footer text", 200),
             "name": ("Saved name (only administrators see this)", 64),
@@ -517,9 +540,7 @@ class Editor(Base):
         row, data, page = s.row, s.row["draft"], s.page
         revision = row["revision"]
         self.strip_menu = "custom_embeds" if page == "main" else f"custom_embeds:{page}"
-        self.text(
-            f"**{safe(data['name'])}**\nPrivate draft · Changes go live only when you publish."
-        )
+        self.text(f"**{safe(data['name'])}**\nSaved draft · Changes go live only when you publish.")
         if notice:
             self.text(notice)
 
@@ -552,7 +573,7 @@ class Editor(Base):
                 ("IMAGES", "Optional header and footer images.", "images"),
                 (
                     "CONTENT & TEXT STYLES",
-                    "Add styled text, then edit title, message and footer.",
+                    "Edit title, message, footer and their text styles.",
                     "content",
                 ),
                 (
@@ -577,29 +598,6 @@ class Editor(Base):
                 )
             )
         elif page == "content":
-            self.text(
-                "**ADD STYLED TEXT**\nChoose a style, then add a new passage to your message."
-            )
-            select = discord.ui.Select(
-                placeholder="Style for new text",
-                options=[
-                    discord.SelectOption(label=label, value=key, default=key == s.style)
-                    for key, label in STYLES.items()
-                ],
-            )
-
-            async def addition_style(i):
-                s.style = select.values[0]
-                await i.response.defer()
-                await s.show(i, "content")
-
-            select.callback = addition_style
-            self.panel.add_item(discord.ui.ActionRow(select))
-            self.row(
-                "**NEW PASSAGE**\nAppends to Message; existing text stays in place.",
-                button("Add styled text", modal("format")),
-            )
-            self.panel.add_item(discord.ui.Separator())
             for key, label, style_key in (
                 ("title", "TITLE", "title_style"),
                 ("body", "MESSAGE", "body_style"),
@@ -769,10 +767,26 @@ class Editor(Base):
 
                 async def standard(i, key=key, picker=picker):
                     await i.response.defer()
-                    await s.save(i, revision, **{key: standard_image(key, picker.values[0])})
+                    await s.save(
+                        i,
+                        revision,
+                        **(
+                            {key: standard_image(key, picker.values[0])}
+                            | ({"header_finish": picker.values[0]} if key == "header" else {})
+                        ),
+                    )
 
                 picker.callback = standard
                 self.panel.add_item(discord.ui.ActionRow(picker))
+                if key == "header":
+                    self.row(
+                        "**HEADER IMAGE TITLE**\n"
+                        + (
+                            safe(data.get("header_title", ""))
+                            or "No image title yet. Appears inside the header image."
+                        ),
+                        button("Edit header title", modal("header_title")),
+                    )
                 if data[key]:
 
                     async def remove(i, key=key):
@@ -887,7 +901,10 @@ class Editor(Base):
         async def library(i):
             await i.response.defer()
             await editor_display(
-                i, Library(s.cog, s.owner, s.guild, await s.cog.store.listing(s.guild))
+                i,
+                Library(
+                    s.cog, s.owner, s.guild, await s.cog.store.listing(s.guild), parent=s.parent
+                ),
             )
             self.stop()
 
@@ -947,6 +964,7 @@ class DeleteConfirm(Base):
                 s.owner,
                 s.guild,
                 await s.cog.store.listing(s.guild),
+                parent=s.parent,
                 notice="Embed deleted."
                 if removed
                 else "Removal queued. Check KY BOT’s access to the old channel; it will retry.",

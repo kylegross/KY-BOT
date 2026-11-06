@@ -17,6 +17,52 @@ from ky_bot.custom_embeds.views import DeleteConfirm, EditModal, Editor, Library
 
 
 class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
+    async def test_header_title_persists_and_renders_inside_image(self):
+        from ky_bot.custom_embeds.artwork import standard_image
+
+        draft = defaults() | dict(
+            header=standard_image("header", "red_iridescent"),
+            header_title="EXPOSED",
+            header_finish="red_iridescent",
+        )
+        row = await self.store.get(1, self.ident)
+        await self.store.save(1, self.ident, row["revision"], **draft)
+        self.assertEqual((await self.store.get(1, self.ident))["draft"]["header_title"], "EXPOSED")
+        original = base64.b64decode(draft["header"])
+        view, images = render(draft)
+        self.assertNotEqual(images[0].fp.getvalue(), original)
+        self.assertEqual(Image.open(images[0].fp).size, (1600, 280))
+        self.assertNotIn("EXPOSED", str(view.to_components()))
+        with self.assertRaises(ValueError):
+            validate(draft | {"header_title": "bad\ntitle"})
+
+    async def test_image_sections_and_content_controls_are_in_order(self):
+        session = Session(self.cog, 50, 1, self.ident)
+        session.row = await self.store.get(1, self.ident)
+        session.row["draft"].update(header="saved", footer="saved")
+        session.page = "images"
+        view = Editor(session)
+
+        children = list(view.panel.children)
+        headings = [
+            (n, item.items[0].description)
+            for n, item in enumerate(children)
+            if isinstance(item, discord.ui.MediaGallery) and "ky_strip_" in item.items[0].media.url
+        ]
+        self.assertEqual([name for _, name in headings], ["HEADER IMAGE", "FOOTER IMAGE"])
+        footer_index = headings[1][0]
+        back_index = next(
+            n
+            for n, item in enumerate(children)
+            if isinstance(item, discord.ui.Section) and item.accessory.label == "Back"
+        )
+        self.assertLess(footer_index, back_index)
+        session.page = "content"
+        content = Editor(session)
+        self.assertNotIn("Add styled text", str(content.to_components()))
+        modal = EditModal(session, "header_title")
+        self.assertIn("header_title", modal.fields)
+
     async def asyncSetUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / "settings.sqlite3"
@@ -608,8 +654,8 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual("All embeds" in labels, page == "main")
             selects = [x for x in view.walk_children() if isinstance(x, discord.ui.Select)]
             if page == "content":
-                self.assertEqual(len(selects), 4)
-                self.assertIn("Add styled text", labels)
+                self.assertEqual(len(selects), 3)
+                self.assertNotIn("Add styled text", labels)
                 self.assertIn("Edit title", labels)
             if page == "style":
                 self.assertEqual(len(selects), 1)

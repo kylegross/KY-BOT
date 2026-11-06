@@ -224,7 +224,7 @@ class SettingsView(discord.ui.LayoutView):
             separator()
             row(
                 "**MANAGE EMBEDS**\n-# Custom posts, images, formatting and sticky messages.",
-                self.automation_navigation("CustomEmbeds", label="Manage Embeds"),
+                self.automation_navigation("CustomEmbeds", label="Manage"),
             )
         elif section == "general":
             for index, (title, description, cog_name) in enumerate(

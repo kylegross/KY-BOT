@@ -48,6 +48,8 @@ def defaults():
         footer_text="",
         color="BDC3CA",
         header=None,
+        header_title="",
+        header_finish="dark_silver",
         footer=None,
         channel=0,
         sticky_every=0,
@@ -84,7 +86,7 @@ def text_content(data):
 
 def validate(data, *, publish=False):
     data = defaults() | data
-    limits = {"name": 64, "title": 200, "body": 3500, "footer_text": 200}
+    limits = {"name": 64, "title": 200, "body": 3500, "footer_text": 200, "header_title": 80}
     for key, maximum in limits.items():
         if not isinstance(data[key], str) or len(data[key]) > maximum:
             raise ValueError(f"{key.replace('_', ' ').title()} must be under {maximum} characters.")
@@ -99,6 +101,10 @@ def validate(data, *, publish=False):
     from ky_bot.design.menu_design import FINISHES
     from ky_bot.design.text_colour import text_colour
 
+    if data["header_finish"] not in FINISHES:
+        raise ValueError("Choose a valid header finish.")
+    if data["header_title"]:
+        heading_text(data["header_title"])
     data["text_color"] = text_colour(data["text_color"])
     if data["text_finish"] not in FINISHES:
         raise ValueError("Choose a decorative text finish.")
@@ -250,7 +256,19 @@ def render(data):
                     panel.add_item(discord.ui.TextDisplay(prefix + field_text(data, "footer_text")))
         if data[key]:
             name = "custom_" + key + ".png"
-            attachments.append(discord.File(io.BytesIO(base64.b64decode(data[key])), filename=name))
+            raw = base64.b64decode(data[key])
+            if key == "header" and data["header_title"]:
+                from ky_bot.design.headers import render_header
+                from ky_bot.design.menu_design import FINISHES
+
+                from .artwork import standard_image
+
+                finish = next(
+                    (key for key in FINISHES if data["header"] == standard_image("header", key)),
+                    data["header_finish"],
+                )
+                raw = render_header(raw, finish, height=280, title=data["header_title"])
+            attachments.append(discord.File(io.BytesIO(raw), filename=name))
             panel.add_item(
                 discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://" + name))
             )

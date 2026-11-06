@@ -299,22 +299,22 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
             await reload.callback(interaction)
             self.assertEqual(private.page, page)
             self.assertEqual(manager.edit.await_count, count)
-            back = next(
-                item
+            buttons = {
+                item.label: item
                 for item in private.walk_children()
-                if isinstance(item, discord.ui.Button) and item.label == "Back"
-            )
-            await back.callback(interaction)
-            self.assertEqual(private.page, "logging")
-            self.assertEqual(manager.edit.await_count, count)
-            home = next(
-                item
-                for item in private.walk_children()
-                if isinstance(item, discord.ui.Button) and item.label == "Home"
-            )
-            await home.callback(interaction)
-            detached.refresh.assert_awaited()
+                if isinstance(item, discord.ui.Button)
+            }
+            self.assertNotIn("Back", buttons)
+            self.assertNotIn("Home", buttons)
+            await buttons["Close"].callback(interaction)
+            result = interaction.edit_original_response.await_args.kwargs
+            self.assertIsNone(result["content"])
+            self.assertIsInstance(result["view"], discord.ui.LayoutView)
+            self.assertEqual(result["view"].children[0].content, "Review closed.")
+            self.assertEqual(result["attachments"], [])
+            detached.refresh.assert_not_awaited()
             shared.refresh.assert_not_awaited()
+            manager.reset.assert_not_awaited()
             self.assertEqual(manager.edit.await_count, count)
             private.stop()
             interaction.message.flags.ephemeral = False

@@ -329,9 +329,102 @@ class MenuRoutingTests(unittest.IsolatedAsyncioTestCase):
         private = self.interaction(True)
         private.client = self.bot
         await control(private_view, "Back to editing").callback(private)
-        self.assertIsNone(
-            private.edit_original_response.await_args.kwargs["view"].session.command_center
-        )
+        closed = private.edit_original_response.await_args.kwargs["view"]
+        self.assertFalse(hasattr(closed, "session"))
+        self.assertIn("Continue editing in the Command Center", str(closed.to_components()))
         self.assertEqual(self.message.edit.await_count, before)
         await control(shared_editor, "Cancel").callback(self.interaction())
         self.assertEqual(self.manager.entries[1].view.section, "general")
+
+    async def test_manage_embeds_entire_workflow_stays_shared_except_preview(self):
+        from ky_bot.custom_embeds.command import CustomEmbeds
+        from ky_bot.custom_embeds.store import Store
+        from ky_bot.custom_embeds.views import DeleteConfirm, Editor, Library, SavedEmbed
+
+        store = await Store.open(":memory:")
+        try:
+            cog = CustomEmbeds(self.bot)
+            cog.store = store
+            target = SimpleNamespace(
+                id=30, get_partial_message=lambda _: SimpleNamespace(delete=AsyncMock())
+            )
+            cog.channel = AsyncMock(return_value=target)
+            cog.post = AsyncMock(return_value=SimpleNamespace(id=400))
+            await cog.open_menu(self.interaction(), command_center=self.parent)
+            library = self.manager.entries[1].view
+            create = self.interaction()
+            await control(library, "Create new").callback(create)
+            create.response.defer.assert_awaited_once_with()
+            create.edit_original_response.assert_not_awaited()
+            editor = self.manager.entries[1].view
+            self.assertIsInstance(editor, Editor)
+            session = editor.session
+            self.assertIs(session.parent, self.parent)
+            await session.save(
+                self.interaction(), session.row["revision"], body="Example post", channel=30
+            )
+            for page in (
+                "main",
+                "content",
+                "formatting",
+                "sections",
+                "images",
+                "style",
+                "delivery",
+                "channel",
+                "publish",
+            ):
+                event = self.interaction()
+                await session.show(event, page)
+                self.assertIs(self.manager.entries[1].view.session, session)
+                event.edit_original_response.assert_not_awaited()
+                self.assertFalse(self.manager.entries[1].view.is_finished())
+            editor = self.manager.entries[1].view
+            before = self.message.edit.await_count
+            preview = self.interaction()
+            await control(editor, "Preview").callback(preview)
+            self.assertTrue(cog.post.await_args.kwargs["private"])
+            self.assertIs(cog.post.await_args.args[0], preview.followup)
+            self.assertEqual(self.message.edit.await_count, before)
+            self.assertIs(self.manager.entries[1].view, editor)
+            await control(editor, "Publish").callback(self.interaction())
+            self.assertIsInstance(self.manager.entries[1].view, Editor)
+            self.assertTrue(session.row["published"])
+            await session.show(self.interaction(), "main")
+            await control(self.manager.entries[1].view, "All embeds").callback(self.interaction())
+            library = self.manager.entries[1].view
+            self.assertIsInstance(library, Library)
+            self.assertIs(library.parent, self.parent)
+            picker = next(
+                item for item in library.walk_children() if isinstance(item, discord.ui.Select)
+            )
+            picker._values = [session.ident]
+            event = self.interaction()
+            await picker.callback(event)
+            event.response.defer.assert_awaited_once_with()
+            self.assertIsInstance(self.manager.entries[1].view, SavedEmbed)
+            await control(self.manager.entries[1].view, "Edit embed").callback(self.interaction())
+            self.assertIsInstance(self.manager.entries[1].view, Editor)
+            await control(self.manager.entries[1].view, "All embeds").callback(self.interaction())
+            await control(self.manager.entries[1].view, "Delete embed").callback(self.interaction())
+            deleting = self.manager.entries[1].view
+            self.assertIsInstance(deleting, Library)
+            self.assertIs(deleting.parent, self.parent)
+            picker = next(
+                item for item in deleting.walk_children() if isinstance(item, discord.ui.Select)
+            )
+            picker._values = [session.ident]
+            await picker.callback(self.interaction())
+            self.assertIsInstance(self.manager.entries[1].view, DeleteConfirm)
+            await control(self.manager.entries[1].view, "Cancel").callback(self.interaction())
+            self.assertIsInstance(self.manager.entries[1].view, Editor)
+            await self.manager.entries[1].view.session.show(self.interaction(), "publish")
+            await control(self.manager.entries[1].view, "Delete").callback(self.interaction())
+            await control(self.manager.entries[1].view, "Delete embed").callback(self.interaction())
+            self.assertIsInstance(self.manager.entries[1].view, Library)
+            self.assertIs(self.manager.entries[1].view.parent, self.parent)
+            self.assertEqual(await store.listing(1), [])
+            await control(self.manager.entries[1].view, "Home").callback(self.interaction())
+            self.assertEqual(self.manager.entries[1].view.section, "overview")
+        finally:
+            await store.close()

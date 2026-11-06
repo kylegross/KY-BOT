@@ -69,6 +69,7 @@ class DesignSession:
         self.generation, self.page, self.preview_key = 0, 0, None
         self.lock = asyncio.Lock()
         self.command_center = None
+        self.preview_origin = None
 
     @classmethod
     async def create(cls, interaction, service):
@@ -137,6 +138,28 @@ class DesignSession:
 
     async def show(self, interaction, page="edit", notice=None):
         self.generation += 1
+        if self.preview_origin is not None:
+            closed = discord.ui.LayoutView(timeout=180)
+            closed.add_item(
+                discord.ui.TextDisplay(
+                    notice or "Preview closed. Continue editing in the Command Center."
+                )
+            )
+            manager = self.preview_origin.panel_manager
+            entry = manager.entries.get(self.guild_id) if manager is not None else None
+            jump = getattr(getattr(entry, "message", None), "jump_url", None)
+            if isinstance(jump, str):
+                closed.add_item(
+                    discord.ui.ActionRow(discord.ui.Button(label="Open Command Center", url=jump))
+                )
+            await interaction.edit_original_response(
+                content=None,
+                embeds=[],
+                view=closed,
+                attachments=[],
+                allowed_mentions=discord.AllowedMentions.none(),
+            )
+            return
         view = Editor(self, page, notice)
         attachments = category_files([view.category_title], "silver_neon")
         try:
@@ -151,6 +174,7 @@ class DesignSession:
             # A private preview owns its own draft and navigation context. The
             # shared editor remains active and cannot be edited by its callbacks.
             preview = copy.copy(self)
+            preview.preview_origin = self.command_center
             preview.command_center = None
             preview.lock = asyncio.Lock()
             preview.selected = list(self.selected)
@@ -714,6 +738,10 @@ class Editor(discord.ui.LayoutView):
         async def cancel(i):
             from ky_bot.admin_functions.settings_view import SettingsView
 
+            if s.preview_origin is not None:
+                await s.show(i, notice="Preview closed. Continue editing in the Command Center.")
+                self.stop()
+                return
             parent = menu_parent(s.command_center, i)
             if parent is not None:
                 parent.section = "general"

@@ -86,7 +86,11 @@ def section_dividers(panel: discord.ui.Container, *, navigation_on_right: bool =
         child
         for child in children
         if isinstance(child, discord.ui.MediaGallery)
-        and any("footer" in item.media.url.rsplit("/", 1)[-1].lower() for item in child.items)
+        and any(
+            "footer" in item.media.url.rsplit("/", 1)[-1].lower()
+            and not item.media.url.rsplit("/", 1)[-1].startswith("ky_strip_")
+            for item in child.items
+        )
     ]
     children = [child for child in children if child not in footers] + footers
     for child in panel.children:

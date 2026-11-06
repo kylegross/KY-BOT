@@ -817,34 +817,49 @@ class Admin(discord.ui.LayoutView):
             if page in {"queue", "reports", "bans"}
             else "channels"
         )
-        if page != "channels":
-            panel.add_item(
-                discord.ui.Section(
-                    "**BACK**\nReturn to the previous Confessions menu.",
-                    accessory=self.button("Back", self.go(back)),
+
+        async def close(event):
+            closed = discord.ui.LayoutView()
+            closed.add_item(
+                discord.ui.TextDisplay(
+                    "Review closed."
+                    if page in {"queue", "reports"}
+                    else "Confessions settings closed."
                 )
             )
-        if self.parent:
+            await event.edit_original_response(content=None, embeds=[], view=closed, attachments=[])
+            closed.stop()
+            self.stop()
+
+        if page in {"queue", "reports"}:
             panel.add_item(
                 discord.ui.Section(
-                    "**COMMAND CENTER**\nReturn to the main menu.",
-                    accessory=self.button("Home", home),
-                )
-            )
-        elif page == "channels":
-
-            async def close(event):
-                await event.edit_original_response(
-                    content="Confessions settings closed.", view=None, attachments=[]
-                )
-                self.stop()
-
-            panel.add_item(
-                discord.ui.Section(
-                    "**CLOSE SETTINGS**\nYour settings are saved.",
+                    "**CLOSE REVIEW**\nClose this private review; keep the shared panel unchanged.",
                     accessory=self.button("Close", close),
                 )
             )
+        else:
+            if page != "channels":
+                panel.add_item(
+                    discord.ui.Section(
+                        "**BACK**\nReturn to the previous Confessions menu.",
+                        accessory=self.button("Back", self.go(back)),
+                    )
+                )
+            if self.parent:
+                panel.add_item(
+                    discord.ui.Section(
+                        "**COMMAND CENTER**\nReturn to the main menu.",
+                        accessory=self.button("Home", home),
+                    )
+                )
+            elif page == "channels":
+                panel.add_item(
+                    discord.ui.Section(
+                        "**CLOSE SETTINGS**\nYour settings are saved.",
+                        accessory=self.button("Close", close),
+                    )
+                )
         panel.add_item(
             discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://confession_footer.png"))
         )
