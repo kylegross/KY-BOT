@@ -1,5 +1,8 @@
 import asyncio
+import base64
 import copy
+import io
+import json
 import tempfile
 import time
 import unittest
@@ -8,12 +11,14 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import discord
+from PIL import Image
 
 from ky_bot.admin_functions.activity import Activity
 from ky_bot.admin_functions.settings_view import SettingsView
+from ky_bot.tickets.artwork import normalize, public_files
 from ky_bot.tickets.command import Tickets
 from ky_bot.tickets.store import Store, defaults, effective, new_panel, new_type, validate
-from ky_bot.tickets.views import Admin, Manage, PublicPanel, TicketButton
+from ky_bot.tickets.views import Admin, Manage, PublicPanel, TicketButton, private_admin_parent
 
 PANEL = "a" * 32
 KIND = "b" * 32
@@ -440,6 +445,295 @@ class TicketTests(unittest.IsolatedAsyncioTestCase):
         )
         destination.assert_not_awaited()
         self.assertIsNotNone(ticket)
+
+    async def test_slash_setup_current_channel_is_only_an_editable_new_panel_default(self):
+        repository = SimpleNamespace(get=AsyncMock(return_value=SimpleNamespace()))
+        self.cog.bot.server_settings = SimpleNamespace(repository=repository)
+        i = interaction()
+        i.channel = Mock(spec=discord.TextChannel)
+        i.channel_id = 777
+        i.response.send_modal = AsyncMock()
+        parent = await private_admin_parent(self.cog, i)
+        menu = Admin(self.cog, parent, self.revision, self.config, page="panels")
+        menu.show = AsyncMock()
+        await menu.create(i)
+        modal = i.response.send_modal.await_args.args[0]
+        await modal.commit(i, {"name": "New panel"})
+        revision, config = await self.store.config(1)
+        token = next(key for key in config["panels"] if key != PANEL)
+        self.assertEqual(config["panels"][token]["channel"], 777)
+        self.assertEqual(config["panels"][PANEL]["channel"], 0)
+        editor = Admin(
+            self.cog, parent, revision, config, page="panel", selected=token, pick="channel"
+        )
+        editor.show = AsyncMock()
+        picker = next(
+            child for child in editor.walk_children() if isinstance(child, discord.ui.ChannelSelect)
+        )
+        self.assertFalse(picker.disabled)
+        self.assertEqual([value.id for value in picker.default_values], [777])
+        await editor.set_value(i, "channel", 888)
+        self.assertEqual((await self.store.config(1))[1]["panels"][token]["channel"], 888)
+        menu.stop()
+        editor.stop()
+        parent.stop()
+
+    async def test_command_center_new_panel_has_an_explicit_channel_picker(self):
+        parent = SimpleNamespace(panel_manager=None, guild_id=1)
+        i = interaction()
+        i.response.send_modal = AsyncMock()
+        menu = Admin(self.cog, parent, self.revision, self.config, page="panels")
+        menu.show = AsyncMock()
+        await menu.create(i)
+        await i.response.send_modal.await_args.args[0].commit(i, {"name": "Choose channel"})
+        _, config = await self.store.config(1)
+        token = next(key for key in config["panels"] if key != PANEL)
+        self.assertEqual(config["panels"][token]["channel"], 0)
+        menu.stop()
+
+    async def test_panel_specific_settings_are_isolated_and_type_overrides_win(self):
+        config = copy.deepcopy(self.config)
+        other = "c" * 32
+        config["panels"][other] = new_panel("Second panel") | dict(types=[KIND])
+        config["panels"][PANEL]["overrides"] = dict(
+            category=55,
+            support_roles=[88],
+            log_channels=[66],
+            cooldown=120,
+            welcome="Panel-specific greeting",
+        )
+        await self.store.configure(1, self.revision, config)
+        first = effective(config, KIND, PANEL)
+        second = effective(config, KIND, other)
+        self.assertEqual(
+            (first["category"], first["support_roles"], first["cooldown"]), (55, [88], 120)
+        )
+        self.assertEqual(
+            (second["category"], second["support_roles"], second["cooldown"]), (9, [7], 0)
+        )
+        config["types"][KIND]["overrides"]["category"] = 77
+        self.assertEqual(effective(config, KIND, PANEL)["category"], 77)
+        parent = SimpleNamespace(panel_manager=None, guild_id=1)
+        for page in (
+            "panel_settings",
+            "access",
+            "destinations",
+            "type_workflow",
+            "automation",
+            "replies",
+        ):
+            view = Admin(self.cog, parent, None, config, page=page, selected=PANEL, notice="Saved")
+            self.assertLessEqual(view.total_children_count, 40)
+            self.assertEqual(view.settings["category"], 55)
+            view.stop()
+
+    async def test_invalid_combined_panel_and_type_timers_are_rejected(self):
+        config = copy.deepcopy(self.config)
+        config["panels"][PANEL]["overrides"]["auto_close_hours"] = 2
+        config["types"][KIND]["overrides"]["reminder_hours"] = 4
+        with self.assertRaisesRegex(ValueError, "before automatic"):
+            validate(config)
+
+    async def test_empty_topic_screen_has_working_starter_checkboxes_and_no_duplicate_title(self):
+        config = copy.deepcopy(self.config)
+        config["types"] = {}
+        config["panels"][PANEL]["types"] = []
+        revision = await self.store.configure(1, self.revision, config)
+        parent = SimpleNamespace(panel_manager=None, guild_id=1)
+        i = interaction()
+        view = Admin(self.cog, parent, revision, config, page="panel_types", selected=PANEL)
+        view.show = AsyncMock()
+        topics = [
+            child
+            for child in view.panel.children
+            if isinstance(child, discord.ui.Section) and child.accessory.label == "☐ Select"
+        ]
+        self.assertEqual(len(topics), 5)
+        self.assertIn("Support", topics[0].children[0].content)
+        self.assertNotIn("COMMAND CENTER · TICKETS", str(view.to_components()))
+        await topics[0].accessory.callback(i)
+        revision, config = await self.store.config(1)
+        self.assertEqual(len(config["types"]), 1)
+        token = config["panels"][PANEL]["types"][0]
+        self.assertEqual(config["types"][token]["name"], "Support")
+        checked = Admin(self.cog, parent, revision, config, page="panel_types", selected=PANEL)
+        checked.show = AsyncMock()
+        control = next(
+            item.accessory
+            for item in checked.panel.children
+            if isinstance(item, discord.ui.Section) and item.accessory.label == "☑ Selected"
+        )
+        await control.callback(i)
+        self.assertEqual((await self.store.config(1))[1]["panels"][PANEL]["types"], [])
+        self.assertLessEqual(checked.total_children_count, 40)
+        view.stop()
+        checked.stop()
+
+    async def test_topic_checklist_pages_keep_other_selections(self):
+        config = copy.deepcopy(self.config)
+        config["types"] = {format(n, "032x"): new_type(f"Custom {n:02d}") for n in range(30)}
+        existing = format(29, "032x")
+        config["panels"][PANEL]["types"] = [existing]
+        revision = await self.store.configure(1, self.revision, config)
+        parent = SimpleNamespace(panel_manager=None, guild_id=1)
+        view = Admin(
+            self.cog, parent, revision, config, page="panel_types", selected=PANEL, offset=5
+        )
+        view.show = AsyncMock()
+        control = next(
+            item.accessory
+            for item in view.panel.children
+            if isinstance(item, discord.ui.Section) and item.accessory.label == "☐ Select"
+        )
+        await control.callback(interaction())
+        selected = (await self.store.config(1))[1]["panels"][PANEL]["types"]
+        self.assertIn(existing, selected)
+        self.assertEqual(len(selected), 2)
+        self.assertEqual(view.show.await_args.kwargs["offset"], 5)
+        self.assertLessEqual(view.total_children_count, 40)
+        view.stop()
+
+    async def test_header_footer_can_mix_standard_and_custom_artwork(self):
+        image = Image.new("RGBA", (400, 100), (12, 34, 56, 128))
+        stream = io.BytesIO()
+        image.save(stream, format="PNG")
+        custom = normalize(stream.getvalue(), "header")
+        panel = new_panel("Artwork") | dict(
+            header_mode="custom", header_custom=custom, footer_finish="gold"
+        )
+        files = public_files(panel)
+        try:
+            self.assertEqual(
+                [file.filename for file in files],
+                ["ticket_panel_header.png", "ticket_panel_footer.png"],
+            )
+            with Image.open(files[0].fp) as result:
+                self.assertEqual(result.getpixel((0, 0)), (12, 34, 56, 128))
+            self.assertNotEqual(files[1].fp.read(), base64.b64decode(custom))
+        finally:
+            for file in files:
+                file.close()
+        with self.assertRaises(ValueError):
+            normalize(b"not an image", "header")
+
+    async def test_public_preview_attaches_banners_and_omits_repeated_title(self):
+        parent = SimpleNamespace(panel_manager=None, guild_id=1)
+        menu = Admin(
+            self.cog, parent, self.revision, self.config, page="appearance", selected=PANEL
+        )
+        i = interaction()
+        await menu.preview(i)
+        sent = i.followup.send.await_args.kwargs
+        names = {file.filename for file in sent["files"]}
+        self.assertEqual(names, {"ticket_panel_header.png", "ticket_panel_footer.png"})
+        text = "\n".join(
+            item.content
+            for item in sent["view"].walk_children()
+            if isinstance(item, discord.ui.TextDisplay)
+        )
+        self.assertNotIn("## Contact Staff", text)
+        for page in ("appearance", "art_header", "art_footer"):
+            view = Admin(
+                self.cog,
+                parent,
+                self.revision,
+                self.config,
+                page=page,
+                selected=PANEL,
+                pick="source",
+            )
+            self.assertLessEqual(view.total_children_count, 40)
+            view.stop()
+        menu.stop()
+        sent["view"].stop()
+
+    async def test_artwork_is_attached_when_updating_an_existing_public_panel(self):
+        config = copy.deepcopy(self.config)
+        config["panels"][PANEL]["channel"] = 200
+        revision = await self.store.configure(1, self.revision, config)
+        message = SimpleNamespace(id=100)
+        existing = SimpleNamespace(id=100, edit=AsyncMock(return_value=message))
+        channel = SimpleNamespace(
+            id=200,
+            get_partial_message=Mock(return_value=existing),
+            permissions_for=Mock(return_value=SimpleNamespace(attach_files=True)),
+        )
+        guild = SimpleNamespace(id=1, me=member(100), get_channel=Mock(return_value=channel))
+        self.cog.validate_destination = Mock()
+        self.cog.validate_type = AsyncMock()
+        await self.cog.publish(guild, PANEL, revision)
+        attachments = existing.edit.await_args.kwargs["attachments"]
+        self.assertEqual(
+            {file.filename for file in attachments},
+            {"ticket_panel_header.png", "ticket_panel_footer.png"},
+        )
+
+    async def test_approval_role_is_required_and_normal_status_cannot_bypass_it(self):
+        ticket = await self.reserve()
+        ticket["settings"].update(approver_roles=[8], require_approval=True)
+        ticket = await self.store.update(
+            ticket, state="pending_approval", settings=ticket["settings"]
+        )
+        channel = SimpleNamespace(edit=AsyncMock(), send=AsyncMock())
+        self.cog.get_channel = AsyncMock(return_value=channel)
+        self.cog.overwrites = Mock(return_value={})
+        with self.assertRaisesRegex(ValueError, "approvers"):
+            await self.cog.action(interaction(member(9, roles=[7])), ticket["id"], "approve")
+        channel.edit.assert_not_awaited()
+        with self.assertRaisesRegex(ValueError, "Approve this ticket"):
+            await self.cog.change(
+                interaction(member(9, roles=[7])), ticket["id"], "state", "waiting_staff"
+            )
+        await self.cog.action(interaction(member(10, roles=[8])), ticket["id"], "approve")
+        current = await self.store.get(ticket["id"])
+        self.assertEqual(current["state"], "waiting_staff")
+        self.assertEqual(current["approved_by"], 10)
+
+    async def test_pending_approvals_count_against_open_ticket_limit(self):
+        config = copy.deepcopy(self.config)
+        config["defaults"]["max_open"] = 1
+        await self.store.configure(1, self.revision, config)
+        ticket = await self.reserve()
+        await self.store.update(ticket, state="pending_approval")
+        with self.assertRaisesRegex(ValueError, "limit"):
+            await self.reserve()
+
+    async def test_existing_saved_settings_receive_new_approval_defaults(self):
+        legacy = copy.deepcopy(self.config)
+        legacy["defaults"].pop("approver_roles")
+        legacy["defaults"].pop("require_approval")
+        await self.store.execute(
+            "UPDATE ticket_settings SET data=? WHERE guild=?", (json.dumps(legacy), 1)
+        )
+        _, config = await self.store.config(1)
+        self.assertEqual(config["defaults"]["approver_roles"], [])
+        self.assertFalse(config["defaults"]["require_approval"])
+
+    async def test_pending_approval_is_private_read_only_and_not_approved_by_messages(self):
+        ticket = await self.reserve()
+        ticket["settings"].update(approver_roles=[8], require_approval=True)
+        ticket = await self.store.update(
+            ticket, state="pending_approval", settings=ticket["settings"]
+        )
+        guild = Mock(spec=discord.Guild)
+        guild.default_role = Mock(spec=discord.Role)
+        guild.me = member(100)
+        support = Mock(spec=discord.Role)
+        reviewer = Mock(spec=discord.Role)
+        guild.get_role = Mock(side_effect=lambda key: {7: support, 8: reviewer}.get(key))
+        opener = member(5)
+        guild.get_member = Mock(return_value=opener)
+        permissions = self.cog.overwrites(guild, ticket, closed=True)
+        self.assertFalse(permissions[guild.default_role].view_channel)
+        self.assertTrue(permissions[reviewer].view_channel)
+        self.assertFalse(permissions[opener].send_messages)
+        message = SimpleNamespace(
+            guild=SimpleNamespace(id=1),
+            channel=SimpleNamespace(id=300),
+            author=member(9, roles=[7]),
+        )
+        await self.cog.on_message(message)
+        self.assertEqual((await self.store.get(ticket["id"]))["state"], "pending_approval")
 
 
 if __name__ == "__main__":

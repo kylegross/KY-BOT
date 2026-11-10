@@ -5,6 +5,33 @@ Administrator. Both entry points edit the same guild settings and use the existi
 inline Components V2 menus, silver artwork, category strips and Home/Back routing.
 The slash-command setup response is ephemeral. Public ticket controls survive restarts.
 
+For a new panel created through `/ticket setup`, its initial panel channel is the
+server text channel where the command was run. **Panel Channel → Choose channel(s)**
+remains editable, so the administrator can choose another channel before publishing.
+Opening setup never moves an existing panel or replaces its saved channel. Command
+Center setup starts with an explicit channel selection instead of assuming that the
+Command Center channel should host the public panel.
+
+Each selected panel has **Channel Settings** for its own support team, access rules,
+ticket category, log/transcript destinations, messages, limits and automation. These
+controls are available from both setup entry points.
+
+**Panel → Staff & Approval Roles** is a direct shortcut to support roles, ticket
+approvers and ticket managers. Support staff handle ordinary ticket operations.
+Approvers review requests; managers can also approve, assign and transfer tickets.
+The optional **Require Ticket Approval** toggle creates tickets in a waiting state
+with the opener's replies disabled. Configured approvers or managers can approve
+the request or decline it with a reason. Approval is off by default. Pending requests
+count against opening limits, and ordinary messages/status changes cannot approve them.
+
+**Panel → Appearance** configures header and footer artwork independently. Choose a
+standard KY BOT design and one of its four existing finishes, upload your own still
+PNG/JPEG/WebP image, or hide either banner. Custom uploads are normalized and persisted
+in the bot database rather than depending on temporary Discord image URLs. Each upload
+may be up to 8 MB before processing. Preview and publication attach the selected images,
+and updating a panel replaces its prior artwork. Standard header titles are not repeated
+as another text heading below the artwork; setup menus also omit their duplicate title.
+
 ## Initial setup
 
 1. In **Shared Defaults → Staff & Access**, choose support and ticket-manager roles.
@@ -18,13 +45,19 @@ The slash-command setup response is ephemeral. Public ticket controls survive re
 5. Enable ticketing from the TICKETS home menu. Publish additional panels into other
    channels as needed. Publishing updates the saved message instead of duplicating it.
 
+**Panel → Ticket Types** presents a checkbox-style topic list. Starter choices are
+Support, Member Reports, Appeals, Applications and Other; selecting one creates the
+topic and adds it to that panel. Use **Add Topic** for a custom choice. Every toggle
+saves immediately, other pages' selections are preserved, and the menu shows how
+many topics are selected. Go Back → Review to preview and publish afterward.
+
 Up to 100 panels and 100 types can be configured per server. A panel offers up to
 25 types; small panels use inline buttons and larger panels use compact button rows.
 Each log setting accepts up to 10 destinations. A type can appear on several panels.
 
 ## Routing
 
-For newly opened tickets: **shared defaults → panel log overrides → type overrides**.
+For newly opened tickets: **shared defaults → panel overrides → type overrides**.
 An explicit empty selection overrides rather than inherits. Reset Defaults removes
 overrides. Activity log and transcript destinations are separate, and both fan out
 to all selected channels. Different ticket types can use different teams and private

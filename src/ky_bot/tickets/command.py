@@ -34,19 +34,29 @@ from .views import (
 )
 
 log = logging.getLogger(__name__)
-ACTIVE = {"open", "waiting_staff", "waiting_user"}
+ACTIVE = {"open", "waiting_staff", "waiting_user", "pending_approval"}
 
 
 def staff(member, settings):
     return member.guild_permissions.administrator or bool(
         {role.id for role in member.roles}
-        & set(settings["support_roles"] + settings["manager_roles"])
+        & set(
+            settings["support_roles"]
+            + settings["manager_roles"]
+            + settings.get("approver_roles", [])
+        )
     )
 
 
 def manager(member, settings):
     return member.guild_permissions.administrator or bool(
         {role.id for role in member.roles} & set(settings["manager_roles"])
+    )
+
+
+def approver(member, settings):
+    return manager(member, settings) or bool(
+        {role.id for role in member.roles} & set(settings.get("approver_roles", []))
     )
 
 
@@ -169,12 +179,20 @@ class Tickets(commands.Cog):
         self.validate_destination(channel)
         if not channel.permissions_for(channel.guild.me).attach_files:
             raise ValueError("KY BOT needs Attach Files in log and transcript channels.")
-        permitted = set(settings["support_roles"] + settings["manager_roles"])
+        permitted = set(
+            settings["support_roles"]
+            + settings["manager_roles"]
+            + settings.get("approver_roles", [])
+        )
         _, config = await self.store.config(channel.guild.id)
         permitted.update(config["defaults"]["support_roles"] + config["defaults"]["manager_roles"])
-        for kind in config["types"].values():
+        for kind in list(config["types"].values()) + list(config["panels"].values()):
             combined = config["defaults"] | kind["overrides"]
-            permitted.update(combined["support_roles"] + combined["manager_roles"])
+            permitted.update(
+                combined["support_roles"]
+                + combined["manager_roles"]
+                + combined.get("approver_roles", [])
+            )
         if channel.permissions_for(channel.guild.default_role).view_channel:
             raise ValueError("Choose a staff-only log channel hidden from @everyone.")
         for role in channel.guild.roles:
@@ -201,9 +219,17 @@ class Tickets(commands.Cog):
         self.validate_destination(category, category=True)
         if not settings["support_roles"] and not settings["manager_roles"]:
             raise ValueError("Select at least one support or ticket manager role.")
+        if settings.get("require_approval") and not (
+            settings.get("approver_roles") or settings["manager_roles"]
+        ):
+            raise ValueError(
+                "Select ticket approvers or ticket managers before requiring approval."
+            )
         if any(
             guild.get_role(key) is None or guild.get_role(key).is_default()
-            for key in settings["support_roles"] + settings["manager_roles"]
+            for key in settings["support_roles"]
+            + settings["manager_roles"]
+            + settings.get("approver_roles", [])
         ):
             raise ValueError("A staff role was removed. Reselect staff roles.")
         if not settings["log_channels"] or not settings["transcript_channels"]:
@@ -224,39 +250,52 @@ class Tickets(commands.Cog):
             for kind in panel["types"]:
                 if config["types"][kind]["enabled"]:
                     await self.validate_type(guild, effective(config, kind, token))
-            view = PublicPanel(config, token)
-            old_channel = guild.get_channel(panel["published_channel"])
-            old = (
-                old_channel.get_partial_message(panel["message"])
-                if old_channel and panel["message"]
-                else None
-            )
-            message = None
-            if old and old_channel.id == destination.id:
-                try:
-                    message = await old.edit(
-                        view=view, allowed_mentions=discord.AllowedMentions.none()
-                    )
-                except discord.NotFound:
-                    pass
-            created = message is None
-            if created:
-                message = await destination.send(
-                    view=view, allowed_mentions=discord.AllowedMentions.none()
-                )
-            updated = copy.deepcopy(config)
-            updated["panels"][token].update(message=message.id, published_channel=destination.id)
+            from .artwork import public_files
+
+            uploads = await asyncio.to_thread(public_files, panel)
             try:
-                await self.store.configure(guild.id, revision, updated)
-            except BaseException:
-                if created:
-                    await message.delete()
-                raise
-            if old and old.id != message.id:
-                try:
-                    await old.delete()
-                except discord.HTTPException:
-                    log.warning("Old ticket panel could not be removed; its message ID is retired.")
+                if uploads and not destination.permissions_for(guild.me).attach_files:
+                    raise ValueError("KY BOT needs Attach Files to publish panel artwork.")
+                await self._publish_panel(guild, token, revision, config, destination, uploads)
+            finally:
+                for file in uploads:
+                    file.close()
+
+    async def _publish_panel(self, guild, token, revision, config, destination, uploads):
+        panel = config["panels"][token]
+        view = PublicPanel(config, token)
+        old_channel = guild.get_channel(panel["published_channel"])
+        old = (
+            old_channel.get_partial_message(panel["message"])
+            if old_channel and panel["message"]
+            else None
+        )
+        message = None
+        if old and old_channel.id == destination.id:
+            try:
+                message = await old.edit(
+                    view=view, attachments=uploads, allowed_mentions=discord.AllowedMentions.none()
+                )
+            except discord.NotFound:
+                pass
+        created = message is None
+        if created:
+            message = await destination.send(
+                view=view, files=uploads, allowed_mentions=discord.AllowedMentions.none()
+            )
+        updated = copy.deepcopy(config)
+        updated["panels"][token].update(message=message.id, published_channel=destination.id)
+        try:
+            await self.store.configure(guild.id, revision, updated)
+        except BaseException:
+            if created:
+                await message.delete()
+            raise
+        if old and old.id != message.id:
+            try:
+                await old.delete()
+            except discord.HTTPException:
+                log.warning("Old ticket panel could not be removed; its message ID is retired.")
 
     async def eligible(self, i, panel_id, kind_id, message_id):
         if i.guild is None or not isinstance(i.user, discord.Member):
@@ -299,7 +338,11 @@ class Tickets(commands.Cog):
                 embed_links=True,
             ),
         }
-        for role_id in ticket["settings"]["support_roles"] + ticket["settings"]["manager_roles"]:
+        for role_id in (
+            ticket["settings"]["support_roles"]
+            + ticket["settings"]["manager_roles"]
+            + ticket["settings"].get("approver_roles", [])
+        ):
             role = guild.get_role(role_id)
             if role:
                 values[role] = discord.PermissionOverwrite(
@@ -338,7 +381,9 @@ class Tickets(commands.Cog):
                 channel = await i.guild.create_text_channel(
                     name=f"{channel_name(ticket['type_name'])[:55]}-{ticket['id'][:8]}",
                     category=i.guild.get_channel(settings["category"]),
-                    overwrites=self.overwrites(i.guild, ticket),
+                    overwrites=self.overwrites(
+                        i.guild, ticket, closed=settings.get("require_approval", False)
+                    ),
                     topic=f"KY BOT ticket {ticket['id']}",
                     reason="Private support ticket",
                 )
@@ -346,7 +391,11 @@ class Tickets(commands.Cog):
                 if 400 <= error.status < 500:
                     await self.store.update(ticket, state="failed")
                 raise
-            ticket = await self.store.update(ticket, channel=channel.id, state="waiting_staff")
+            ticket = await self.store.update(
+                ticket,
+                channel=channel.id,
+                state="pending_approval" if settings.get("require_approval") else "waiting_staff",
+            )
             await self.store.event(ticket, "TICKET OPENED", i.user.id)
             try:
                 await self.send_intro(ticket, channel)
@@ -359,7 +408,12 @@ class Tickets(commands.Cog):
         answers = ticket["answers"]
         embed = discord.Embed(
             title=f"{ticket['type_name']} · {ticket['id'][:8]}",
-            description=settings["welcome"],
+            description=(
+                "Waiting for staff approval. You can reply after approval.\n\n"
+                if ticket["state"] == "pending_approval"
+                else ""
+            )
+            + settings["welcome"],
             color=0xBDC3CA,
         )
         embed.add_field(name="Opened by", value=f"<@{ticket['owner']}>")
@@ -408,7 +462,29 @@ class Tickets(commands.Cog):
                 await self.create_ticket(i, token, kind, [], i.message.id)
             return
         ticket, is_staff = await self.access(i, token)
-        if action in {"accept", "keep"}:
+        if action == "approve":
+            await i.response.defer(ephemeral=True, thinking=True)
+            async with self.lock(i.guild_id):
+                ticket, _ = await self.access(i, token, staff_only=True)
+                if not approver(i.user, ticket["settings"]):
+                    raise ValueError("Only ticket approvers or managers can approve requests.")
+                if ticket["state"] != "pending_approval":
+                    raise ValueError("This ticket is not waiting for approval.")
+                channel = await self.get_channel(ticket)
+                await channel.edit(overwrites=self.overwrites(i.guild, ticket))
+                ticket = await self.store.update(
+                    ticket,
+                    state="waiting_staff",
+                    approved_by=i.user.id,
+                    waiting_since=time.time(),
+                    last_activity=time.time(),
+                )
+                await self.store.event(ticket, "TICKET APPROVED", i.user.id)
+                await channel.send(
+                    "Ticket approved. You can now reply below.", view=ticket_controls(ticket)
+                )
+            await send_private(i, "Ticket approved.")
+        elif action in {"accept", "keep"}:
             if i.user.id != ticket["owner"] or not ticket.get("close_requested_by"):
                 raise ValueError("Only the ticket opener can answer a pending close request.")
             await i.response.defer(ephemeral=True, thinking=True)
@@ -423,9 +499,18 @@ class Tickets(commands.Cog):
         elif action in {"manage", "rate"}:
             await i.response.defer(ephemeral=True, thinking=True)
             await i.followup.send(
-                view=Manage(self, ticket, i.user.id, staff=is_staff), ephemeral=True
+                view=Manage(
+                    self,
+                    ticket,
+                    i.user.id,
+                    staff=is_staff,
+                    can_approve=approver(i.user, ticket["settings"]),
+                ),
+                ephemeral=True,
             )
-        elif action in {"close", "delete"}:
+        elif action in {"close", "delete", "decline"}:
+            if action == "decline" and not approver(i.user, ticket["settings"]):
+                raise ValueError("Only ticket approvers or managers can decline requests.")
             if action == "delete" and not is_staff:
                 raise ValueError("Only ticket staff can delete channels.")
             if (
@@ -468,11 +553,14 @@ class Tickets(commands.Cog):
                 ticket, _ = await self.access(i, token, staff_only=True)
                 if ticket["state"] != "closed":
                     raise ValueError("This ticket is already open.")
+                pending = ticket["settings"].get("require_approval", False) and not ticket.get(
+                    "approved_by"
+                )
                 channel = await self.get_channel(ticket)
-                await channel.edit(overwrites=self.overwrites(i.guild, ticket))
+                await channel.edit(overwrites=self.overwrites(i.guild, ticket, closed=pending))
                 ticket = await self.store.update(
                     ticket,
-                    state="waiting_staff",
+                    state="pending_approval" if pending else "waiting_staff",
                     closed_at=0,
                     paused=False,
                     last_activity=time.time(),
@@ -617,6 +705,16 @@ class Tickets(commands.Cog):
             await i.response.defer(ephemeral=True, thinking=True)
         async with self.lock(i.guild_id):
             ticket, _ = await self.access(i, token, staff_only=action != "rating")
+            if ticket["state"] == "pending_approval" and action in {
+                "state",
+                "reply",
+                "transfer",
+                "add",
+                "remove",
+            }:
+                raise ValueError(
+                    "Approve this ticket before changing its status, team or participants."
+                )
             if action == "rating":
                 if (
                     i.user.id != ticket["owner"]
@@ -724,7 +822,7 @@ class Tickets(commands.Cog):
                     if not manager(i.user, ticket["settings"]):
                         raise ValueError("Only ticket managers can transfer tickets between teams.")
                     _, config = await self.store.config(i.guild_id)
-                    settings = effective(config, value)
+                    settings = effective(config, value, ticket["panel"])
                     if not staff(i.user, settings):
                         raise ValueError("You must also have access to the destination team.")
                     await self.validate_type(i.guild, settings)
@@ -848,14 +946,35 @@ class Tickets(commands.Cog):
                 )
                 ticket = await self.store.update(ticket, state="deleted")
                 await self.store.event(ticket, "TICKET DELETED", i.user.id, reason)
-            elif action == "close":
+            elif action in {"close", "decline"}:
+                if action == "decline":
+                    if (
+                        not approver(i.user, ticket["settings"])
+                        or ticket["state"] != "pending_approval"
+                    ):
+                        raise ValueError("Only an approver can decline a pending ticket.")
+                    reason = "Declined: " + reason
+                elif (
+                    ticket["state"] == "pending_approval"
+                    and is_staff
+                    and i.user.id != ticket["owner"]
+                    and not approver(i.user, ticket["settings"])
+                ):
+                    raise ValueError(
+                        "Only ticket approvers or managers can resolve pending requests."
+                    )
                 if ticket["state"] == "closed":
                     raise ValueError("This ticket is already closed.")
                 await self.close_ticket(ticket, i.user.id, reason)
             else:
                 raise ValueError("Unknown resolution action.")
         await send_private(
-            i, "Ticket deleted." if action == "delete" else "Ticket closed and transcript saved."
+            i,
+            "Ticket deleted."
+            if action == "delete"
+            else "Ticket declined and transcript saved."
+            if action == "decline"
+            else "Ticket closed and transcript saved.",
         )
 
     async def close_ticket(self, ticket, actor, reason):
@@ -880,7 +999,9 @@ class Tickets(commands.Cog):
         if ticket["settings"]["feedback"]:
             controls.add_item(TicketButton(ticket["id"], "rate", label="Rate support"))
         await channel.send(
-            ticket["settings"]["close_message"],
+            "Your ticket request was declined.\n" + safe(reason.removeprefix("Declined: "))
+            if reason.startswith("Declined: ")
+            else ticket["settings"]["close_message"],
             view=controls,
             allowed_mentions=discord.AllowedMentions.none(),
         )
@@ -960,7 +1081,11 @@ class Tickets(commands.Cog):
             return
         async with self.lock(message.guild.id):
             ticket = await self.store.by_channel(message.guild.id, message.channel.id)
-            if ticket is None or ticket["state"] not in ACTIVE:
+            if (
+                ticket is None
+                or ticket["state"] not in ACTIVE
+                or ticket["state"] == "pending_approval"
+            ):
                 return
             if message.author.id not in [ticket["owner"]] + ticket["guests"] and not staff(
                 message.author, ticket["settings"]
@@ -1034,7 +1159,13 @@ class Tickets(commands.Cog):
                 None,
             )
             if channel:
-                ticket = await self.store.update(ticket, channel=channel.id, state="waiting_staff")
+                ticket = await self.store.update(
+                    ticket,
+                    channel=channel.id,
+                    state="pending_approval"
+                    if ticket["settings"].get("require_approval")
+                    else "waiting_staff",
+                )
                 await self.send_intro(ticket, channel)
                 await self.store.event(ticket, "TICKET RECOVERED", 0)
             else:

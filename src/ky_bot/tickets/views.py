@@ -1,5 +1,6 @@
 """Inline Components V2 menus shared by Command Center and /ticket setup."""
 
+import asyncio
 import copy
 import uuid
 
@@ -11,7 +12,16 @@ from ky_bot.views.menu_context import private_parent
 from ky_bot.views.menu_strips import GROUPS, group_sections, heading
 from ky_bot.views.sections import section_dividers
 
+from .artwork import normalize, public_files
 from .store import new_panel, new_type
+
+STARTER_TOPICS = {
+    "Support": "Get help or ask a question.",
+    "Member Reports": "Privately report a member or incident to staff.",
+    "Appeals": "Ask staff to review a moderation decision.",
+    "Applications": "Apply for a staff position or another server role.",
+    "Other": "Contact staff about something else.",
+}
 
 
 def safe(value):
@@ -95,6 +105,34 @@ class Edit(discord.ui.Modal):
         await report_error(i, error)
 
 
+class ArtworkUpload(discord.ui.Modal):
+    def __init__(self, menu, kind):
+        super().__init__(title=f"Upload ticket panel {kind}")
+        self.menu, self.kind = menu, kind
+        self.upload = discord.ui.FileUpload(max_values=1, required=True)
+        self.add_item(
+            discord.ui.Label(text="PNG, JPEG or WebP · up to 8 MB", component=self.upload)
+        )
+
+    async def on_submit(self, i):
+        try:
+            if not await self.menu.interaction_check(i):
+                return
+            await i.response.defer()
+            file = self.upload.values[0]
+            if file.size > 8 * 1024 * 1024:
+                raise ValueError("Upload a still image up to 8 MB.")
+            value = await asyncio.to_thread(normalize, await file.read(), self.kind)
+            await self.menu.set_panel_art(
+                i, {self.kind + "_custom": value, self.kind + "_mode": "custom"}
+            )
+        except ValueError as error:
+            await send_private(i, str(error))
+
+    async def on_error(self, i, error):
+        await report_error(i, error)
+
+
 class Admin(Panel):
     def __init__(
         self,
@@ -114,7 +152,6 @@ class Admin(Panel):
         self.cog, self.parent, self.revision = cog, parent, revision
         self.config, self.page, self.selected, self.pick = config, page, selected, pick
         self.offset = offset
-        self.text("**COMMAND CENTER · TICKETS**")
         if notice:
             self.text(safe(notice)[:600])
         if page == "home":
@@ -195,19 +232,28 @@ class Admin(Panel):
             item = config["panels"][selected]
             self.row("SELECTED PANEL", safe(item["name"]), "Edit text", self.edit_panel)
             self.setting("PANEL CHANNEL", "channel", item, channel=True)
+            self.row(
+                "STAFF & APPROVAL ROLES",
+                "Support staff, ticket approvers and ticket managers.",
+                "Choose roles",
+                self.go("access", selected),
+            )
+            self.row(
+                "CHANNEL SETTINGS",
+                "Ticket category, logs, workflow and automation for this panel.",
+                "Configure",
+                self.go("panel_settings", selected),
+            )
             names = (
                 ", ".join(safe(config["types"][key]["name"]) for key in item["types"])
                 or "No ticket types selected"
             )
             self.row("TICKET TYPES", names, "Choose types", self.go("panel_types", selected))
             self.row(
-                "APPEARANCE", f"#{item['color']} · image and footer.", "Edit", self.edit_appearance
-            )
-            self.row(
-                "PANEL LOG CHANNELS",
-                "Override log destinations for tickets opened here.",
-                "Configure",
-                self.go("panel_logs", selected),
+                "APPEARANCE",
+                "KY BOT designs or your own header and footer images.",
+                "Manage",
+                self.go("appearance", selected),
             )
             self.row(
                 "PUBLISH PANEL",
@@ -221,42 +267,114 @@ class Admin(Panel):
                 "Toggle",
                 self.toggle_entry,
             )
+        elif page == "appearance":
+            item = config["panels"][selected]
+            for kind in ("header", "footer"):
+                mode = item.get(kind + "_mode", "ky")
+                label = {"ky": "KY BOT design", "custom": "Your uploaded image", "none": "Hidden"}[
+                    mode
+                ]
+                self.row(
+                    kind.upper() + " ARTWORK", label, "Configure", self.go("art_" + kind, selected)
+                )
+            self.row(
+                "COLOR & CONTENT",
+                "Accent color, optional body image and footer caption.",
+                "Edit",
+                self.edit_appearance,
+            )
+            self.row(
+                "PRIVATE PREVIEW",
+                "Review the finished member-facing panel.",
+                "Preview",
+                self.preview,
+            )
+        elif page in {"art_header", "art_footer"}:
+            self.artwork_controls(page.removeprefix("art_"))
+        elif page == "panel_settings":
+            self.row(
+                "STAFF & ACCESS",
+                "Choose this panel's team and opening restrictions.",
+                "Configure",
+                self.go("access", selected),
+            )
+            self.row(
+                "CHANNELS & LOGS",
+                "Ticket category and log / transcript destinations.",
+                "Configure",
+                self.go("destinations", selected),
+            )
+            self.row(
+                "WORKFLOW & AUTOMATION",
+                "Messages, limits, support hours and reminders.",
+                "Configure",
+                self.go("type_workflow", selected),
+            )
+            self.text(
+                "-# These settings apply to tickets opened through this panel. "
+                "Ticket-type overrides take precedence."
+            )
         elif page == "panel_types":
             item = config["panels"][selected]
             self.text(
-                "**PANEL TICKET TYPES**\nChoose up to 25 topics. Use Previous/Next "
-                "to browse all types; changes apply to the current page."
+                "**WHAT CAN MEMBERS OPEN A TICKET FOR?**\n"
+                "Check the topics you want on this panel. Members will see these choices "
+                "when opening a ticket. Selections save automatically."
             )
-            entries = list(config["types"].items())[offset : offset + 25]
-            if entries:
-                control = discord.ui.Select(
-                    placeholder="Topics offered on this panel",
-                    min_values=0,
-                    max_values=len(entries),
-                    options=[
-                        discord.SelectOption(
-                            label=value["name"], value=key, default=key in item["types"]
-                        )
-                        for key, value in entries
-                    ],
+            entries = [(key, value, False) for key, value in config["types"].items()]
+            existing_names = {value["name"].casefold() for value in config["types"].values()}
+            entries += [
+                (name, new_type(name) | dict(description=description), True)
+                for name, description in STARTER_TOPICS.items()
+                if name.casefold() not in existing_names
+            ]
+            order = {name.casefold(): index for index, name in enumerate(STARTER_TOPICS)}
+            entries.sort(
+                key=lambda entry: (
+                    order.get(entry[1]["name"].casefold(), len(order)),
+                    entry[1]["name"].casefold(),
                 )
+            )
+            for key, value, starter in entries[offset : offset + 5]:
+                checked = not starter and key in item["types"]
 
-                async def choose_types(i):
-                    visible = {key for key, _ in entries}
+                async def choose_type(i, key=key, value=value, starter=starter):
                     data = copy.deepcopy(config)
-                    data["panels"][selected]["types"] = [
-                        key for key in item["types"] if key not in visible
-                    ] + list(control.values)
+                    token = key
+                    if starter:
+                        token = uuid.uuid4().hex
+                        data["types"][token] = copy.deepcopy(value)
+                    topics = data["panels"][selected]["types"]
+                    if token in topics:
+                        topics.remove(token)
+                    else:
+                        topics.append(token)
                     await self.save(i, data)
 
-                self.picker(control, choose_types)
-            if len(config["types"]) > 25:
+                self.row(
+                    safe(value["name"]),
+                    safe(value["description"]),
+                    "☑ Selected" if checked else "☐ Select",
+                    choose_type,
+                )
+            if len(entries) > 5:
                 self.panel.add_item(
                     discord.ui.ActionRow(
-                        button("Previous", self.turn(-25), disabled=offset == 0),
-                        button("Next", self.turn(25), disabled=offset + 25 >= len(config["types"])),
+                        button("Previous", self.turn(-5), disabled=offset == 0),
+                        button("Next", self.turn(5), disabled=offset + 5 >= len(entries)),
                     )
                 )
+            self.row(
+                "CUSTOM TOPIC",
+                "Add your own topic and include it on this panel.",
+                "Add topic",
+                self.create_panel_topic,
+            )
+            self.text(
+                f"-# {len(item['types'])}/25 topics selected. "
+                "New topics use this panel's settings. "
+                "Next: go Back, then Review to preview and publish the panel."
+            )
         elif page == "publish":
             self.row("PREVIEW", "Only you see this preview.", "Preview", self.preview)
             self.row(
@@ -357,8 +475,10 @@ class Admin(Panel):
             )
             self.text(names[:2000])
         elif page == "access":
+            self.boolean("REQUIRE TICKET APPROVAL", "require_approval")
             for title, key in (
                 ("SUPPORT ROLES", "support_roles"),
+                ("TICKET APPROVERS", "approver_roles"),
                 ("TICKET MANAGERS", "manager_roles"),
                 ("ALLOWED TO OPEN", "allowed_roles"),
                 ("BLOCKED FROM OPENING", "blocked_roles"),
@@ -367,6 +487,11 @@ class Admin(Panel):
             self.text(
                 "-# Empty allowed roles permits everyone. Blocked roles take "
                 "priority. Administrators retain access to private channels."
+            )
+            self.text(
+                "-# Support staff handle tickets. Approvers review waiting requests. "
+                "Managers can also approve, reassign and transfer tickets. "
+                "Require approval keeps the member's ticket read-only until approved."
             )
         elif page == "panel_logs":
             item = config["defaults"] | config["panels"][selected].get("overrides", {})
@@ -412,7 +537,8 @@ class Admin(Panel):
             active = [
                 t
                 for t in tickets
-                if t["state"] in {"open", "waiting_staff", "waiting_user", "creating"}
+                if t["state"]
+                in {"open", "waiting_staff", "waiting_user", "creating", "pending_approval"}
             ]
             self.text(
                 f"**ACTIVE TICKETS**\n{len(active)} active · "
@@ -467,8 +593,10 @@ class Admin(Panel):
 
         if selected and page in {"access", "destinations", "type_workflow", "automation"}:
             self.row(
-                "TYPE OVERRIDES",
-                "Reset this type to all current shared defaults.",
+                "CHANNEL OVERRIDES" if selected in config["panels"] else "TYPE OVERRIDES",
+                "Reset this panel to shared defaults."
+                if selected in config["panels"]
+                else "Reset this type to all current shared defaults.",
                 "Reset defaults",
                 self.reset_defaults,
             )
@@ -489,12 +617,18 @@ class Admin(Panel):
             )
             GROUPS[self.groups] = ((category, labels),)
         destination = (
-            "panels"
+            "appearance"
+            if page in {"art_header", "art_footer"}
+            else "panel"
+            if page == "appearance"
+            else "panels"
             if page == "panel"
             else "types"
             if page == "type"
             else "panel"
-            if page in {"publish", "panel_types", "panel_logs"}
+            if page in {"publish", "panel_types", "panel_logs", "panel_settings"}
+            else "panel_settings"
+            if selected in config["panels"]
             else "type"
             if selected
             else "home"
@@ -509,13 +643,18 @@ class Admin(Panel):
                 "PREVIOUS MENU",
                 "Return to the previous menu.",
                 "Back",
-                self.go(destination, selected if destination in {"panel", "type"} else None),
+                self.go(
+                    destination,
+                    selected
+                    if destination in {"panel", "type", "panel_settings", "appearance"}
+                    else None,
+                ),
             )
         self.finish()
 
     @property
     def settings(self):
-        if self.selected and self.page in {"panel", "panel_types", "publish", "panel_logs"}:
+        if self.selected in self.config["panels"]:
             return self.config["defaults"] | self.config["panels"][self.selected].get(
                 "overrides", {}
             )
@@ -561,19 +700,92 @@ class Admin(Panel):
             page or self.page,
             self.selected if selected is None else selected,
             notice="Saved. Publish a panel to update its public appearance.",
+            offset=self.offset if (page or self.page) == self.page else 0,
         )
 
     async def set_value(self, i, key, value):
         data = copy.deepcopy(self.config)
         if self.page == "panel":
             data["panels"][self.selected][key] = value
-        elif self.page == "panel_logs":
+        elif self.selected in self.config["panels"]:
             data["panels"][self.selected].setdefault("overrides", {})[key] = value
         elif self.selected:
             data["types"][self.selected]["overrides"][key] = value
         else:
             data["defaults"][key] = value
         await self.save(i, data)
+
+    async def set_panel_art(self, i, changes):
+        data = copy.deepcopy(self.config)
+        data["panels"][self.selected].update(changes)
+        await self.save(i, data)
+
+    def artwork_controls(self, kind):
+        from ky_bot.design.menu_design import FINISHES
+
+        item = self.config["panels"][self.selected]
+        mode = item.get(kind + "_mode", "ky")
+        labels = {"ky": "KY BOT design", "custom": "Your uploaded image", "none": "Hidden"}
+        self.row(
+            kind.upper() + " SOURCE",
+            labels[mode],
+            "Choose",
+            self.go(self.page, self.selected, pick="source"),
+        )
+        if self.pick == "source":
+            select = discord.ui.Select(
+                placeholder="Choose artwork source",
+                options=[
+                    discord.SelectOption(label=label, value=key, default=key == mode)
+                    for key, label in labels.items()
+                ],
+            )
+
+            async def source(i):
+                value = select.values[0]
+                if value == "custom" and not item.get(kind + "_custom"):
+                    return await i.response.send_modal(ArtworkUpload(self, kind))
+                await self.set_panel_art(i, {kind + "_mode": value})
+
+            self.picker(select, source)
+        finish = item.get(kind + "_finish", "dark_silver")
+        self.row(
+            "KY BOT FINISH",
+            FINISHES[finish],
+            "Choose",
+            self.go(self.page, self.selected, pick="finish"),
+        )
+        if self.pick == "finish":
+            select_finish = discord.ui.Select(
+                placeholder="Choose a KY BOT finish",
+                options=[
+                    discord.SelectOption(label=label, value=key, default=key == finish)
+                    for key, label in FINISHES.items()
+                ],
+            )
+
+            async def choose_finish(i):
+                await self.set_panel_art(
+                    i, {kind + "_finish": select_finish.values[0], kind + "_mode": "ky"}
+                )
+
+            self.picker(select_finish, choose_finish)
+
+        async def upload(i):
+            await i.response.send_modal(ArtworkUpload(self, kind))
+
+        self.row(
+            "YOUR OWN IMAGE",
+            "Upload a still PNG, JPEG or WebP image. Your image keeps its own design.",
+            "Upload",
+            upload,
+        )
+        self.row(
+            "PRIVATE PREVIEW",
+            "See the header and footer together before publishing.",
+            "Preview",
+            self.preview,
+        )
 
     def setting(
         self, title, key, values, *, roles=False, channels=False, channel=False, category=False
@@ -584,10 +796,15 @@ class Admin(Panel):
             ", ".join(f"<@&{value}>" if roles else f"<#{value}>" for value in entries)
             or "Not configured"
         )
-        if self.selected and self.page not in {"panel", "panel_logs"}:
+        if self.selected and self.page != "panel":
+            collection = (
+                self.config["panels"]
+                if self.selected in self.config["panels"]
+                else self.config["types"]
+            )
             label += (
                 " · Override"
-                if key in self.config["types"][self.selected]["overrides"]
+                if key in collection[self.selected]["overrides"]
                 else " · Shared default"
             )
         self.row(
@@ -659,7 +876,10 @@ class Admin(Panel):
                 raise ValueError("Enter a name.")
             key = uuid.uuid4().hex
             data = copy.deepcopy(self.config)
-            data[self.page][key] = new_panel(name) if self.page == "panels" else new_type(name)
+            default_channel = getattr(self.parent, "ticket_default_channel", 0)
+            data[self.page][key] = (
+                new_panel(name, default_channel) if self.page == "panels" else new_type(name)
+            )
             await self.save(
                 i, data, page="panel" if self.page == "panels" else "type", selected=key
             )
@@ -671,6 +891,25 @@ class Admin(Panel):
                 [("name", "Name", "", 80)],
                 commit,
             )
+        )
+
+    async def create_panel_topic(self, i):
+        async def commit(i, values):
+            name = values["name"].strip()
+            if not name:
+                raise ValueError("Enter a topic name.")
+            if any(
+                kind["name"].casefold() == name.casefold() for kind in self.config["types"].values()
+            ):
+                raise ValueError("That topic already exists. Select it from the checklist.")
+            data = copy.deepcopy(self.config)
+            token = uuid.uuid4().hex
+            data["types"][token] = new_type(name)
+            data["panels"][self.selected]["types"].append(token)
+            await self.save(i, data)
+
+        await i.response.send_modal(
+            Edit(self, "Add a ticket topic", [("name", "Topic name", "", 80)], commit)
         )
 
     async def edit_panel(self, i):
@@ -776,8 +1015,9 @@ class Admin(Panel):
             except ValueError:
                 raise ValueError("Enter whole numbers for numeric settings.") from None
             data = copy.deepcopy(self.config)
+            collection = "panels" if self.selected in data["panels"] else "types"
             target = (
-                data["types"][self.selected]["overrides"] if self.selected else data["defaults"]
+                data[collection][self.selected]["overrides"] if self.selected else data["defaults"]
             )
             target.update(values)
             await self.save(i, data)
@@ -859,12 +1099,15 @@ class Admin(Panel):
 
     async def reset_defaults(self, i):
         data = copy.deepcopy(self.config)
-        data["types"][self.selected]["overrides"] = {}
+        collection = "panels" if self.selected in data["panels"] else "types"
+        data[collection][self.selected]["overrides"] = {}
         await self.save(i, data)
 
     async def reset_panel_logs(self, i):
         data = copy.deepcopy(self.config)
-        data["panels"][self.selected]["overrides"] = {}
+        overrides = data["panels"][self.selected]["overrides"]
+        overrides.pop("log_channels", None)
+        overrides.pop("transcript_channels", None)
         await self.save(i, data)
 
     async def toggle_system(self, i):
@@ -882,9 +1125,16 @@ class Admin(Panel):
 
     async def preview(self, i):
         await i.response.defer(ephemeral=True, thinking=True)
-        await i.followup.send(
-            view=PublicPanel(self.config, self.selected, preview=True), ephemeral=True
-        )
+        uploads = await asyncio.to_thread(public_files, self.config["panels"][self.selected])
+        try:
+            await i.followup.send(
+                view=PublicPanel(self.config, self.selected, preview=True),
+                files=uploads,
+                ephemeral=True,
+            )
+        finally:
+            for file in uploads:
+                file.close()
 
     async def publish(self, i):
         await i.response.defer()
@@ -901,7 +1151,7 @@ class TicketButton(
     discord.ui.DynamicItem[discord.ui.Button],
     template=(
         "ky:ticket:(?P<token>[0-9a-f]{32}):(?P<action>open|manage|close|reo"
-        "pen|transcript|rate|accept|keep):(?P<kind>[0-9a-f]{32}|0)"
+        "pen|transcript|rate|accept|keep|approve|decline):(?P<kind>[0-9a-f]{32}|0)"
     ),
 ):
     def __init__(self, token, action, kind="0", *, label=None, emoji=None, disabled=False):
@@ -937,7 +1187,19 @@ class PublicPanel(Panel):
         super().__init__(timeout=None)
         item = config["panels"][token]
         self.panel.accent_colour = int(item["color"], 16)
-        self.text(f"## {safe(item['title'])}\n{item['description']}")
+        if item.get("header_mode", "ky") != "none":
+            self.panel.add_item(
+                discord.ui.MediaGallery(
+                    NoAltMediaGalleryItem("attachment://ticket_panel_header.png")
+                )
+            )
+        content = (
+            item["description"]
+            if item.get("header_mode", "ky") == "ky"
+            else f"## {safe(item['title'])}\n{item['description']}"
+        )
+        if content.strip():
+            self.text(content)
         if item["image"]:
             self.panel.add_item(discord.ui.MediaGallery(NoAltMediaGalleryItem(item["image"])))
         enabled = [
@@ -968,6 +1230,12 @@ class PublicPanel(Panel):
                         self.panel.add_item(row)
                     row.add_item(control)
         self.text(f"-# {safe(item['footer'])}")
+        if item.get("footer_mode", "ky") != "none":
+            self.panel.add_item(
+                discord.ui.MediaGallery(
+                    NoAltMediaGalleryItem("attachment://ticket_panel_footer.png")
+                )
+            )
         self.finish()
 
 
@@ -1001,7 +1269,9 @@ class Intake(discord.ui.Modal):
 def ticket_controls(ticket):
     view = discord.ui.View(timeout=None)
     actions = (
-        ("manage", "reopen", "transcript")
+        ("manage", "approve", "decline", "transcript")
+        if ticket["state"] == "pending_approval"
+        else ("manage", "reopen", "transcript")
         if ticket["state"] == "closed"
         else ("manage", "close", "transcript")
     )
@@ -1011,13 +1281,30 @@ def ticket_controls(ticket):
 
 
 class Manage(Panel):
-    def __init__(self, cog, ticket, user, *, staff=False, types=()):
+    def __init__(self, cog, ticket, user, *, staff=False, types=(), can_approve=False):
         super().__init__()
         self.cog, self.ticket, self.user, self.staff = cog, ticket, user, staff
         self.text(
             f"**TICKET {ticket['id'][:8]} · {safe(ticket['type_name'])}**\n"
             f"{ticket['state'].replace('_', ' ').title()} · {ticket['priority']}"
         )
+        if ticket["state"] == "pending_approval":
+            self.text(
+                "This ticket is waiting for staff approval. The member can reply after approval."
+            )
+            if can_approve:
+                self.row(
+                    "APPROVE TICKET",
+                    "Allow this ticket to proceed to the support team.",
+                    "Approve",
+                    self.do("approve"),
+                )
+                self.row(
+                    "DECLINE TICKET",
+                    "Close this request with a recorded reason.",
+                    "Decline",
+                    self.do("decline"),
+                )
         if staff and ticket["state"] in {"open", "waiting_staff", "waiting_user"}:
             self.row(
                 "OWNERSHIP",
@@ -1175,4 +1462,7 @@ async def private_admin_parent(cog, i):
     parent = SettingsView(i.user.id, i.guild_id, cog.bot.server_settings)
     parent.guild = i.guild
     parent.settings = await cog.bot.server_settings.repository.get(i.guild_id)
+    parent.ticket_default_channel = (
+        i.channel_id if isinstance(getattr(i, "channel", None), discord.TextChannel) else 0
+    )
     return private_parent(parent, i)

@@ -43,6 +43,8 @@ def defaults():
         defaults=dict(
             support_roles=[],
             manager_roles=[],
+            approver_roles=[],
+            require_approval=False,
             log_channels=[],
             transcript_channels=[],
             category=0,
@@ -68,10 +70,10 @@ def defaults():
     )
 
 
-def new_panel(name):
+def new_panel(name, channel=0):
     return dict(
         name=name,
-        channel=0,
+        channel=channel,
         published_channel=0,
         message=0,
         enabled=True,
@@ -82,6 +84,12 @@ def new_panel(name):
         footer="KY BOT • Private support",
         types=[],
         overrides={},
+        header_mode="ky",
+        header_finish="dark_silver",
+        header_custom=None,
+        footer_mode="ky",
+        footer_finish="dark_silver",
+        footer_custom=None,
     )
 
 
@@ -101,7 +109,9 @@ def effective(config, type_id, panel_id=None):
     if not kind or not kind["enabled"]:
         raise ValueError("This ticket type is disabled or no longer exists.")
     panel = config["panels"].get(panel_id, {})
-    return copy.deepcopy(config["defaults"] | panel.get("overrides", {}) | kind["overrides"])
+    return copy.deepcopy(
+        defaults()["defaults"] | config["defaults"] | panel.get("overrides", {}) | kind["overrides"]
+    )
 
 
 def validate(config):
@@ -110,7 +120,22 @@ def validate(config):
     if len(config["types"]) > 100 or len(config["panels"]) > 100:
         raise ValueError("A server can configure up to 100 panels and 100 ticket types.")
     for panel in config["panels"].values():
-        if set(panel.get("overrides", {})) - {"log_channels", "transcript_channels"}:
+        for kind in ("header", "footer"):
+            if panel.get(kind + "_mode", "ky") not in {"ky", "custom", "none"}:
+                raise ValueError("Choose a KY BOT design, a custom upload, or no artwork.")
+            if panel.get(kind + "_finish", "dark_silver") not in {
+                "dark_silver",
+                "silver_neon",
+                "gold",
+                "red_iridescent",
+            }:
+                raise ValueError("Choose a supported KY BOT finish.")
+            image = panel.get(kind + "_custom")
+            if image is not None and (not isinstance(image, str) or len(image) > 2_000_000):
+                raise ValueError("Upload a smaller panel image.")
+            if panel.get(kind + "_mode") == "custom" and not image:
+                raise ValueError(f"Upload your custom {kind} first.")
+        if set(panel.get("overrides", {})) - config["defaults"].keys():
             raise ValueError("Unknown panel override.")
         if len(panel["types"]) > 25 or set(panel["types"]) - config["types"].keys():
             raise ValueError("Choose up to 25 existing ticket types for a panel.")
@@ -139,6 +164,11 @@ def validate(config):
         config["defaults"] | kind["overrides"] for kind in config["types"].values()
     ]
     settings += [config["defaults"] | p.get("overrides", {}) for p in config["panels"].values()]
+    settings += [
+        config["defaults"] | panel.get("overrides", {}) | config["types"][key]["overrides"]
+        for panel in config["panels"].values()
+        for key in panel["types"]
+    ]
     for item in settings:
         for key, low, high in (
             ("cooldown", 0, 86400),
@@ -163,6 +193,7 @@ def validate(config):
             "transcript_channels",
             "support_roles",
             "manager_roles",
+            "approver_roles",
             "allowed_roles",
             "blocked_roles",
         ):
@@ -196,7 +227,11 @@ class Store(Connection):
         row = await self.execute(
             "SELECT revision,data FROM ticket_settings WHERE guild=?", (guild,)
         )
-        return (row[0], json.loads(row[1])) if row else (None, defaults())
+        if not row:
+            return None, defaults()
+        config = json.loads(row[1])
+        config["defaults"] = defaults()["defaults"] | config["defaults"]
+        return row[0], config
 
     async def configure(self, guild, expected, config):
         validate(config)
@@ -276,7 +311,8 @@ class Store(Connection):
             )
             if (
                 sum(
-                    state in {"creating", "open", "waiting_user", "waiting_staff"}
+                    state
+                    in {"creating", "pending_approval", "open", "waiting_user", "waiting_staff"}
                     for state, _ in rows
                 )
                 >= settings["max_open"]
