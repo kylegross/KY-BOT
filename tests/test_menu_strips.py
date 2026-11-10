@@ -147,7 +147,7 @@ class MenuStripTests(unittest.IsolatedAsyncioTestCase):
                 control.callback.assert_awaited_once_with("interaction")
 
     async def test_command_center_order_and_roomier_rows_preserve_discord_limits(self):
-        expected = ["SERVER SETUP", "COMMUNITY", "TOOLS & DESIGN", "ADMINISTRATION"]
+        expected = ["SERVER SETUP", "COMMUNITY", "ADMINISTRATION"]
         for manager in (None, Mock()):
             view = SettingsView(50, 1, Mock(), panel_manager=manager)
             self.assertEqual(strip_titles(view), expected)
@@ -162,11 +162,13 @@ class MenuStripTests(unittest.IsolatedAsyncioTestCase):
                 "LEVELING",
                 "CONFESSIONS",
                 "GENERAL SETTINGS",
+                "MANAGE EMBEDS",
                 "MODERATION",
+                "TICKETS",
             }
             for title in spaced:
                 self.assertTrue(rows[title].children[0].content.endswith("\n-# \u200b"), title)
-            for title in ("WELCOME EXPERIENCE", "ASK TO DM/FR", "MANAGE EMBEDS", "LOGS"):
+            for title in ("WELCOME EXPERIENCE", "ASK TO DM/FR", "LOGS"):
                 self.assertFalse(rows[title].children[0].content.endswith("\n-# \u200b"), title)
             view.to_components()
             view.stop()

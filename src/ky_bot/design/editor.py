@@ -805,6 +805,17 @@ class Editor(discord.ui.LayoutView):
                         if isinstance(child, discord.ui.Separator):
                             sample_panel.remove_item(child)
             destination = self.children[-1]
+            # Larger Command Center previews keep every inline action and both
+            # artwork banners; omit only redundant category strips if necessary.
+            for sample_panel in self.children:
+                if isinstance(sample_panel, discord.ui.Container):
+                    for child in reversed(sample_panel.children):
+                        if self.total_children_count + panel._total_count - 1 <= 40:
+                            break
+                        if isinstance(child, discord.ui.MediaGallery) and any(
+                            "attachment://ky_strip_" in item.media.url for item in child.items
+                        ):
+                            sample_panel.remove_item(child)
             if not isinstance(destination, discord.ui.Container):
                 raise ValueError("Preview exceeds Discord's component limit.")
             for item in list(panel.children):

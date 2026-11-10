@@ -220,6 +220,11 @@ class SettingsView(discord.ui.LayoutView):
             )
             separator()
             row(
+                "**TICKETS**\n-# Private support panels, teams, ticket types and logs.",
+                self.automation_navigation("Tickets"),
+            )
+            separator()
+            row(
                 "**LOGS**\n-# Server activity and other feature logs in one place.",
                 self.automation_navigation("Logs"),
             )
@@ -471,6 +476,12 @@ class SettingsView(discord.ui.LayoutView):
         panel.add_item(controls)
         group_sections(panel, "settings:" + section)
         section_dividers(panel, navigation_on_right=True)
+        if section == "overview":
+            for child in reversed(panel.children):
+                if panel._total_count <= 40:
+                    break
+                if isinstance(child, discord.ui.Separator):
+                    panel.remove_item(child)
         self.add_item(panel)
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:

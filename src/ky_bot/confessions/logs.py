@@ -160,6 +160,11 @@ class LogMenu(discord.ui.LayoutView):
             )
             row("CHECKLISTS", "Completion logs for each existing checklist.", checklist_logs)
             row(
+                "TICKETS",
+                "Multiple activity logs, transcripts and ticket-specific routing.",
+                feature("Tickets"),
+            )
+            row(
                 "AUTOMATION", "Autodelete, autothread and autoreact activity logs.", automation_menu
             )
 

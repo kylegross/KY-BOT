@@ -10,6 +10,11 @@ from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.sections import navigation_item
 
 GROUPS = {
+    "tickets": (
+        ("SETUP", ("TICKET PANELS", "TICKET TYPES", "SHARED DEFAULTS")),
+        ("AUTOMATION", ("AUTOMATION", "TICKETING STATUS")),
+        ("ADMINISTRATION", ("ACTIVE TICKETS",)),
+    ),
     "askdm:roles": (
         ("ROLE PERMISSIONS", ("WHO CAN SEND", "WHO CAN RECEIVE")),
         ("RESTRICTIONS", ("BLOCKED FROM SENDING", "BLOCKED FROM RECEIVING")),
@@ -22,8 +27,7 @@ GROUPS = {
     "settings:overview": (
         ("SERVER SETUP", ("COMMAND CENTER CHANNEL", "WELCOME EXPERIENCE")),
         ("COMMUNITY", ("LEVELING", "CONFESSIONS", "ASK TO DM/FR")),
-        ("TOOLS & DESIGN", ("GENERAL SETTINGS", "MANAGE EMBEDS")),
-        ("ADMINISTRATION", ("MODERATION", "LOGS")),
+        ("ADMINISTRATION", ("GENERAL SETTINGS", "MANAGE EMBEDS", "MODERATION", "TICKETS", "LOGS")),
     ),
     "settings:general": (
         ("AUTOMATION", ("AUTODELETE", "AUTOTHREAD", "AUTOREACT")),

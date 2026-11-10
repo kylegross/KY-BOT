@@ -28,6 +28,7 @@ EXTENSIONS = (
     "ky_bot.moderation.command",
     "ky_bot.custom_embeds.command",
     "ky_bot.stealing.command",
+    "ky_bot.tickets.command",
 )
 
 

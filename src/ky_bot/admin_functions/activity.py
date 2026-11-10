@@ -169,6 +169,14 @@ class Activity(commands.Cog):
                 getattr(source, "category_id", None),
             }
             parent = getattr(source, "parent", None)
+            tickets = self.bot.get_cog("Tickets")
+            if tickets is not None and getattr(tickets, "qualified_name", None) == "Tickets":
+                if await tickets.store.by_channel(guild_id, source_channel_id) or (
+                    getattr(source, "parent_id", None)
+                    and await tickets.store.by_channel(guild_id, source.parent_id)
+                ):
+                    # Private ticket content belongs only in ticket-owned archives.
+                    return
             if (
                 isinstance(source, discord.Thread)
                 and parent is None

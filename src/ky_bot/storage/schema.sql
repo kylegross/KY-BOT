@@ -89,3 +89,12 @@ CREATE INDEX IF NOT EXISTS custom_embed_channel ON custom_embeds(guild,channel,s
 CREATE TABLE IF NOT EXISTS steal_destinations (user_id BIGINT PRIMARY KEY, guild_id BIGINT NOT NULL);
 
 CREATE TABLE IF NOT EXISTS server_log_exclusions (guild_id TEXT PRIMARY KEY,channels TEXT NOT NULL);
+
+-- Multi-panel ticketing
+CREATE TABLE IF NOT EXISTS ticket_settings (guild BIGINT PRIMARY KEY, revision TEXT NOT NULL, data TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, guild BIGINT NOT NULL, owner BIGINT NOT NULL, channel BIGINT NOT NULL DEFAULT 0, state TEXT NOT NULL, created DOUBLE PRECISION NOT NULL, data TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS tickets_guild_owner ON tickets(guild,owner,state);
+CREATE INDEX IF NOT EXISTS tickets_channel ON tickets(guild,channel);
+CREATE TABLE IF NOT EXISTS ticket_events (id TEXT PRIMARY KEY, ticket TEXT NOT NULL, destination BIGINT NOT NULL, delivered BIGINT NOT NULL DEFAULT 0, created DOUBLE PRECISION NOT NULL, data TEXT NOT NULL, retry_at DOUBLE PRECISION NOT NULL DEFAULT 0);
+CREATE INDEX IF NOT EXISTS ticket_events_pending ON ticket_events(delivered,created);
+CREATE TABLE IF NOT EXISTS ticket_archives (id TEXT PRIMARY KEY, guild BIGINT NOT NULL, created DOUBLE PRECISION NOT NULL, body TEXT NOT NULL);

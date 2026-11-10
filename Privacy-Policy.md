@@ -1,6 +1,6 @@
 # KY BOT — Privacy Policy
 
-**Last Updated: October 7, 2026**
+**Last Updated: November 10, 2026**
 
 This Privacy Policy explains how KY BOT (“KY BOT,” “the Bot,” “we,” “us,” or “our”) collects, processes, stores, and protects information when you interact with KY BOT through Discord.
 
@@ -277,3 +277,20 @@ posts clear that direct ID after publication or rejection. This does not erase e
 messages in Discord’s private review or log channels. Turning logging on later does not
 add author identities to earlier unlogged posts. Access to Discord review/log messages
 is controlled by server administrators and Discord permissions.
+
+### Private Support Tickets
+
+When ticketing is enabled, KY BOT stores ticket settings, Discord identifiers, intake
+answers, staff notes, lifecycle events, ownership, timestamps and optional ratings.
+Closing or exporting a ticket saves an HTML snapshot of current conversation messages,
+embeds and attachment links. Staff notes are excluded from member transcripts. Ticket
+records and exports are accessible to the configured ticket staff and authorized
+participants; Discord administrators can access private channels.
+
+Archives expire from the bot database after the ticket’s configured retention period
+(30 days by default, checked daily). Intake answers, staff notes and closure reasons
+for closed/deleted tickets are cleared when their archive expires. Pending archive
+delivery delays expiry. Operational metadata, configuration and ratings remain until
+removed by the operator. Posted activity records are retained by Discord, and exports
+sent to Discord, DMs or downloaded files remain independent copies. Database expiry
+does not delete those copies or ticket channels. Attachment links may expire.

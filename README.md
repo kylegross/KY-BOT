@@ -970,3 +970,10 @@ Back/Home/Close actions cannot acquire or edit the shared panel. Appearance prev
 use an independent draft copy while the shared appearance editor stays in place.
 Standalone slash-command settings remain private; their subsequent component updates
 edit the existing private response instead of creating another hidden message.
+
+## Multi-panel ticketing
+
+Command Center → **TICKETS** and private **`/ticket setup`** configure multiple public
+panels, ticket types, staff teams, log and transcript destinations, forms, workflow
+and automation. Use **`/ticket manage`** inside a ticket for staff/member controls.
+See [TICKETS.md](TICKETS.md) for setup, permissions, routing, retention and deployment.

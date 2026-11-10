@@ -28,6 +28,10 @@ SETTINGS_TABLES = (
     "custom_embeds",
     "steal_destinations",
     "server_log_exclusions",
+    "ticket_settings",
+    "tickets",
+    "ticket_events",
+    "ticket_archives",
 )
 CHECKLIST_TABLES = ("boards", "categories", "tasks", "logs", "subtasks")
 TABLES = SETTINGS_TABLES + CHECKLIST_TABLES
@@ -58,6 +62,10 @@ def snapshot(path, tables):
             "custom_embeds",
             "steal_destinations",
             "server_log_exclusions",
+            "ticket_settings",
+            "tickets",
+            "ticket_events",
+            "ticket_archives",
         }
         if not (set(tables) - optional) <= existing:
             raise ValueError("Source database needs the current KY BOT SQLite schema.")
