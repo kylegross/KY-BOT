@@ -52,7 +52,8 @@ saves immediately, other pages' selections are preserved, and the menu shows how
 many topics are selected. Go Back → Review to preview and publish afterward.
 
 Up to 100 panels and 100 types can be configured per server. A panel offers up to
-25 types; small panels use inline buttons and larger panels use compact button rows.
+25 types in inline sections, with five topics per page so descriptions and styled
+headings remain visible.
 Each log setting accepts up to 10 destinations. A type can appear on several panels.
 
 ## Routing
@@ -156,3 +157,30 @@ and logging destinations. Administrator permission for the bot is unnecessary.
 
 Advanced conditional intake routing, a searchable knowledge base, message-context
 ticket creation and AI assistance are future extensions, not active features.
+
+## Editable panel artwork and topic sections
+
+In **Panel → Appearance → Header Artwork**, use **Edit Header Text** to change the
+lettering inside the header image independently of the panel name. Blank text removes
+that lettering. The same title tool can overlay text on an uploaded header background.
+
+In **Footer Artwork → Footer Content**, choose the default design, text inside the
+footer, or your own icon. Text is editable; icons can be uploaded/replaced using a
+transparent PNG or WebP. The header and footer retain their independent image-source
+and finish settings. A caption below the footer remains a separate setting under
+Color & Content. Empty captions no longer produce a bare `-#` marker.
+
+In **Ticket Types → Customize Selected Topics**, choose Applications, Appeals or
+another selected topic. **Section & Button Text** edits its section heading,
+description, button label and button emoji independently. **Heading Format** offers
+KY BOT special headings, large/regular headings, bold, italic, underline, Unicode
+lettering and custom Discord formatting. KY BOT special headings use the same
+rendered lettering and finishes as custom embeds, with an optional custom color.
+**Description Format** includes normal text, small muted subtext and Discord styles.
+The topic's internal name and routing remain separate from its public text.
+
+Larger panels page through five inline sections at a time. Header/footer and special
+heading images are included on each page; private previews allow paging while ticket
+opening stays disabled. Public paging preserves the published appearance, so draft
+edits do not become public until the panel is published again. Editing a shared ticket
+type affects each panel using it when that panel is republished.

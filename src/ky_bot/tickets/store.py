@@ -91,6 +91,10 @@ def new_panel(name, channel=0):
         footer_mode="ky",
         footer_finish="dark_silver",
         footer_custom=None,
+        header_title=None,
+        footer_content="emblem",
+        footer_banner_text="",
+        footer_icon=None,
     )
 
 
@@ -102,6 +106,12 @@ def new_type(name):
         enabled=True,
         questions=["How can we help?"],
         overrides={},
+        section_title=None,
+        button_label=None,
+        heading_style="bold",
+        description_style="subtext",
+        heading_finish=None,
+        heading_color=None,
     )
 
 
@@ -118,9 +128,24 @@ def effective(config, type_id, panel_id=None):
 def validate(config):
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+    from .presentation import BODY_STYLES, HEADING_STYLES
+
     if len(config["types"]) > 100 or len(config["panels"]) > 100:
         raise ValueError("A server can configure up to 100 panels and 100 ticket types.")
     for panel in config["panels"].values():
+        title = panel.get("header_title")
+        if title is not None and (not isinstance(title, str) or len(title) > 80 or "\n" in title):
+            raise ValueError("Use a single-line header title of up to 80 characters.")
+        if panel.get("footer_content", "emblem") not in {"emblem", "text", "icon"}:
+            raise ValueError("Choose the footer emblem, text or a custom icon.")
+        if len(panel.get("footer_banner_text", "")) > 80 or "\n" in panel.get(
+            "footer_banner_text", ""
+        ):
+            raise ValueError("Footer image text must contain at most 80 characters.")
+        if panel.get("footer_content") == "icon" and not panel.get("footer_icon"):
+            raise ValueError("Upload a footer icon first.")
+        if panel.get("footer_icon") and len(panel["footer_icon"]) > 2_000_000:
+            raise ValueError("Upload a smaller footer icon.")
         for kind in ("header", "footer"):
             if panel.get(kind + "_mode", "ky") not in {"ky", "custom", "none"}:
                 raise ValueError("Choose a KY BOT design, a custom upload, or no artwork.")
@@ -153,6 +178,33 @@ def validate(config):
         if panel["image"] and not panel["image"].startswith("https://"):
             raise ValueError("Use an HTTPS image URL.")
     for kind in config["types"].values():
+        for key in ("section_title", "button_label"):
+            value = kind.get(key)
+            if value is not None and (not value.strip() or len(value) > 80 or "\n" in value):
+                raise ValueError("Section headings and button labels must contain 1–80 characters.")
+        if (
+            kind.get("heading_style", "bold") not in HEADING_STYLES
+            or kind.get("description_style", "subtext") not in BODY_STYLES
+        ):
+            raise ValueError("Choose a supported section text style.")
+        if len(kind["description"]) > 300:
+            raise ValueError("Keep the topic description under 300 characters.")
+        if kind.get("heading_finish") not in {
+            None,
+            "dark_silver",
+            "silver_neon",
+            "gold",
+            "red_iridescent",
+        }:
+            raise ValueError("Choose a supported heading finish.")
+        color = kind.get("heading_color")
+        if color is not None:
+            try:
+                if len(color) != 6:
+                    raise ValueError
+                int(color, 16)
+            except ValueError:
+                raise ValueError("Use a six-digit decorative text color.") from None
         if not kind["name"].strip() or len(kind["name"]) > 80:
             raise ValueError("Ticket type names must contain 1–80 characters.")
         if len(kind["questions"]) > 5 or any(

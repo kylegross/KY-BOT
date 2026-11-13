@@ -12,8 +12,17 @@ from ky_bot.views.menu_context import private_parent
 from ky_bot.views.menu_strips import GROUPS, group_sections, heading
 from ky_bot.views.sections import section_dividers
 
-from .artwork import normalize, public_files
+from .artwork import normalize
 from .log_access import scope_destinations, viewer_roles
+from .presentation import (
+    BODY_STYLES,
+    HEADING_STYLES,
+    button_label,
+    format_text,
+    heading_file,
+    visible_types,
+)
+from .presentation import heading as section_heading
 from .store import new_panel, new_type
 
 STARTER_TOPICS = {
@@ -108,11 +117,18 @@ class Edit(discord.ui.Modal):
 
 class ArtworkUpload(discord.ui.Modal):
     def __init__(self, menu, kind):
-        super().__init__(title=f"Upload ticket panel {kind}")
+        super().__init__(
+            title="Upload footer icon" if kind == "footer_icon" else f"Upload ticket panel {kind}"
+        )
         self.menu, self.kind = menu, kind
         self.upload = discord.ui.FileUpload(max_values=1, required=True)
         self.add_item(
-            discord.ui.Label(text="PNG, JPEG or WebP · up to 8 MB", component=self.upload)
+            discord.ui.Label(
+                text="Transparent PNG/WebP · up to 8 MB"
+                if kind == "footer_icon"
+                else "PNG, JPEG or WebP · up to 8 MB",
+                component=self.upload,
+            )
         )
 
     async def on_submit(self, i):
@@ -124,9 +140,12 @@ class ArtworkUpload(discord.ui.Modal):
             if file.size > 8 * 1024 * 1024:
                 raise ValueError("Upload a still image up to 8 MB.")
             value = await asyncio.to_thread(normalize, await file.read(), self.kind)
-            await self.menu.set_panel_art(
-                i, {self.kind + "_custom": value, self.kind + "_mode": "custom"}
+            changes = (
+                {"footer_icon": value, "footer_content": "icon"}
+                if self.kind == "footer_icon"
+                else {self.kind + "_custom": value, self.kind + "_mode": "custom"}
             )
+            await self.menu.set_panel_art(i, changes)
         except ValueError as error:
             await send_private(i, str(error))
 
@@ -376,6 +395,33 @@ class Admin(Panel):
                 "New topics use this panel's settings. "
                 "Next: go Back, then Review to preview and publish the panel."
             )
+            if item["types"]:
+                self.row(
+                    "CUSTOMIZE SELECTED TOPICS",
+                    "Edit section lettering, descriptions, button text and icons.",
+                    "Customize",
+                    self.go("panel_type_edit", selected),
+                )
+        elif page == "panel_type_edit":
+            item = config["panels"][selected]
+            self.text(
+                "**EDIT A TOPIC SECTION**\nChoose a topic to customize. "
+                "Edits appear wherever this type is used after each panel is published."
+            )
+            if item["types"]:
+                control = discord.ui.Select(
+                    placeholder="Choose a topic section",
+                    options=[
+                        discord.SelectOption(label=config["types"][key]["name"], value=key)
+                        for key in item["types"]
+                    ],
+                )
+
+                async def choose_section(i):
+                    await i.response.defer()
+                    await self.show(i, "type_appearance", control.values[0])
+
+                self.picker(control, choose_section)
         elif page == "publish":
             self.row("PREVIEW", "Only you see this preview.", "Preview", self.preview)
             self.row(
@@ -391,7 +437,13 @@ class Admin(Panel):
             )
         elif page == "type":
             item = config["types"][selected]
-            self.row("SELECTED TICKET TYPE", safe(item["name"]), "Edit", self.edit_type)
+            self.row("TICKET TYPE NAME", safe(item["name"]), "Edit", self.edit_type_name)
+            self.row(
+                "SECTION & BUTTON",
+                "Edit the section heading, description, button label and icon.",
+                "Customize",
+                self.go("type_appearance", selected),
+            )
             self.row(
                 "INTAKE QUESTIONS",
                 " · ".join(safe(q) for q in item["questions"]) or "No form",
@@ -421,6 +473,84 @@ class Admin(Panel):
                 "Enabled" if item["enabled"] else "Disabled",
                 "Toggle",
                 self.toggle_entry,
+            )
+        elif page == "type_appearance":
+            item = config["types"][selected]
+            self.row(
+                "SECTION & BUTTON TEXT",
+                safe(section_heading(item)) + " · " + safe(button_label(item)),
+                "Edit text",
+                self.edit_type,
+            )
+            for key, title, choices, default in (
+                ("heading_style", "HEADING FORMAT", HEADING_STYLES, "bold"),
+                ("description_style", "DESCRIPTION FORMAT", BODY_STYLES, "subtext"),
+            ):
+                value = item.get(key, default)
+                self.row(title, choices[value], "Choose", self.go(page, selected, pick=key))
+                if pick == key:
+                    control = discord.ui.Select(
+                        placeholder="Choose formatting",
+                        options=[
+                            discord.SelectOption(label=label, value=option, default=option == value)
+                            for option, label in choices.items()
+                        ],
+                    )
+
+                    async def choose(i, key=key, control=control):
+                        await self.set_type_art(i, {key: control.values[0]})
+
+                    self.picker(control, choose)
+            if item.get("heading_style", "bold") == "decorative":
+                self.row(
+                    "KY BOT LETTERING",
+                    "Finish and optional custom text color.",
+                    "Configure",
+                    self.go("type_lettering", selected),
+                )
+            self.text(
+                "-# These controls change the member-facing section, not the ticket type's "
+                "internal name. Custom formatting accepts Discord Markdown."
+            )
+        elif page == "type_lettering":
+            from ky_bot.design.menu_design import FINISHES
+
+            self.text("**KY BOT SECTION LETTERING**\nChoose a finish and optional text color.")
+
+            item = config["types"][selected]
+            control = discord.ui.Select(
+                placeholder="Choose the KY BOT lettering finish",
+                options=[
+                    discord.SelectOption(
+                        label="Follow panel header",
+                        value="follow",
+                        default=not item.get("heading_finish"),
+                    )
+                ]
+                + [
+                    discord.SelectOption(
+                        label=label, value=key, default=key == item.get("heading_finish")
+                    )
+                    for key, label in FINISHES.items()
+                ],
+            )
+
+            async def finish(i):
+                await self.set_type_art(
+                    i,
+                    {
+                        "heading_finish": None
+                        if control.values[0] == "follow"
+                        else control.values[0]
+                    },
+                )
+
+            self.picker(control, finish)
+            self.row(
+                "TEXT COLOR",
+                item.get("heading_color") or "Follow selected finish",
+                "Edit color",
+                self.edit_type_color,
             )
         elif page in {"defaults", "type_workflow"}:
             if page == "defaults":
@@ -659,7 +789,13 @@ class Admin(Panel):
             )
             GROUPS[self.groups] = ((category, labels),)
         destination = (
-            "access"
+            "panel_types"
+            if page == "panel_type_edit"
+            else "type_appearance"
+            if page == "type_lettering"
+            else "type"
+            if page == "type_appearance"
+            else "access"
             if page == "log_access"
             else "appearance"
             if page in {"art_header", "art_footer"}
@@ -690,7 +826,16 @@ class Admin(Panel):
                 self.go(
                     destination,
                     selected
-                    if destination in {"panel", "type", "panel_settings", "appearance", "access"}
+                    if destination
+                    in {
+                        "panel",
+                        "type",
+                        "panel_settings",
+                        "appearance",
+                        "access",
+                        "type_appearance",
+                        "panel_types",
+                    }
                     else None,
                 ),
             )
@@ -764,6 +909,11 @@ class Admin(Panel):
         data["panels"][self.selected].update(changes)
         await self.save(i, data)
 
+    async def set_type_art(self, i, changes):
+        data = copy.deepcopy(self.config)
+        data["types"][self.selected].update(changes)
+        await self.save(i, data)
+
     async def apply_log_access(self, i):
         await i.response.defer()
         count = await self.cog.apply_log_access(
@@ -780,6 +930,67 @@ class Admin(Panel):
         from ky_bot.design.menu_design import FINISHES
 
         item = self.config["panels"][self.selected]
+        if kind == "header":
+            self.row(
+                "HEADER IMAGE TEXT",
+                safe(
+                    item.get("header_title")
+                    if item.get("header_title") is not None
+                    else item["title"]
+                )
+                or "No header lettering",
+                "Edit header text",
+                self.edit_header_text,
+            )
+        else:
+            content = item.get("footer_content", "emblem")
+            labels = {
+                "emblem": "Default design",
+                "text": "Text inside the footer",
+                "icon": "Custom footer icon",
+            }
+            self.row(
+                "FOOTER CONTENT",
+                labels[content],
+                "Choose",
+                self.go(self.page, self.selected, pick="content"),
+            )
+            if self.pick == "content":
+                control = discord.ui.Select(
+                    placeholder="Choose footer content",
+                    options=[
+                        discord.SelectOption(label=label, value=key, default=key == content)
+                        for key, label in labels.items()
+                    ],
+                )
+
+                async def choose_content(i):
+                    value = control.values[0]
+                    if value == "icon" and not item.get("footer_icon"):
+                        return await i.response.send_modal(ArtworkUpload(self, "footer_icon"))
+                    if value == "text" and not item.get("footer_banner_text"):
+                        return await self.edit_footer_text(i)
+                    await self.set_panel_art(i, {"footer_content": value})
+
+                self.picker(control, choose_content)
+            if content == "text":
+                self.row(
+                    "FOOTER IMAGE TEXT",
+                    safe(item.get("footer_banner_text", "")) or "No text yet",
+                    "Edit footer text",
+                    self.edit_footer_text,
+                )
+            elif content == "icon":
+
+                async def icon_upload(i):
+                    await i.response.send_modal(ArtworkUpload(self, "footer_icon"))
+
+                self.row(
+                    "FOOTER ICON",
+                    "Use your own transparent image.",
+                    "Upload / replace",
+                    icon_upload,
+                )
         mode = item.get(kind + "_mode", "ky")
         labels = {"ky": "KY BOT design", "custom": "Your uploaded image", "none": "Hidden"}
         self.row(
@@ -1021,6 +1232,90 @@ class Admin(Panel):
             )
         )
 
+    async def edit_header_text(self, i):
+        item = self.config["panels"][self.selected]
+        value = item.get("header_title")
+
+        async def commit(i, values):
+            await self.set_panel_art(i, {"header_title": values["text"]})
+
+        await i.response.send_modal(
+            Edit(
+                self,
+                "Header image text",
+                [
+                    (
+                        "text",
+                        "Text inside the header (blank removes)",
+                        item["title"] if value is None else value,
+                        80,
+                    )
+                ],
+                commit,
+            )
+        )
+
+    async def edit_footer_text(self, i):
+        item = self.config["panels"][self.selected]
+
+        async def commit(i, values):
+            await self.set_panel_art(
+                i,
+                {
+                    "footer_banner_text": values["text"],
+                    "footer_content": "text" if values["text"] else "emblem",
+                },
+            )
+
+        await i.response.send_modal(
+            Edit(
+                self,
+                "Footer image text",
+                [
+                    (
+                        "text",
+                        "Text inside the footer (blank resets)",
+                        item.get("footer_banner_text", ""),
+                        80,
+                    )
+                ],
+                commit,
+            )
+        )
+
+    async def edit_type_name(self, i):
+        async def commit(i, values):
+            await self.set_type_art(i, {"name": values["name"]})
+
+        await i.response.send_modal(
+            Edit(
+                self,
+                "Ticket type name",
+                [("name", "Internal topic name", self.config["types"][self.selected]["name"], 80)],
+                commit,
+            )
+        )
+
+    async def edit_type_color(self, i):
+        async def commit(i, values):
+            await self.set_type_art(i, {"heading_color": values["color"].lstrip("#") or None})
+
+        await i.response.send_modal(
+            Edit(
+                self,
+                "Decorative heading color",
+                [
+                    (
+                        "color",
+                        "Hex color (blank follows finish)",
+                        self.config["types"][self.selected].get("heading_color") or "",
+                        7,
+                    )
+                ],
+                commit,
+            )
+        )
+
     async def edit_type(self, i):
         item = self.config["types"][self.selected]
 
@@ -1040,8 +1335,14 @@ class Admin(Panel):
                 self,
                 "Ticket type",
                 [
-                    ("name", "Name / button label", item["name"], 80),
-                    ("description", "Topic description", item["description"], 100),
+                    ("section_title", "Section heading", section_heading(item), 80),
+                    (
+                        "description",
+                        "Section description (Discord formatting)",
+                        item["description"],
+                        300,
+                    ),
+                    ("button_label", "Button label", button_label(item), 80),
                     ("emoji", "Button emoji (optional)", item["emoji"], 100),
                 ],
                 commit,
@@ -1189,16 +1490,7 @@ class Admin(Panel):
 
     async def preview(self, i):
         await i.response.defer(ephemeral=True, thinking=True)
-        uploads = await asyncio.to_thread(public_files, self.config["panels"][self.selected])
-        try:
-            await i.followup.send(
-                view=PublicPanel(self.config, self.selected, preview=True),
-                files=uploads,
-                ephemeral=True,
-            )
-        finally:
-            for file in uploads:
-                file.close()
+        await self.cog.preview_panel(i, self.config, self.selected)
 
     async def publish(self, i):
         await i.response.defer()
@@ -1246,8 +1538,39 @@ class TicketButton(
             await report_error(i, error)
 
 
+class PanelPage(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=r"ky:ticket-page:(?P<token>[0-9a-f]{32}):(?P<page>[0-9]+)",
+):
+    def __init__(self, token, page, *, label="Next", disabled=False):
+        self.token, self.page = token, page
+        super().__init__(
+            discord.ui.Button(
+                label=label,
+                style=discord.ButtonStyle.secondary,
+                custom_id=f"ky:ticket-page:{token}:{page}",
+                disabled=disabled,
+            )
+        )
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(match["token"], int(match["page"]))
+
+    async def callback(self, i):
+        try:
+            cog = i.client.get_cog("Tickets")
+            if cog is None:
+                raise ValueError("Tickets are temporarily unavailable.")
+            await cog.page_panel(i, self.token, self.page)
+        except ValueError as error:
+            await send_private(i, str(error))
+        except Exception as error:
+            await report_error(i, error)
+
+
 class PublicPanel(Panel):
-    def __init__(self, config, token, *, preview=False):
+    def __init__(self, config, token, *, preview=False, page=0):
         super().__init__(timeout=None)
         item = config["panels"][token]
         self.panel.accent_colour = int(item["color"], 16)
@@ -1260,40 +1583,54 @@ class PublicPanel(Panel):
         content = (
             item["description"]
             if item.get("header_mode", "ky") == "ky"
+            or (item.get("header_mode") == "custom" and item.get("header_title"))
             else f"## {safe(item['title'])}\n{item['description']}"
         )
         if content.strip():
             self.text(content)
         if item["image"]:
             self.panel.add_item(discord.ui.MediaGallery(NoAltMediaGalleryItem(item["image"])))
-        enabled = [
-            (key, config["types"][key])
-            for key in item["types"]
-            if key in config["types"] and config["types"][key]["enabled"]
-        ]
+        enabled, page, pages = visible_types(config, token, page)
         for index, (key, kind) in enumerate(enabled):
             if kind and kind["enabled"]:
                 control = TicketButton(
                     token,
                     "open",
                     key,
-                    label=kind["name"],
+                    label=button_label(kind),
                     emoji=kind["emoji"] or None,
                     disabled=preview or not item["enabled"],
                 )
-                if len(enabled) <= 5:
+                style = kind.get("heading_style", "bold")
+                if style == "decorative":
                     self.panel.add_item(
-                        discord.ui.Section(
-                            f"**{safe(kind['name'])}**\n-# {safe(kind['description'])}",
-                            accessory=control,
+                        discord.ui.MediaGallery(
+                            NoAltMediaGalleryItem("attachment://" + heading_file(key))
                         )
                     )
+                    title = ""
                 else:
-                    if index % 5 == 0:
-                        row = discord.ui.ActionRow()
-                        self.panel.add_item(row)
-                    row.add_item(control)
-        self.text(f"-# {safe(item['footer'])}")
+                    title = format_text(section_heading(kind), style)
+                body = format_text(kind["description"], kind.get("description_style", "subtext"))
+                self.panel.add_item(
+                    discord.ui.Section(
+                        "\n".join(filter(None, (title, body))) or "\u200b", accessory=control
+                    )
+                )
+        if pages > 1:
+            self.text(f"-# Page {page + 1} of {pages}")
+            self.panel.add_item(
+                discord.ui.ActionRow(
+                    PanelPage(
+                        token, max(0, page - 1), label="Previous", disabled=preview or page == 0
+                    ),
+                    PanelPage(
+                        token, min(pages - 1, page + 1), disabled=preview or page + 1 >= pages
+                    ),
+                )
+            )
+        if item["footer"].strip():
+            self.text(f"-# {safe(item['footer'])}")
         if item.get("footer_mode", "ky") != "none":
             self.panel.add_item(
                 discord.ui.MediaGallery(
@@ -1301,6 +1638,11 @@ class PublicPanel(Panel):
                 )
             )
         self.finish()
+        if self.content_length() > 4000:
+            raise ValueError(
+                "This panel page has too much formatted text. "
+                "Shorten the panel message or topic descriptions."
+            )
 
 
 class Intake(discord.ui.Modal):

@@ -26,6 +26,7 @@ from .views import (
     Edit,
     Intake,
     Manage,
+    PanelPage,
     PublicPanel,
     TicketButton,
     private_admin_parent,
@@ -81,7 +82,7 @@ class Tickets(commands.Cog):
         self.store = await Store.open(
             self.bot.settings.database_path, self.bot.settings.database_url
         )
-        self.bot.add_dynamic_items(TicketButton)
+        self.bot.add_dynamic_items(TicketButton, PanelPage)
         self.maintenance.start()
 
     async def cog_unload(self):
@@ -92,7 +93,7 @@ class Tickets(commands.Cog):
                 await task
             except asyncio.CancelledError:
                 pass
-        self.bot.remove_dynamic_items(TicketButton)
+        self.bot.remove_dynamic_items(TicketButton, PanelPage)
         await self.store.close()
 
     @ticket.command(
@@ -291,7 +292,7 @@ class Tickets(commands.Cog):
                     await self.validate_type(guild, effective(config, kind, token))
             from .artwork import public_files
 
-            uploads = await asyncio.to_thread(public_files, panel)
+            uploads = await asyncio.to_thread(public_files, panel, config, token)
             try:
                 if uploads and not destination.permissions_for(guild.me).attach_files:
                     raise ValueError("KY BOT needs Attach Files to publish panel artwork.")
@@ -324,6 +325,9 @@ class Tickets(commands.Cog):
             )
         updated = copy.deepcopy(config)
         updated["panels"][token].update(message=message.id, published_channel=destination.id)
+        from .presentation import published_layout
+
+        updated["panels"][token]["published_layout"] = published_layout(config, token)
         try:
             await self.store.configure(guild.id, revision, updated)
         except BaseException:
@@ -362,6 +366,71 @@ class Tickets(commands.Cog):
                 f"to {settings['support_end']:02d}:00 ({settings['timezone']})."
             )
         return config, settings
+
+    async def page_panel(self, i, token, page):
+        from .artwork import public_files
+
+        await i.response.defer()
+        _, config = await self.store.config(i.guild_id)
+        panel = config["panels"].get(token)
+        if not panel or panel["message"] != i.message.id:
+            raise ValueError("This panel has moved. Use its current message.")
+        if panel.get("published_layout"):
+            layout = copy.deepcopy(panel["published_layout"])
+            for key, kind in layout["types"].items():
+                kind["enabled"] = config["types"].get(key, {}).get("enabled", False)
+            config = {"panels": {token: panel | layout["panel"]}, "types": layout["types"]}
+            panel = config["panels"][token]
+        view = PublicPanel(config, token, page=page)
+        uploads = await asyncio.to_thread(public_files, panel, config, token, page)
+        try:
+            await i.edit_original_response(
+                view=view, attachments=uploads, allowed_mentions=discord.AllowedMentions.none()
+            )
+        finally:
+            for file in uploads:
+                file.close()
+
+    async def preview_panel(self, i, config, token, page=0, *, owner=None, edit=False):
+        from .artwork import public_files
+        from .presentation import visible_types
+        from .views import button
+
+        owner = i.user.id if owner is None else owner
+        view = PublicPanel(config, token, preview=True, page=page)
+        _, current, _ = visible_types(config, token, page)
+        for control in list(view.walk_children()):
+            if isinstance(control, PanelPage):
+                target = control.page
+
+                async def turn(event, target=target):
+                    if event.user.id != owner:
+                        return await send_private(event, "Open your own panel preview.")
+                    await event.response.defer()
+                    await self.preview_panel(event, config, token, target, owner=owner, edit=True)
+
+                replacement = button(control.item.label, turn, disabled=target == current)
+                row = control.parent
+                row.remove_item(control)
+                row.add_item(replacement)
+        uploads = await asyncio.to_thread(
+            public_files, config["panels"][token], config, token, page
+        )
+        try:
+            if edit:
+                await i.edit_original_response(
+                    view=view, attachments=uploads, allowed_mentions=discord.AllowedMentions.none()
+                )
+            else:
+                await i.followup.send(
+                    view=view,
+                    files=uploads,
+                    ephemeral=True,
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
+        finally:
+            for file in uploads:
+                file.close()
 
     def overwrites(self, guild, ticket, *, closed=False):
         values = {
