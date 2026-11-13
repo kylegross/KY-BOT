@@ -14,7 +14,6 @@ from zoneinfo import ZoneInfo
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
-
 from ky_bot.errors import send_private
 from ky_bot.log_style import send_log, style_log
 from ky_bot.views.menu_context import defer_menu, display_menu, menu_parent
@@ -515,6 +514,8 @@ class Tickets(commands.Cog):
         await i.edit_original_response(content=f"Your private ticket is ready: {channel.mention}")
 
     async def send_intro(self, ticket, channel):
+        if ticket["settings"].get("opening_panel"):
+            return await self.send_opening_panel(ticket, channel)
         settings = ticket["settings"]
         answers = ticket["answers"]
         embed = discord.Embed(
@@ -548,6 +549,56 @@ class Tickets(commands.Cog):
             ),
         )
         await self.store.update(ticket, intro_sent=True, intro_message=message.id)
+
+    async def send_opening_panel(self, ticket, channel):
+        from .artwork import public_files
+        from .opening import OpenedPanel
+
+        settings = ticket["settings"]
+        design = settings["opening_panel"]
+        view = OpenedPanel(design, ticket)
+        files = await asyncio.to_thread(public_files, design)
+        try:
+            message = await channel.send(
+                content="Support team: "
+                + " ".join(f"<@&{role}>" for role in settings["support_roles"])
+                if settings["ping_staff"]
+                else None,
+                view=view,
+                files=files,
+                allowed_mentions=discord.AllowedMentions(
+                    roles=[discord.Object(id=role) for role in settings["support_roles"]]
+                    if settings["ping_staff"]
+                    else False,
+                    users=False,
+                    everyone=False,
+                    replied_user=False,
+                ),
+            )
+        finally:
+            for file in files:
+                file.close()
+        if ticket["answers"]:
+            embed = discord.Embed(title="Ticket intake", color=int(design["color"], 16))
+            for question, answer in ticket["answers"]:
+                embed.add_field(name=question, value=answer[:1000] or "—", inline=False)
+            await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+        await self.store.update(ticket, intro_sent=True, intro_message=message.id)
+
+    async def refresh_intro(self, ticket, channel):
+        if not ticket.get("intro_message"):
+            return
+        from .opening import OpenedPanel
+
+        view = (
+            OpenedPanel(ticket["settings"]["opening_panel"], ticket)
+            if ticket["settings"].get("opening_panel")
+            else ticket_controls(ticket)
+        )
+        try:
+            await channel.get_partial_message(ticket["intro_message"]).edit(view=view)
+        except discord.HTTPException:
+            log.warning("Ticket opening panel could not be refreshed")
 
     async def access(self, i, token, *, staff_only=False):
         ticket = await self.store.get(token)
@@ -590,6 +641,7 @@ class Tickets(commands.Cog):
                     waiting_since=time.time(),
                     last_activity=time.time(),
                 )
+                await self.refresh_intro(ticket, channel)
                 await self.store.event(ticket, "TICKET APPROVED", i.user.id)
                 await channel.send(
                     "Ticket approved. You can now reply below.", view=ticket_controls(ticket)
@@ -679,6 +731,7 @@ class Tickets(commands.Cog):
                     reminded=False,
                     escalated=False,
                 )
+                await self.refresh_intro(ticket, channel)
                 await self.store.event(ticket, "TICKET REOPENED", i.user.id)
                 await channel.send("Ticket reopened.", view=ticket_controls(ticket))
             await send_private(i, "Ticket reopened.")
@@ -934,6 +987,8 @@ class Tickets(commands.Cog):
                         raise ValueError("Only ticket managers can transfer tickets between teams.")
                     _, config = await self.store.config(i.guild_id)
                     settings = effective(config, value, ticket["panel"])
+                    if ticket["settings"].get("opening_panel"):
+                        settings["opening_panel"] = ticket["settings"]["opening_panel"]
                     if not staff(i.user, settings):
                         raise ValueError("You must also have access to the destination team.")
                     await self.validate_type(i.guild, settings)
@@ -955,6 +1010,8 @@ class Tickets(commands.Cog):
                 else:
                     raise ValueError("Unknown ticket action.")
                 ticket = await self.store.update(ticket, **changes)
+                if ticket.get("intro_message") and ticket["settings"].get("opening_panel"):
+                    await self.refresh_intro(ticket, await self.get_channel(ticket))
             await self.store.event(
                 ticket,
                 "TICKET " + action.upper(),
@@ -1096,13 +1153,7 @@ class Tickets(commands.Cog):
         ticket = await self.store.update(
             ticket, state="closed", closed_at=time.time(), reason=reason, close_requested_by=0
         )
-        if ticket.get("intro_message"):
-            try:
-                await channel.get_partial_message(ticket["intro_message"]).edit(
-                    view=ticket_controls(ticket)
-                )
-            except discord.HTTPException:
-                log.warning("Ticket header controls could not be refreshed after closure")
+        await self.refresh_intro(ticket, channel)
         await self.store.event(ticket, "TICKET CLOSED", actor, reason)
         await self.store.event(ticket, "TICKET TRANSCRIPT", actor, archive=True)
         controls = discord.ui.View(timeout=None)

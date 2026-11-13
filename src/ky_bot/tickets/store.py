@@ -9,6 +9,10 @@ from ky_bot.askdm.store import Store as Connection
 
 SCHEMA = (
     (
+        "CREATE TABLE IF NOT EXISTS ticket_numbers "
+        "(guild BIGINT PRIMARY KEY, last_number BIGINT NOT NULL)"
+    ),
+    (
         "CREATE TABLE IF NOT EXISTS ticket_settings (guild BIGINT PRIMARY "
         "KEY, revision TEXT NOT NULL, data TEXT NOT NULL)"
     ),
@@ -134,9 +138,13 @@ def effective(config, type_id, panel_id=None):
     if not kind or not kind["enabled"]:
         raise ValueError("This ticket type is disabled or no longer exists.")
     panel = config["panels"].get(panel_id, {})
-    return copy.deepcopy(
+    result = copy.deepcopy(
         defaults()["defaults"] | config["defaults"] | panel.get("overrides", {}) | kind["overrides"]
     )
+    from .opening import opening_design
+
+    result["opening_panel"] = opening_design(panel, welcome=result["welcome"])
+    return result
 
 
 def validate(config):
@@ -220,6 +228,11 @@ def validate(config):
             raise ValueError("Use a six-digit hex color.") from None
         if panel["image"] and not panel["image"].startswith("https://"):
             raise ValueError("Use an HTTPS image URL.")
+    for panel in config["panels"].values():
+        if panel.get("opening_panel") is not None:
+            from .opening import validate_opening
+
+            validate_opening(panel["opening_panel"])
     for kind in config["types"].values():
         for key in ("section_title", "button_label"):
             value = kind.get(key)
@@ -438,8 +451,18 @@ class Store(Connection):
                 for state, created in rows
             ):
                 raise ValueError("Please wait before opening another ticket.")
+            row = await self.execute(
+                "SELECT last_number FROM ticket_numbers WHERE guild=?", (guild,)
+            )
+            number = row[0] + 1 if row else 1
+            await self.execute(
+                "INSERT INTO ticket_numbers(guild,last_number) VALUES (?,?) "
+                "ON CONFLICT(guild) DO UPDATE SET last_number=excluded.last_number",
+                (guild, number),
+            )
             token = uuid.uuid4().hex
             data = dict(
+                number=number,
                 panel=panel_id,
                 type=type_id,
                 type_name=config["types"][type_id]["name"],

@@ -211,3 +211,34 @@ heading images are included on each page; private previews allow paging while ti
 opening stays disabled. Public paging preserves the published appearance, so draft
 edits do not become public until the panel is published again. Editing a shared ticket
 type affects each panel using it when that panel is republished.
+
+
+### Opened ticket panel
+
+In **Tickets → Ticket Panels → choose a panel → Opened Ticket Panel**, edit the
+message shown inside each new private ticket. The same editor is available through
+`/ticket setup`. Message Sections provides optional headings, independently styled
+text, and up to three additional sections on each side of the controls, each with
+an optional divider. Appearance provides the standard KY BOT artwork or custom
+uploads, editable header lettering, footer text/icons, accent color and body image.
+Private Preview shows the layout with its buttons disabled.
+
+New tickets open as separate private text channels under the configured ticket
+category, not as threads in the public panel channel. The member selects a topic,
+completes any intake form, and receives a link to the private channel. Required
+approval keeps the member read-only until approved. Intake answers appear below
+the opening panel. Staff claim and respond, then close with a reason and confirmation;
+transcripts and activity go to their configured destinations.
+
+Standard opening controls are Claim/Unclaim, Close, Transcript and Manage.
+Pending requests show Approve/Decline; closed tickets show Reopen. Manage contains
+staff notes, priority/status, saved replies, pause/resume automation, request-close,
+participants, assignment, renaming and transfer. Delete is available to authorized
+staff after closure, with transcript and confirmation requirements. Permission checks
+still apply even when a member can see a staff button.
+
+Opening-panel edits save for newly created tickets immediately; existing tickets
+retain their saved design. These edits do not republish the public ticket-opening
+panel. Claim, approval, closure and reopen refresh the original opening panel's
+status and controls while retaining its artwork. Existing legacy ticket messages
+continue to use their original controls.

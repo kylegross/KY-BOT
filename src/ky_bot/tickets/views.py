@@ -168,9 +168,22 @@ class Admin(Panel):
         offset=0,
         notice=None,
         tickets=(),
+        opening=False,
     ):
         super().__init__(timeout=None if parent.panel_manager else 600, artwork=True)
         self.cog, self.parent, self.revision = cog, parent, revision
+        self.opening = opening
+        self.original_config = config
+        if opening:
+            from .opening import opening_design
+
+            config = copy.deepcopy(config)
+            config["panels"][selected] = opening_design(
+                config["panels"][selected],
+                welcome=(config["defaults"] | config["panels"][selected].get("overrides", {}))[
+                    "welcome"
+                ],
+            )
         self.config, self.page, self.selected, self.pick = config, page, selected, pick
         self.offset = offset
         if notice:
@@ -253,6 +266,35 @@ class Admin(Panel):
                         ),
                     )
                 )
+        elif page == "panel" and opening:
+            self.row(
+                "OPENED TICKET PANEL",
+                "Shown inside each new private ticket channel.",
+                "Edit title",
+                self.edit_panel,
+            )
+            self.row(
+                "MESSAGE SECTIONS",
+                "Headers and text above or below the standard controls.",
+                "Configure",
+                self.go("panel_text", selected),
+            )
+            self.row(
+                "APPEARANCE",
+                "KY BOT artwork, custom uploads, footer text and icons.",
+                "Configure",
+                self.go("appearance", selected),
+            )
+            self.row(
+                "PRIVATE PREVIEW",
+                "Claim, Close, Transcript and Manage stay standard.",
+                "Preview",
+                self.preview,
+            )
+            self.text(
+                "-# Saved changes apply to newly opened tickets. Existing tickets retain "
+                "their opening design. Intake answers are posted separately below it."
+            )
         elif page == "panel":
             item = config["panels"][selected]
             self.row("SELECTED PANEL", safe(item["name"]), "Edit text", self.edit_panel)
@@ -285,6 +327,12 @@ class Admin(Panel):
                 "KY BOT designs or your own header and footer images.",
                 "Manage",
                 self.go("appearance", selected),
+            )
+            self.row(
+                "OPENED TICKET PANEL",
+                "Design the message and standard controls inside new private tickets.",
+                "Configure",
+                self.open_opening,
             )
             self.row(
                 "PUBLISH PANEL",
@@ -945,12 +993,20 @@ class Admin(Panel):
             notice=notice,
             pick=pick,
             offset=offset,
+            opening=self.opening,
         )
+
+    async def open_opening(self, i):
+        await i.response.defer()
+        await self.cog.admin(i, self.parent, page="panel", selected=self.selected, opening=True)
 
     def go(self, page, selected=None, *, pick=None, offset=0):
         async def callback(i):
             await i.response.defer()
-            await self.show(i, page, selected, pick=pick, offset=offset)
+            if self.opening and page == "panels":
+                await self.cog.admin(i, self.parent, page="panel", selected=self.selected)
+            else:
+                await self.show(i, page, selected, pick=pick, offset=offset)
 
         return callback
 
@@ -964,12 +1020,18 @@ class Admin(Panel):
     async def save(self, i, data, *, page=None, selected=None, offset=None):
         if not i.response.is_done():
             await i.response.defer()
+        if self.opening:
+            original = copy.deepcopy(self.original_config)
+            original["panels"][self.selected]["opening_panel"] = data["panels"][self.selected]
+            data = original
         await self.cog.store.configure(self.parent.guild_id, self.revision, data)
         await self.show(
             i,
             page or self.page,
             self.selected if selected is None else selected,
-            notice="Saved. Publish a panel to update its public appearance.",
+            notice="Saved for newly opened tickets."
+            if self.opening
+            else "Saved. Publish a panel to update its public appearance.",
             offset=(self.offset if (page or self.page) == self.page else 0)
             if offset is None
             else offset,
@@ -1864,7 +1926,12 @@ class Admin(Panel):
 
     async def preview(self, i):
         await i.response.defer(ephemeral=True, thinking=True)
-        await self.cog.preview_panel(i, self.config, self.selected)
+        if self.opening:
+            from .opening import preview_opening
+
+            await preview_opening(i, self.config["panels"][self.selected])
+        else:
+            await self.cog.preview_panel(i, self.config, self.selected)
 
     async def publish(self, i):
         await i.response.defer()
@@ -1881,7 +1948,7 @@ class TicketButton(
     discord.ui.DynamicItem[discord.ui.Button],
     template=(
         "ky:ticket:(?P<token>[0-9a-f]{32}):(?P<action>open|manage|close|reo"
-        "pen|transcript|rate|accept|keep|approve|decline):(?P<kind>[0-9a-f]{32}|0)"
+        "pen|transcript|rate|accept|keep|approve|decline|claim):(?P<kind>[0-9a-f]{32}|0)"
     ),
 ):
     def __init__(self, token, action, kind="0", *, label=None, emoji=None, disabled=False):
@@ -2088,7 +2155,7 @@ def ticket_controls(ticket):
         if ticket["state"] == "pending_approval"
         else ("manage", "reopen", "transcript")
         if ticket["state"] == "closed"
-        else ("manage", "close", "transcript")
+        else ("claim", "close", "transcript", "manage")
     )
     for action in actions:
         view.add_item(TicketButton(ticket["id"], action))
@@ -2140,9 +2207,9 @@ class Manage(Panel):
                 self.do("pause"),
             )
             self.row(
-                "EDIT TICKET",
-                "Change channel name or transfer to another ticket type.",
-                "Edit",
+                "PARTICIPANTS & ROUTING",
+                "Add or remove members, assign staff, rename or transfer the ticket.",
+                "Manage",
                 self.do("edit"),
             )
             state = discord.ui.Select(
