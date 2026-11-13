@@ -160,6 +160,24 @@ ticket creation and AI assistance are future extensions, not active features.
 
 ## Editable panel artwork and topic sections
 
+### Headers and additional text sections
+
+Under **Panel → Panel Text**, configure **Before the Buttons** and **After the
+Buttons** independently. Each main text area has an optional header above its body;
+adding that header does not add a divider. Header and body formatting are separate.
+
+Use **Add Section** to add an extra header-and-text block to either area, then choose
+it from the section picker. Extra sections have a **Section Divider** toggle, so the
+rule can be shown or hidden. You can add up to three extra sections on each side and
+remove them individually. Empty sections do not leave stray dividers or empty text.
+
+Formatting supports the same KY BOT special lettering and Discord text styles. The
+finish/color controls apply to the selected section. Additional body text supports
+up to 500 characters per section; decorative text uses one line of up to 80 characters.
+Preview checks Discord's component, image and text limits and adjusts topic paging;
+very complex layouts may require fewer image headings or shorter sections. Existing
+text is preserved, and draft edits appear publicly only after republishing the panel.
+
 **Panel → Panel Text** adds optional text before and/or after the ticket buttons.
 Each block has its own text, formatting, finish and color. Choices match the custom
 embed tools: normal text, headings, bold/italic, subtext, Discord formatting, Unicode

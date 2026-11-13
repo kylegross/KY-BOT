@@ -5,10 +5,9 @@ import io
 from functools import lru_cache
 
 import discord
-from PIL import Image
-
 from ky_bot.design.footers import read_upload
 from ky_bot.design.menu_design import default_profile, render_menu
+from PIL import Image
 
 
 def normalize(data, kind):
@@ -69,13 +68,20 @@ def public_files(panel, config=None, token=None, page=0):
                     title = panel["title"]
                 title = (title or None) if kind == "header" else "KY BOT"
                 data = standard(title, panel.get(kind + "_finish", "dark_silver"))[index]
-            if kind == "footer" and panel.get("footer_content", "emblem") in {"text", "icon"}:
+            if kind == "footer" and panel.get("footer_content", "emblem") in {
+                "text",
+                "icon",
+            }:
                 content = panel["footer_content"]
                 text = panel.get("footer_banner_text", "") if content == "text" else ""
                 icon = panel.get("footer_icon") if content == "icon" else None
                 background = panel.get("footer_custom") if mode == "custom" else None
                 data = standard(
-                    "KY BOT", panel.get("footer_finish", "dark_silver"), text, icon, background
+                    "KY BOT",
+                    panel.get("footer_finish", "dark_silver"),
+                    text,
+                    icon,
+                    background,
                 )[1]
             result.append(discord.File(io.BytesIO(data), filename=f"ticket_panel_{kind}.png"))
         if config is not None:
@@ -92,19 +98,26 @@ def public_files(panel, config=None, token=None, page=0):
                         kind.get("heading_color"),
                     )
                     result.append(discord.File(io.BytesIO(data), filename=heading_file(key)))
-        from .presentation import panel_text, text_file
+        from .sections import blocks, image_file
 
         for position in ("before", "after"):
-            text = panel_text(panel, position)
-            if text.strip() and panel.get(position + "_style", "plain") == "decorative":
-                from ky_bot.checklists.artwork import title_image
+            for block in blocks(panel, position):
+                for part in ("heading", "body"):
+                    text = block.get(part, "")
+                    if text.strip() and block.get(part + "_style", "plain") == "decorative":
+                        from ky_bot.checklists.artwork import title_image
 
-                data = title_image(
-                    text,
-                    panel.get(position + "_finish") or panel.get("header_finish", "dark_silver"),
-                    panel.get(position + "_color"),
-                )
-                result.append(discord.File(io.BytesIO(data), filename=text_file(position)))
+                        data = title_image(
+                            text,
+                            block.get("finish") or panel.get("header_finish", "dark_silver"),
+                            block.get("color"),
+                        )
+                        result.append(
+                            discord.File(
+                                io.BytesIO(data),
+                                filename=image_file(position, block, part),
+                            )
+                        )
         return result
     except BaseException:
         for file in result:

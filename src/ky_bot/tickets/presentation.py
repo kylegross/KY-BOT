@@ -1,7 +1,6 @@
 """Ticket section formatting follows the custom embed menu's text options."""
 
 import discord
-
 from ky_bot.custom_embeds.model import FIELD_STYLES, styled
 
 PER_PAGE = 5
@@ -52,21 +51,37 @@ def visible_types(config, token, page=0):
         for key in config["panels"][token]["types"]
         if key in config["types"] and config["types"][key]["enabled"]
     ]
-    size = PER_PAGE
-    if panel_text(panel, "after").strip() and any(
-        panel.get(position + "_style", "plain") == "decorative" for position in ("before", "after")
-    ):
-        size = 4
-    base = (
-        sum(
-            len(format_text(panel_text(panel, position), panel.get(position + "_style", "plain")))
-            for position in ("before", "after")
-            if panel.get(position + "_style", "plain") != "decorative"
-        )
-        + len(panel["title"])
-        + len(panel["footer"])
-        + 200
+    from .sections import content_budget
+
+    content, images, characters = content_budget(panel)
+    header = panel.get("header_mode", "ky") != "none"
+    footer = panel.get("footer_mode", "ky") != "none"
+    native_title = not (
+        panel.get("header_mode", "ky") == "ky"
+        or (panel.get("header_mode") == "custom" and panel.get("header_title"))
     )
+    fixed = (
+        1
+        + 2 * header
+        + 2 * footer
+        + 2 * bool(panel["image"])
+        + bool(panel["footer"].strip())
+        + native_title
+        + 4
+        + 2
+        + content
+    )
+    fixed_images = int(header) + int(footer) + images
+    decorative = any(kind.get("heading_style", "bold") == "decorative" for _, kind in entries)
+    size = min(PER_PAGE, (40 - fixed) // (5 if decorative else 4))
+    if decorative:
+        size = min(size, 10 - fixed_images)
+    base = characters + len(panel["title"]) + 2 * len(panel["footer"]) + 200
+    if size < 1 or fixed_images > 10 or base > 3800:
+        raise ValueError(
+            "This panel has too much section content for one message. "
+            "Shorten the text, use fewer image headings, or remove a section."
+        )
     costs = [
         len(format_text(heading(kind), kind.get("heading_style", "bold")))
         if kind.get("heading_style", "bold") != "decorative"
@@ -112,10 +127,16 @@ def published_layout(config, token):
         "before_style",
         "before_finish",
         "before_color",
+        "before_heading",
+        "before_heading_style",
+        "before_sections",
         "after_text",
         "after_style",
         "after_finish",
         "after_color",
+        "after_heading",
+        "after_heading_style",
+        "after_sections",
     )
     type_keys = (
         "name",

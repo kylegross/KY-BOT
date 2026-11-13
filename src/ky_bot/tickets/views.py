@@ -5,7 +5,6 @@ import copy
 import uuid
 
 import discord
-
 from ky_bot.errors import report_error, send_private
 from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import private_parent
@@ -22,7 +21,6 @@ from .presentation import (
     format_text,
     heading_file,
     panel_text,
-    text_file,
     visible_types,
 )
 from .presentation import heading as section_heading
@@ -248,7 +246,11 @@ class Admin(Panel):
                 self.panel.add_item(
                     discord.ui.ActionRow(
                         button("Previous", self.turn(-25), disabled=offset == 0),
-                        button("Next", self.turn(25), disabled=offset + 25 >= len(collection)),
+                        button(
+                            "Next",
+                            self.turn(25),
+                            disabled=offset + 25 >= len(collection),
+                        ),
                     )
                 )
         elif page == "panel":
@@ -297,127 +299,45 @@ class Admin(Panel):
                 self.toggle_entry,
             )
         elif page == "panel_text":
-            item = config["panels"][selected]
             for position, title in (
                 ("before", "BEFORE THE BUTTONS"),
                 ("after", "AFTER THE BUTTONS"),
             ):
-
-                async def edit_text(i, position=position):
-                    await self.edit_panel_text(i, position)
-
                 self.row(
                     title,
-                    safe(panel_text(item, position))[:180] or "No text · optional",
-                    "Edit text",
-                    edit_text,
+                    "Optional header, main text and additional sections.",
+                    "Configure",
+                    self.go("text_" + position, selected),
                 )
-                key = position + "_style"
-                style = item.get(key, "plain")
-                self.row(
-                    title + " · FORMAT",
-                    PANEL_TEXT_STYLES[style],
-                    "Choose",
-                    self.go(page, selected, pick=key),
-                )
-                if pick == key:
-                    control = discord.ui.Select(
-                        placeholder="Choose text formatting",
-                        options=[
-                            discord.SelectOption(label=label, value=value, default=value == style)
-                            for value, label in PANEL_TEXT_STYLES.items()
-                        ],
-                    )
-
-                    async def choose(i, control=control, key=key):
-                        await self.set_panel_art(i, {key: control.values[0]})
-
-                    self.picker(control, choose)
-                if style == "decorative":
-                    self.row(
-                        title + " · LETTERING",
-                        "KY BOT finish and optional text color.",
-                        "Configure",
-                        self.go("panel_text_" + position, selected),
-                    )
             self.row(
                 "PRIVATE PREVIEW",
-                "Review both text blocks around the ticket buttons.",
+                "Review both areas around the ticket buttons.",
                 "Preview",
                 self.preview,
             )
-        elif page in {"panel_text_before", "panel_text_after"}:
-            from ky_bot.design.menu_design import FINISHES
-
-            position = page.removeprefix("panel_text_")
-            item = config["panels"][selected]
-            self.text("**TEXT LETTERING**\nChoose a finish and optional custom color.")
-            control = discord.ui.Select(
-                placeholder="Choose the text finish",
-                options=[
-                    discord.SelectOption(
-                        label="Follow header finish",
-                        value="follow",
-                        default=not item.get(position + "_finish"),
-                    )
-                ]
-                + [
-                    discord.SelectOption(
-                        label=label, value=value, default=value == item.get(position + "_finish")
-                    )
-                    for value, label in FINISHES.items()
-                ],
-            )
-
-            async def choose_finish(i):
-                await self.set_panel_art(
-                    i,
-                    {
-                        position + "_finish": None
-                        if control.values[0] == "follow"
-                        else control.values[0]
-                    },
-                )
-
-            self.picker(control, choose_finish)
-
-            async def color(i):
-                async def commit(i, values):
-                    await self.set_panel_art(
-                        i, {position + "_color": values["color"].lstrip("#") or None}
-                    )
-
-                await i.response.send_modal(
-                    Edit(
-                        self,
-                        "Panel text color",
-                        [
-                            (
-                                "color",
-                                "Hex color (blank follows finish)",
-                                item.get(position + "_color") or "",
-                                7,
-                            )
-                        ],
-                        commit,
-                    )
-                )
-
-            self.row(
-                "TEXT COLOR",
-                item.get(position + "_color") or "Follow selected finish",
-                "Edit color",
-                color,
-            )
+        elif page in {
+            "text_before",
+            "text_after",
+            "text_format_before",
+            "text_format_after",
+            "panel_text_before",
+            "panel_text_after",
+        }:
+            self.build_text_sections(page)
         elif page == "appearance":
             item = config["panels"][selected]
             for kind in ("header", "footer"):
                 mode = item.get(kind + "_mode", "ky")
-                label = {"ky": "KY BOT design", "custom": "Your uploaded image", "none": "Hidden"}[
-                    mode
-                ]
+                label = {
+                    "ky": "KY BOT design",
+                    "custom": "Your uploaded image",
+                    "none": "Hidden",
+                }[mode]
                 self.row(
-                    kind.upper() + " ARTWORK", label, "Configure", self.go("art_" + kind, selected)
+                    kind.upper() + " ARTWORK",
+                    label,
+                    "Configure",
+                    self.go("art_" + kind, selected),
                 )
             self.row(
                 "COLOR & CONTENT",
@@ -651,7 +571,9 @@ class Admin(Panel):
                 ]
                 + [
                     discord.SelectOption(
-                        label=label, value=key, default=key == item.get("heading_finish")
+                        label=label,
+                        value=key,
+                        default=key == item.get("heading_finish"),
                     )
                     for key, label in FINISHES.items()
                 ],
@@ -701,7 +623,12 @@ class Admin(Panel):
                 "Edit",
                 self.edit_limits,
             )
-            self.row("TICKET MESSAGES", "Welcome and closing messages.", "Edit", self.edit_messages)
+            self.row(
+                "TICKET MESSAGES",
+                "Welcome and closing messages.",
+                "Edit",
+                self.edit_messages,
+            )
             self.row(
                 "SAVED REPLIES",
                 "Reusable answers for staff.",
@@ -803,7 +730,12 @@ class Admin(Panel):
         elif page == "destinations":
             self.setting("TICKET CATEGORY", "category", self.settings, category=True)
             self.setting("ACTIVITY LOG CHANNELS", "log_channels", self.settings, channels=True)
-            self.setting("TRANSCRIPT CHANNELS", "transcript_channels", self.settings, channels=True)
+            self.setting(
+                "TRANSCRIPT CHANNELS",
+                "transcript_channels",
+                self.settings,
+                channels=True,
+            )
             self.text(
                 "-# Select several staff-only destinations. Activity logs contain "
                 "metadata; transcripts contain the conversation."
@@ -831,7 +763,13 @@ class Admin(Panel):
                 t
                 for t in tickets
                 if t["state"]
-                in {"open", "waiting_staff", "waiting_user", "creating", "pending_approval"}
+                in {
+                    "open",
+                    "waiting_staff",
+                    "waiting_user",
+                    "creating",
+                    "pending_approval",
+                }
             ]
             self.text(
                 f"**ACTIVE TICKETS**\n{len(active)} active · "
@@ -884,7 +822,12 @@ class Admin(Panel):
                 )
             )
 
-        if selected and page in {"access", "destinations", "type_workflow", "automation"}:
+        if selected and page in {
+            "access",
+            "destinations",
+            "type_workflow",
+            "automation",
+        }:
             self.row(
                 "CHANNEL OVERRIDES" if selected in config["panels"] else "TYPE OVERRIDES",
                 "Reset this panel to shared defaults."
@@ -939,6 +882,12 @@ class Admin(Panel):
             if selected
             else "home"
         )
+        if page in {"text_before", "text_after"}:
+            destination = "panel_text"
+        elif page.startswith("text_format_"):
+            destination = "text_" + page.removeprefix("text_format_")
+        elif page in {"panel_text_before", "panel_text_after"}:
+            destination = "text_format_" + page.removeprefix("panel_text_")
         if page == "home":
             if getattr(parent, "back_menu", None):
                 self.row("LOGS", "Return to the log categories.", "Back", self.back_logs)
@@ -962,8 +911,13 @@ class Admin(Panel):
                         "type_appearance",
                         "panel_types",
                         "panel_text",
+                        "text_before",
+                        "text_after",
+                        "text_format_before",
+                        "text_format_after",
                     }
                     else None,
+                    offset=self.offset if destination.startswith(("text_", "panel_text_")) else 0,
                 ),
             )
         self.finish()
@@ -993,10 +947,10 @@ class Admin(Panel):
             offset=offset,
         )
 
-    def go(self, page, selected=None, *, pick=None):
+    def go(self, page, selected=None, *, pick=None, offset=0):
         async def callback(i):
             await i.response.defer()
-            await self.show(i, page, selected, pick=pick)
+            await self.show(i, page, selected, pick=pick, offset=offset)
 
         return callback
 
@@ -1007,7 +961,7 @@ class Admin(Panel):
 
         return callback
 
-    async def save(self, i, data, *, page=None, selected=None):
+    async def save(self, i, data, *, page=None, selected=None, offset=None):
         if not i.response.is_done():
             await i.response.defer()
         await self.cog.store.configure(self.parent.guild_id, self.revision, data)
@@ -1016,7 +970,9 @@ class Admin(Panel):
             page or self.page,
             self.selected if selected is None else selected,
             notice="Saved. Publish a panel to update its public appearance.",
-            offset=self.offset if (page or self.page) == self.page else 0,
+            offset=(self.offset if (page or self.page) == self.page else 0)
+            if offset is None
+            else offset,
         )
 
     async def set_value(self, i, key, value):
@@ -1035,6 +991,243 @@ class Admin(Panel):
         data = copy.deepcopy(self.config)
         data["panels"][self.selected].update(changes)
         await self.save(i, data)
+
+    def text_section(self, position):
+        from .sections import blocks
+
+        values = blocks(self.config["panels"][self.selected], position)
+        self.offset = min(self.offset, len(values) - 1)
+        return values[self.offset]
+
+    async def set_text_section(self, i, position, changes):
+        data = copy.deepcopy(self.config)
+        item = data["panels"][self.selected]
+        if self.offset:
+            item[position + "_sections"][self.offset - 1].update(changes)
+        else:
+            keys = {
+                "heading": "_heading",
+                "heading_style": "_heading_style",
+                "body": "_text",
+                "body_style": "_style",
+                "finish": "_finish",
+                "color": "_color",
+            }
+            item.update({position + keys[key]: value for key, value in changes.items()})
+        await self.save(i, data)
+
+    async def edit_section_part(self, i, position, part):
+        block = self.text_section(position)
+        limit = (
+            80
+            if part == "heading" or block.get(part + "_style") == "decorative"
+            else (500 if self.offset else 1500 if position == "before" else 1000)
+        )
+
+        async def commit(i, values):
+            await self.set_text_section(i, position, {part: values["text"]})
+
+        await i.response.send_modal(
+            Edit(
+                self,
+                "Section " + ("header" if part == "heading" else "text"),
+                [
+                    (
+                        "text",
+                        "Optional header (blank hides)"
+                        if part == "heading"
+                        else "Section text (blank removes)",
+                        block[part],
+                        limit,
+                    )
+                ],
+                commit,
+            )
+        )
+
+    def build_text_sections(self, page):
+        from ky_bot.design.menu_design import FINISHES
+
+        from .sections import MAX_SECTIONS, blocks, new_section
+
+        position = "before" if page.endswith("before") else "after"
+        item = self.config["panels"][self.selected]
+        block = self.text_section(position)
+        if page.startswith("text_format_"):
+            for key, title, choices, default in (
+                ("heading_style", "HEADER FORMAT", HEADING_STYLES, "bold"),
+                ("body_style", "TEXT FORMAT", PANEL_TEXT_STYLES, "plain"),
+            ):
+                value = block.get(key, default)
+                self.row(
+                    title,
+                    choices[value],
+                    "Choose",
+                    self.go(page, self.selected, pick=key, offset=self.offset),
+                )
+                if self.pick == key:
+                    control = discord.ui.Select(
+                        placeholder="Choose formatting",
+                        options=[
+                            discord.SelectOption(label=label, value=style, default=style == value)
+                            for style, label in choices.items()
+                        ],
+                    )
+
+                    async def choose(i, key=key, control=control):
+                        await self.set_text_section(i, position, {key: control.values[0]})
+
+                    self.picker(control, choose)
+            if "decorative" in {block.get("heading_style"), block.get("body_style")}:
+                self.row(
+                    "KY BOT LETTERING",
+                    "Finish and optional custom color.",
+                    "Configure",
+                    self.go("panel_text_" + position, self.selected, offset=self.offset),
+                )
+            return
+        if page.startswith("panel_text_"):
+            self.text("**SECTION LETTERING**\nChoose a finish and optional custom color.")
+            finish = discord.ui.Select(
+                placeholder="Choose the section finish",
+                options=[
+                    discord.SelectOption(
+                        label="Follow header finish",
+                        value="follow",
+                        default=not block.get("finish"),
+                    )
+                ]
+                + [
+                    discord.SelectOption(label=label, value=key, default=key == block.get("finish"))
+                    for key, label in FINISHES.items()
+                ],
+            )
+
+            async def choose_finish(i):
+                await self.set_text_section(
+                    i,
+                    position,
+                    {"finish": None if finish.values[0] == "follow" else finish.values[0]},
+                )
+
+            self.picker(finish, choose_finish)
+
+            async def color(i):
+                async def commit(i, values):
+                    await self.set_text_section(
+                        i, position, {"color": values["color"].lstrip("#") or None}
+                    )
+
+                await i.response.send_modal(
+                    Edit(
+                        self,
+                        "Section text color",
+                        [
+                            (
+                                "color",
+                                "Hex color (blank follows finish)",
+                                block.get("color") or "",
+                                7,
+                            )
+                        ],
+                        commit,
+                    )
+                )
+
+            self.row("TEXT COLOR", block.get("color") or "Follow finish", "Edit color", color)
+            return
+        self.text(
+            "**"
+            + position.upper()
+            + " THE BUTTONS**\nThe main header is optional and has no divider. "
+            "Add extra sections when needed."
+        )
+        options = blocks(item, position)
+        picker = discord.ui.Select(
+            placeholder="Choose the main text or an extra section",
+            options=[
+                discord.SelectOption(
+                    label="Main header & text"
+                    if index == 0
+                    else f"{index}. {section['heading'] or 'Additional section'}"[:100],
+                    value=str(index),
+                    default=index == self.offset,
+                )
+                for index, section in enumerate(options)
+            ],
+        )
+
+        async def choose_section(i):
+            await i.response.defer()
+            await self.show(i, page, self.selected, offset=int(picker.values[0]))
+
+        self.picker(picker, choose_section)
+
+        async def add(i):
+            data = copy.deepcopy(self.config)
+            extra = data["panels"][self.selected].setdefault(position + "_sections", [])
+            if len(extra) >= MAX_SECTIONS:
+                raise ValueError("Use up to three additional sections on each side.")
+            extra.append(new_section())
+            await self.save(i, data, offset=len(extra))
+
+        self.row(
+            "ADDITIONAL SECTION",
+            "Add another header and text block. Its divider can be switched off.",
+            "Add section",
+            add,
+            disabled=len(options) > MAX_SECTIONS,
+        )
+
+        async def edit_header(i):
+            await self.edit_section_part(i, position, "heading")
+
+        async def edit_body(i):
+            await self.edit_section_part(i, position, "body")
+
+        self.row(
+            "HEADER · OPTIONAL",
+            safe(block["heading"]) or "No header",
+            "Edit header",
+            edit_header,
+        )
+        self.row("TEXT", safe(block["body"])[:180] or "No text", "Edit text", edit_body)
+        self.row(
+            "FORMATTING",
+            "Style the header and text independently.",
+            "Configure",
+            self.go("text_format_" + position, self.selected, offset=self.offset),
+        )
+        if self.offset:
+
+            async def divider(i):
+                await self.set_text_section(
+                    i, position, {"divider": not block.get("divider", True)}
+                )
+
+            async def remove(i):
+                data = copy.deepcopy(self.config)
+                data["panels"][self.selected][position + "_sections"].pop(self.offset - 1)
+                await self.save(i, data, offset=max(0, self.offset - 1))
+
+            self.row(
+                "SECTION DIVIDER",
+                "Shown" if block.get("divider") else "Hidden",
+                "Toggle",
+                divider,
+            )
+            self.row(
+                "REMOVE SECTION",
+                "Remove this additional draft section.",
+                "Remove",
+                remove,
+            )
+        self.row(
+            "PRIVATE PREVIEW",
+            "Review both areas around the ticket buttons.",
+            "Preview",
+            self.preview,
+        )
 
     async def set_type_art(self, i, changes):
         data = copy.deepcopy(self.config)
@@ -1119,7 +1312,11 @@ class Admin(Panel):
                     icon_upload,
                 )
         mode = item.get(kind + "_mode", "ky")
-        labels = {"ky": "KY BOT design", "custom": "Your uploaded image", "none": "Hidden"}
+        labels = {
+            "ky": "KY BOT design",
+            "custom": "Your uploaded image",
+            "none": "Hidden",
+        }
         self.row(
             kind.upper() + " SOURCE",
             labels[mode],
@@ -1182,7 +1379,15 @@ class Admin(Panel):
         )
 
     def setting(
-        self, title, key, values, *, roles=False, channels=False, channel=False, category=False
+        self,
+        title,
+        key,
+        values,
+        *,
+        roles=False,
+        channels=False,
+        channel=False,
+        category=False,
     ):
         current = values[key]
         entries = current if isinstance(current, list) else ([current] if current else [])
@@ -1331,7 +1536,12 @@ class Admin(Panel):
                 [
                     ("name", "Internal name", item["name"], 80),
                     ("title", "Public title", item["title"], 120),
-                    ("description", "Default text before buttons", item["description"], 1500),
+                    (
+                        "description",
+                        "Default text before buttons",
+                        item["description"],
+                        1500,
+                    ),
                 ],
                 commit,
             )
@@ -1397,7 +1607,14 @@ class Admin(Panel):
             Edit(
                 self,
                 "Text " + position + " the buttons",
-                [("text", "Panel text (blank removes)", panel_text(item, position), limit)],
+                [
+                    (
+                        "text",
+                        "Panel text (blank removes)",
+                        panel_text(item, position),
+                        limit,
+                    )
+                ],
                 commit,
             )
         )
@@ -1438,7 +1655,14 @@ class Admin(Panel):
             Edit(
                 self,
                 "Ticket type name",
-                [("name", "Internal topic name", self.config["types"][self.selected]["name"], 80)],
+                [
+                    (
+                        "name",
+                        "Internal topic name",
+                        self.config["types"][self.selected]["name"],
+                        80,
+                    )
+                ],
                 commit,
             )
         )
@@ -1559,7 +1783,10 @@ class Admin(Panel):
         await self.setting_form(
             i,
             "Ticket messages",
-            [("welcome", "Welcome message", 1000), ("close_message", "Closing message", 1000)],
+            [
+                ("welcome", "Welcome message", 1000),
+                ("close_message", "Closing message", 1000),
+            ],
         )
 
     async def edit_reply(self, i):
@@ -1720,6 +1947,7 @@ class PublicPanel(Panel):
     def __init__(self, config, token, *, preview=False, page=0):
         super().__init__(timeout=None)
         item = config["panels"][token]
+        enabled, page, pages = visible_types(config, token, page)
         self.panel.accent_colour = int(item["color"], 16)
         if item.get("header_mode", "ky") != "none":
             self.panel.add_item(
@@ -1735,7 +1963,6 @@ class PublicPanel(Panel):
         self.text_block(item, "before")
         if item["image"]:
             self.panel.add_item(discord.ui.MediaGallery(NoAltMediaGalleryItem(item["image"])))
-        enabled, page, pages = visible_types(config, token, page)
         for index, (key, kind) in enumerate(enabled):
             if kind and kind["enabled"]:
                 control = TicketButton(
@@ -1759,7 +1986,8 @@ class PublicPanel(Panel):
                 body = format_text(kind["description"], kind.get("description_style", "subtext"))
                 self.panel.add_item(
                     discord.ui.Section(
-                        "\n".join(filter(None, (title, body))) or "\u200b", accessory=control
+                        "\n".join(filter(None, (title, body))) or "\u200b",
+                        accessory=control,
                     )
                 )
         self.text_block(item, "after")
@@ -1768,10 +1996,15 @@ class PublicPanel(Panel):
             self.panel.add_item(
                 discord.ui.ActionRow(
                     PanelPage(
-                        token, max(0, page - 1), label="Previous", disabled=preview or page == 0
+                        token,
+                        max(0, page - 1),
+                        label="Previous",
+                        disabled=preview or page == 0,
                     ),
                     PanelPage(
-                        token, min(pages - 1, page + 1), disabled=preview or page + 1 >= pages
+                        token,
+                        min(pages - 1, page + 1),
+                        disabled=preview or page + 1 >= pages,
                     ),
                 )
             )
@@ -1791,24 +2024,40 @@ class PublicPanel(Panel):
             )
 
     def text_block(self, item, position):
-        content = panel_text(item, position)
-        if not content.strip():
-            return
-        style = item.get(position + "_style", "plain")
-        if style == "decorative":
-            self.panel.add_item(
-                discord.ui.MediaGallery(
-                    NoAltMediaGalleryItem("attachment://" + text_file(position))
-                )
-            )
-        else:
-            self.text(format_text(content, style))
+        from .sections import blocks, image_file
+
+        for block in blocks(item, position):
+            if not (block.get("heading", "").strip() or block.get("body", "").strip()):
+                continue
+            if block.get("divider"):
+                self.panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
+            for part in ("heading", "body"):
+                content = block.get(part, "")
+                if not content.strip():
+                    continue
+                style = block.get(part + "_style", "plain")
+                if style == "decorative":
+                    self.panel.add_item(
+                        discord.ui.MediaGallery(
+                            NoAltMediaGalleryItem(
+                                "attachment://" + image_file(position, block, part)
+                            )
+                        )
+                    )
+                else:
+                    self.text(format_text(content, style))
 
 
 class Intake(discord.ui.Modal):
     def __init__(self, cog, panel, kind, questions, user, message):
         super().__init__(title="Open a ticket", timeout=600)
-        self.cog, self.token, self.kind, self.user, self.message = cog, panel, kind, user, message
+        self.cog, self.token, self.kind, self.user, self.message = (
+            cog,
+            panel,
+            kind,
+            user,
+            message,
+        )
         self.questions = questions
         self.fields = []
         for question in questions:
@@ -1931,7 +2180,10 @@ class Manage(Panel):
                     self.picker(reply, self.selection("reply", reply))
         if staff and ticket["state"] == "closed":
             self.row(
-                "STAFF NOTES", "View the private staff record.", "View / add", self.do("notes")
+                "STAFF NOTES",
+                "View the private staff record.",
+                "View / add",
+                self.do("notes"),
             )
         for action, title, description in (
             ("transcript", "TRANSCRIPT", "Download the current conversation record."),

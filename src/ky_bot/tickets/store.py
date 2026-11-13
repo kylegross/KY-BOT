@@ -96,10 +96,16 @@ def new_panel(name, channel=0):
         footer_banner_text="",
         footer_icon=None,
         before_text=None,
+        before_heading="",
+        before_heading_style="bold",
+        before_sections=[],
         before_style="plain",
         before_finish=None,
         before_color=None,
         after_text="",
+        after_heading="",
+        after_heading_style="bold",
+        after_sections=[],
         after_style="plain",
         after_finish=None,
         after_color=None,
@@ -141,6 +147,9 @@ def validate(config):
     if len(config["types"]) > 100 or len(config["panels"]) > 100:
         raise ValueError("A server can configure up to 100 panels and 100 ticket types.")
     for panel in config["panels"].values():
+        from .sections import validate_sections
+
+        validate_sections(panel)
         for position, limit in (("before", 1500), ("after", 1000)):
             text = panel_text(panel, position)
             style = panel.get(position + "_style", "plain")
@@ -378,7 +387,15 @@ class Store(Connection):
         return self.decode(row)
 
     async def reserve(
-        self, guild, owner, panel_id, type_id, answers, *, now=None, expected_config=None
+        self,
+        guild,
+        owner,
+        panel_id,
+        type_id,
+        answers,
+        *,
+        now=None,
+        expected_config=None,
     ):
         now = time.time() if now is None else now
         async with self.transaction(guild):
@@ -402,7 +419,13 @@ class Store(Connection):
             if (
                 sum(
                     state
-                    in {"creating", "pending_approval", "open", "waiting_user", "waiting_staff"}
+                    in {
+                        "creating",
+                        "pending_approval",
+                        "open",
+                        "waiting_user",
+                        "waiting_staff",
+                    }
                     for state, _ in rows
                 )
                 >= settings["max_open"]
@@ -479,7 +502,12 @@ class Store(Connection):
                         0,
                         time.time(),
                         json.dumps(
-                            dict(title=title, actor=actor, detail=detail[:1500], archive=archive)
+                            dict(
+                                title=title,
+                                actor=actor,
+                                detail=detail[:1500],
+                                archive=archive,
+                            )
                         ),
                     ),
                 )
@@ -507,7 +535,8 @@ class Store(Connection):
     async def retry(self, event):
         async with self.lock:
             await self.execute(
-                "UPDATE ticket_events SET retry_at=? WHERE id=?", (time.time() + 60, event)
+                "UPDATE ticket_events SET retry_at=? WHERE id=?",
+                (time.time() + 60, event),
             )
 
     async def delivered(self, event):
@@ -554,7 +583,8 @@ class Store(Connection):
                 if state in {"closed", "deleted"}:
                     data.update(answers=[], notes=[], reason="")
                     await self.execute(
-                        "UPDATE tickets SET data=? WHERE id=?", (json.dumps(data), token)
+                        "UPDATE tickets SET data=? WHERE id=?",
+                        (json.dumps(data), token),
                     )
             await self.execute(
                 (
