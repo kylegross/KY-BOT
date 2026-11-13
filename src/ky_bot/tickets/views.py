@@ -13,6 +13,7 @@ from ky_bot.views.menu_strips import GROUPS, group_sections, heading
 from ky_bot.views.sections import section_dividers
 
 from .artwork import normalize, public_files
+from .log_access import scope_destinations, viewer_roles
 from .store import new_panel, new_type
 
 STARTER_TOPICS = {
@@ -484,6 +485,12 @@ class Admin(Panel):
                 ("BLOCKED FROM OPENING", "blocked_roles"),
             ):
                 self.setting(title, key, self.settings, roles=True)
+            self.row(
+                "LOG ACCESS",
+                "Choose who can view activity logs and saved transcripts.",
+                "Configure",
+                self.go("log_access", selected),
+            )
             self.text(
                 "-# Empty allowed roles permits everyone. Blocked roles take "
                 "priority. Administrators retain access to private channels."
@@ -492,6 +499,40 @@ class Admin(Panel):
                 "-# Support staff handle tickets. Approvers review waiting requests. "
                 "Managers can also approve, reassign and transfer tickets. "
                 "Require approval keeps the member's ticket read-only until approved."
+            )
+        elif page == "log_access":
+            self.setting("LOG VIEWER ROLES", "log_viewer_roles", self.settings, roles=True)
+
+            async def follow_managers(i):
+                await self.set_value(i, "log_viewer_roles", None)
+
+            self.row(
+                "FOLLOW TICKET MANAGERS",
+                "Keep log viewers matched to manager roles automatically.",
+                "Use managers",
+                follow_managers,
+            )
+            targets = sorted(scope_destinations(config, selected, self.settings))
+            labels = (
+                ", ".join(f"<#{cid}>" for cid in targets[:20])
+                or "Choose log channels under Channels & Logs first."
+            )
+            self.text(
+                "**CHANNELS TO UPDATE**\n"
+                + labels
+                + (f" · {len(targets)} channels total" if len(targets) > 20 else "")
+            )
+            self.row(
+                "CHANNEL PERMISSIONS",
+                "Hide these channels from other roles and grant the chosen viewers access.",
+                "Apply Channel Access",
+                self.apply_log_access,
+            )
+            self.text(
+                "-# Log access is separate from ticket access. "
+                "Support roles are not automatically included. Clear the role selection "
+                "for administrators only. Discord administrators retain access. "
+                "Channels shared by panels use their combined log viewer roles."
             )
         elif page == "panel_logs":
             item = config["defaults"] | config["panels"][selected].get("overrides", {})
@@ -603,6 +644,7 @@ class Admin(Panel):
         if page != "home":
             category = {
                 "access": "ACCESS & PRIVACY",
+                "log_access": "ACCESS & PRIVACY",
                 "destinations": "CHANNELS & LOGGING",
                 "panel_logs": "CHANNELS & LOGGING",
                 "automation": "AUTOMATION",
@@ -617,7 +659,9 @@ class Admin(Panel):
             )
             GROUPS[self.groups] = ((category, labels),)
         destination = (
-            "appearance"
+            "access"
+            if page == "log_access"
+            else "appearance"
             if page in {"art_header", "art_footer"}
             else "panel"
             if page == "appearance"
@@ -646,7 +690,7 @@ class Admin(Panel):
                 self.go(
                     destination,
                     selected
-                    if destination in {"panel", "type", "panel_settings", "appearance"}
+                    if destination in {"panel", "type", "panel_settings", "appearance", "access"}
                     else None,
                 ),
             )
@@ -720,6 +764,18 @@ class Admin(Panel):
         data["panels"][self.selected].update(changes)
         await self.save(i, data)
 
+    async def apply_log_access(self, i):
+        await i.response.defer()
+        count = await self.cog.apply_log_access(
+            i.guild, self.selected, self.settings, self.revision
+        )
+        await self.show(
+            i,
+            "log_access",
+            self.selected,
+            notice=f"Updated {count} log channel(s). Ticket access is unchanged.",
+        )
+
     def artwork_controls(self, kind):
         from ky_bot.design.menu_design import FINISHES
 
@@ -792,10 +848,18 @@ class Admin(Panel):
     ):
         current = values[key]
         entries = current if isinstance(current, list) else ([current] if current else [])
+        if key == "log_viewer_roles" and current is None:
+            entries = sorted(viewer_roles(values))
         label = (
             ", ".join(f"<@&{value}>" if roles else f"<#{value}>" for value in entries)
             or "Not configured"
         )
+        if key == "log_viewer_roles":
+            label = (
+                ("Follow ticket managers · " + (label if entries else "Administrators only"))
+                if current is None
+                else (label if entries else "Administrators only")
+            )
         if self.selected and self.page != "panel":
             collection = (
                 self.config["panels"]
@@ -844,7 +908,7 @@ class Admin(Panel):
                 for value in ids:
                     target = i.guild.get_channel(value)
                     if channels:
-                        await self.cog.validate_log(target, self.settings)
+                        self.cog.validate_log_destination(target)
                     else:
                         self.cog.validate_destination(target, category=category)
             await self.set_value(i, key, ids if roles or channels else (ids[0] if ids else 0))

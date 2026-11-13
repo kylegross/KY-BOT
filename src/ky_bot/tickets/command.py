@@ -175,44 +175,83 @@ class Tickets(commands.Cog):
         if missing:
             raise ValueError("KY BOT needs: " + ", ".join(missing) + ".")
 
-    async def validate_log(self, channel, settings):
+    def validate_log_destination(self, channel):
         self.validate_destination(channel)
         if not channel.permissions_for(channel.guild.me).attach_files:
             raise ValueError("KY BOT needs Attach Files in log and transcript channels.")
-        permitted = set(
-            settings["support_roles"]
-            + settings["manager_roles"]
-            + settings.get("approver_roles", [])
-        )
+
+    async def validate_log(self, channel, settings):
+        from .log_access import allowed_member, channel_viewers
+
+        self.validate_log_destination(channel)
         _, config = await self.store.config(channel.guild.id)
-        permitted.update(config["defaults"]["support_roles"] + config["defaults"]["manager_roles"])
-        for kind in list(config["types"].values()) + list(config["panels"].values()):
-            combined = config["defaults"] | kind["overrides"]
-            permitted.update(
-                combined["support_roles"]
-                + combined["manager_roles"]
-                + combined.get("approver_roles", [])
-            )
+        permitted = channel_viewers(config, channel.id, settings)
         if channel.permissions_for(channel.guild.default_role).view_channel:
-            raise ValueError("Choose a staff-only log channel hidden from @everyone.")
+            raise ValueError(
+                "Log channels must be hidden from @everyone. "
+                "Use Access & Privacy → Log Access → Apply Channel Access."
+            )
         for role in channel.guild.roles:
-            if role.is_default() or role.managed or role.permissions.administrator:
+            if role.is_default() or role.permissions.administrator:
                 continue
             if role.id not in permitted and channel.permissions_for(role).view_channel:
                 raise ValueError(
-                    "Log access includes a role outside the configured ticket staff. "
-                    "Adjust channel permissions or ticket staff roles."
+                    "Log access includes an unselected role. Choose Log Viewer Roles "
+                    "under Access & Privacy → Log Access, then Apply Channel Access."
                 )
         for member in channel.overwrites:
             if (
                 isinstance(member, discord.Member)
-                and not member.bot
+                and member.id != channel.guild.me.id
                 and channel.permissions_for(member).view_channel
-                and not staff(member, settings)
+                and not allowed_member(member, permitted)
             ):
                 raise ValueError(
-                    "Log access includes a member outside the configured ticket staff."
+                    "Log access includes an unselected member. Use Apply Channel Access "
+                    "to restrict viewing to the chosen roles."
                 )
+
+    async def apply_log_access(self, guild, selected, settings, expected):
+        from .log_access import channel_viewers, privacy_overwrites, scope_destinations
+
+        async with self.config_lock:
+            revision, config = await self.store.config(guild.id)
+            if revision != expected:
+                raise ValueError("Settings changed. Reopen Log Access before applying permissions.")
+            targets = scope_destinations(config, selected, settings)
+            if not targets:
+                raise ValueError("Choose activity log or transcript channels first.")
+            prepared = []
+            for cid in sorted(targets):
+                if await self.store.by_channel(guild.id, cid) or any(
+                    cid in {panel["channel"], panel["published_channel"]}
+                    for panel in config["panels"].values()
+                ):
+                    raise ValueError(
+                        "Choose a separate log channel instead of a ticket or panel channel."
+                    )
+                channel = guild.get_channel(cid)
+                self.validate_log_destination(channel)
+                if not channel.permissions_for(guild.me).manage_roles:
+                    raise ValueError(
+                        "KY BOT needs Manage Permissions in each selected log channel."
+                    )
+                roles = channel_viewers(config, cid, settings)
+                prepared.append((channel, privacy_overwrites(channel, roles)))
+            applied = 0
+            for channel, overwrites in prepared:
+                try:
+                    await channel.edit(
+                        overwrites=overwrites, reason="Ticket log viewer role configuration"
+                    )
+                    applied += 1
+                    await self.validate_log(channel, settings)
+                except (discord.HTTPException, ValueError) as error:
+                    raise ValueError(
+                        f"Updated {applied} log channel(s); couldn't finish all changes. "
+                        "Check channel permissions and apply again."
+                    ) from error
+            return applied
 
     async def validate_type(self, guild, settings):
         category = guild.get_channel(settings["category"])

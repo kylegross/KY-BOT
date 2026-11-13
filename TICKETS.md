@@ -67,6 +67,29 @@ Existing tickets retain a snapshot of their staff, automation and destination se
 Transferring a ticket explicitly applies its destination type's current configuration.
 Only ticket managers with access to the destination team can transfer tickets.
 
+## Log viewer roles
+
+**Access & Privacy → Log Access** controls log visibility independently of support
+and approval roles. The default follows **Ticket Managers**; support roles do not
+automatically receive access to activity logs or transcripts. Choose **Log Viewer
+Roles** for a separate audience, **Use Managers** to follow manager roles, or clear
+the role picker for administrators only.
+
+After choosing the activity/transcript destinations and viewer roles, use **Apply
+Channel Access**. The menu lists the channels it will update. KY BOT hides those
+channels from @everyone, removes other role/member viewing overrides, grants the
+selected roles viewing and message-history access, and retains the bot's delivery
+permissions. It preserves unrelated permission settings. The bot needs Manage
+Permissions in each destination. Ticket and public-panel channels are rejected;
+their access is not changed by this action.
+
+A channel shared by multiple configured panels/types uses their combined log viewer
+roles. Use different destinations when those audiences must remain separate.
+Discord administrators always bypass channel restrictions. Unselected roles or
+direct member overrides cause delivery to wait until channel access is corrected.
+Selecting destination channels is allowed before applying access, but publishing
+and log delivery still check privacy before posting any records.
+
 ## Handling tickets
 
 Members press a panel button, complete its form, and receive a private channel link.

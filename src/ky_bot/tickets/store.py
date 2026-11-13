@@ -44,6 +44,7 @@ def defaults():
             support_roles=[],
             manager_roles=[],
             approver_roles=[],
+            log_viewer_roles=None,
             require_approval=False,
             log_channels=[],
             transcript_channels=[],
@@ -194,9 +195,12 @@ def validate(config):
             "support_roles",
             "manager_roles",
             "approver_roles",
+            "log_viewer_roles",
             "allowed_roles",
             "blocked_roles",
         ):
+            if key == "log_viewer_roles" and item[key] is None:
+                continue
             if len(item[key]) > 10:
                 raise ValueError("Select at most ten destinations or roles per setting.")
         if item["auto_close_hours"] and item["reminder_hours"] >= item["auto_close_hours"]:
