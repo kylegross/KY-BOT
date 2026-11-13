@@ -287,7 +287,7 @@ class Admin(Panel):
             )
             self.row(
                 "PRIVATE PREVIEW",
-                "Claim, Close, Transcript and Manage stay standard.",
+                "Claim, Close, Save Transcript and Manage Ticket stay standard.",
                 "Preview",
                 self.preview,
             )
@@ -1955,7 +1955,9 @@ class TicketButton(
         self.token, self.action, self.kind = token, action, kind
         super().__init__(
             discord.ui.Button(
-                label=label or action.title(),
+                label=label or {"transcript": "Save Transcript", "manage": "Manage Ticket"}.get(
+                    action, action.title()
+                ),
                 emoji=emoji,
                 style=discord.ButtonStyle.secondary,
                 disabled=disabled,
@@ -2260,7 +2262,11 @@ class Manage(Panel):
                 "Close with a reason or reopen the conversation.",
             ),
         ):
-            self.row(title, description, action.title(), self.do(action))
+            self.row(
+                title, description,
+                "Save Transcript" if action == "transcript" else action.title(),
+                self.do(action),
+            )
         if staff and ticket["state"] == "closed":
             self.row(
                 "DELETE CHANNEL",
