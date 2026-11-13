@@ -12,6 +12,16 @@ BODY_STYLES = {
     "subtext": "Small muted text",
     **{key: value for key, value in HEADING_STYLES.items() if key != "decorative"},
 }
+PANEL_TEXT_STYLES = {"subtext": "Small muted text", **HEADING_STYLES}
+
+
+def panel_text(panel, position):
+    value = panel.get(position + "_text")
+    return (panel["description"] if position == "before" else "") if value is None else value
+
+
+def text_file(position):
+    return "ticket_panel_" + position + ".png"
 
 
 def heading(kind):
@@ -36,14 +46,42 @@ def format_text(text, style):
 
 
 def visible_types(config, token, page=0):
+    panel = config["panels"][token]
     entries = [
         (key, config["types"][key])
         for key in config["panels"][token]["types"]
         if key in config["types"] and config["types"][key]["enabled"]
     ]
-    pages = max(1, (len(entries) + PER_PAGE - 1) // PER_PAGE)
+    size = PER_PAGE
+    if panel_text(panel, "after").strip() and any(
+        panel.get(position + "_style", "plain") == "decorative" for position in ("before", "after")
+    ):
+        size = 4
+    base = (
+        sum(
+            len(format_text(panel_text(panel, position), panel.get(position + "_style", "plain")))
+            for position in ("before", "after")
+            if panel.get(position + "_style", "plain") != "decorative"
+        )
+        + len(panel["title"])
+        + len(panel["footer"])
+        + 200
+    )
+    costs = [
+        len(format_text(heading(kind), kind.get("heading_style", "bold")))
+        if kind.get("heading_style", "bold") != "decorative"
+        else 0
+        for _, kind in entries
+    ]
+    costs = [
+        cost + len(format_text(kind["description"], kind.get("description_style", "subtext"))) + 10
+        for cost, (_, kind) in zip(costs, entries)
+    ]
+    if costs:
+        size = max(1, min(size, max(1, 3900 - base) // max(1, max(costs))))
+    pages = max(1, (len(entries) + size - 1) // size)
     page = max(0, min(page, pages - 1))
-    return entries[page * PER_PAGE : (page + 1) * PER_PAGE], page, pages
+    return entries[page * size : (page + 1) * size], page, pages
 
 
 def heading_file(key):
@@ -70,6 +108,14 @@ def published_layout(config, token):
         "footer_content",
         "footer_banner_text",
         "footer_icon",
+        "before_text",
+        "before_style",
+        "before_finish",
+        "before_color",
+        "after_text",
+        "after_style",
+        "after_finish",
+        "after_color",
     )
     type_keys = (
         "name",

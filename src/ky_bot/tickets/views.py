@@ -17,9 +17,12 @@ from .log_access import scope_destinations, viewer_roles
 from .presentation import (
     BODY_STYLES,
     HEADING_STYLES,
+    PANEL_TEXT_STYLES,
     button_label,
     format_text,
     heading_file,
+    panel_text,
+    text_file,
     visible_types,
 )
 from .presentation import heading as section_heading
@@ -270,6 +273,12 @@ class Admin(Panel):
             )
             self.row("TICKET TYPES", names, "Choose types", self.go("panel_types", selected))
             self.row(
+                "PANEL TEXT",
+                "Styled text before and after the ticket buttons.",
+                "Edit text",
+                self.go("panel_text", selected),
+            )
+            self.row(
                 "APPEARANCE",
                 "KY BOT designs or your own header and footer images.",
                 "Manage",
@@ -286,6 +295,119 @@ class Admin(Panel):
                 "Enabled" if item["enabled"] else "Disabled",
                 "Toggle",
                 self.toggle_entry,
+            )
+        elif page == "panel_text":
+            item = config["panels"][selected]
+            for position, title in (
+                ("before", "BEFORE THE BUTTONS"),
+                ("after", "AFTER THE BUTTONS"),
+            ):
+
+                async def edit_text(i, position=position):
+                    await self.edit_panel_text(i, position)
+
+                self.row(
+                    title,
+                    safe(panel_text(item, position))[:180] or "No text · optional",
+                    "Edit text",
+                    edit_text,
+                )
+                key = position + "_style"
+                style = item.get(key, "plain")
+                self.row(
+                    title + " · FORMAT",
+                    PANEL_TEXT_STYLES[style],
+                    "Choose",
+                    self.go(page, selected, pick=key),
+                )
+                if pick == key:
+                    control = discord.ui.Select(
+                        placeholder="Choose text formatting",
+                        options=[
+                            discord.SelectOption(label=label, value=value, default=value == style)
+                            for value, label in PANEL_TEXT_STYLES.items()
+                        ],
+                    )
+
+                    async def choose(i, control=control, key=key):
+                        await self.set_panel_art(i, {key: control.values[0]})
+
+                    self.picker(control, choose)
+                if style == "decorative":
+                    self.row(
+                        title + " · LETTERING",
+                        "KY BOT finish and optional text color.",
+                        "Configure",
+                        self.go("panel_text_" + position, selected),
+                    )
+            self.row(
+                "PRIVATE PREVIEW",
+                "Review both text blocks around the ticket buttons.",
+                "Preview",
+                self.preview,
+            )
+        elif page in {"panel_text_before", "panel_text_after"}:
+            from ky_bot.design.menu_design import FINISHES
+
+            position = page.removeprefix("panel_text_")
+            item = config["panels"][selected]
+            self.text("**TEXT LETTERING**\nChoose a finish and optional custom color.")
+            control = discord.ui.Select(
+                placeholder="Choose the text finish",
+                options=[
+                    discord.SelectOption(
+                        label="Follow header finish",
+                        value="follow",
+                        default=not item.get(position + "_finish"),
+                    )
+                ]
+                + [
+                    discord.SelectOption(
+                        label=label, value=value, default=value == item.get(position + "_finish")
+                    )
+                    for value, label in FINISHES.items()
+                ],
+            )
+
+            async def choose_finish(i):
+                await self.set_panel_art(
+                    i,
+                    {
+                        position + "_finish": None
+                        if control.values[0] == "follow"
+                        else control.values[0]
+                    },
+                )
+
+            self.picker(control, choose_finish)
+
+            async def color(i):
+                async def commit(i, values):
+                    await self.set_panel_art(
+                        i, {position + "_color": values["color"].lstrip("#") or None}
+                    )
+
+                await i.response.send_modal(
+                    Edit(
+                        self,
+                        "Panel text color",
+                        [
+                            (
+                                "color",
+                                "Hex color (blank follows finish)",
+                                item.get(position + "_color") or "",
+                                7,
+                            )
+                        ],
+                        commit,
+                    )
+                )
+
+            self.row(
+                "TEXT COLOR",
+                item.get(position + "_color") or "Follow selected finish",
+                "Edit color",
+                color,
             )
         elif page == "appearance":
             item = config["panels"][selected]
@@ -789,7 +911,11 @@ class Admin(Panel):
             )
             GROUPS[self.groups] = ((category, labels),)
         destination = (
-            "panel_types"
+            "panel_text"
+            if page in {"panel_text_before", "panel_text_after"}
+            else "panel"
+            if page == "panel_text"
+            else "panel_types"
             if page == "panel_type_edit"
             else "type_appearance"
             if page == "type_lettering"
@@ -835,6 +961,7 @@ class Admin(Panel):
                         "access",
                         "type_appearance",
                         "panel_types",
+                        "panel_text",
                     }
                     else None,
                 ),
@@ -1204,7 +1331,7 @@ class Admin(Panel):
                 [
                     ("name", "Internal name", item["name"], 80),
                     ("title", "Public title", item["title"], 120),
-                    ("description", "Public message", item["description"], 1500),
+                    ("description", "Default text before buttons", item["description"], 1500),
                 ],
                 commit,
             )
@@ -1251,6 +1378,26 @@ class Admin(Panel):
                         80,
                     )
                 ],
+                commit,
+            )
+        )
+
+    async def edit_panel_text(self, i, position):
+        item = self.config["panels"][self.selected]
+
+        async def commit(i, values):
+            await self.set_panel_art(i, {position + "_text": values["text"]})
+
+        limit = (
+            80
+            if item.get(position + "_style", "plain") == "decorative"
+            else (1500 if position == "before" else 1000)
+        )
+        await i.response.send_modal(
+            Edit(
+                self,
+                "Text " + position + " the buttons",
+                [("text", "Panel text (blank removes)", panel_text(item, position), limit)],
                 commit,
             )
         )
@@ -1580,14 +1727,12 @@ class PublicPanel(Panel):
                     NoAltMediaGalleryItem("attachment://ticket_panel_header.png")
                 )
             )
-        content = (
-            item["description"]
-            if item.get("header_mode", "ky") == "ky"
+        if not (
+            item.get("header_mode", "ky") == "ky"
             or (item.get("header_mode") == "custom" and item.get("header_title"))
-            else f"## {safe(item['title'])}\n{item['description']}"
-        )
-        if content.strip():
-            self.text(content)
+        ):
+            self.text(f"## {safe(item['title'])}")
+        self.text_block(item, "before")
         if item["image"]:
             self.panel.add_item(discord.ui.MediaGallery(NoAltMediaGalleryItem(item["image"])))
         enabled, page, pages = visible_types(config, token, page)
@@ -1617,6 +1762,7 @@ class PublicPanel(Panel):
                         "\n".join(filter(None, (title, body))) or "\u200b", accessory=control
                     )
                 )
+        self.text_block(item, "after")
         if pages > 1:
             self.text(f"-# Page {page + 1} of {pages}")
             self.panel.add_item(
@@ -1643,6 +1789,20 @@ class PublicPanel(Panel):
                 "This panel page has too much formatted text. "
                 "Shorten the panel message or topic descriptions."
             )
+
+    def text_block(self, item, position):
+        content = panel_text(item, position)
+        if not content.strip():
+            return
+        style = item.get(position + "_style", "plain")
+        if style == "decorative":
+            self.panel.add_item(
+                discord.ui.MediaGallery(
+                    NoAltMediaGalleryItem("attachment://" + text_file(position))
+                )
+            )
+        else:
+            self.text(format_text(content, style))
 
 
 class Intake(discord.ui.Modal):

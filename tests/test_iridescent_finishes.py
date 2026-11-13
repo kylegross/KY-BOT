@@ -49,10 +49,10 @@ class IridescentFinishTests(unittest.TestCase):
         for style in STYLES:
             with self.subTest(style=style):
                 with Image.open(io.BytesIO(title_image("SAVED EMBEDS", style))) as image:
-                    crop = image.crop((4, 16, 4 + mask.width, 16 + mask.height))
+                    crop = image.crop((6, 16, 6 + mask.width, 16 + mask.height))
                     expected = text_ink(mask, style)
                     self.assertIsNone(ImageChops.difference(crop, expected).getbbox())
-                    self.assertIsNone(image.getchannel("A").crop((0, 0, 4, image.height)).getbbox())
+                    self.assertIsNone(image.getchannel("A").crop((0, 0, 6, image.height)).getbbox())
 
     def test_custom_menu_colors_preserve_packaged_rule_and_heading_geometry(self):
         from ky_bot.views.menu_strips import GROUPS, strip_files

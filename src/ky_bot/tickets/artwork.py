@@ -92,6 +92,19 @@ def public_files(panel, config=None, token=None, page=0):
                         kind.get("heading_color"),
                     )
                     result.append(discord.File(io.BytesIO(data), filename=heading_file(key)))
+        from .presentation import panel_text, text_file
+
+        for position in ("before", "after"):
+            text = panel_text(panel, position)
+            if text.strip() and panel.get(position + "_style", "plain") == "decorative":
+                from ky_bot.checklists.artwork import title_image
+
+                data = title_image(
+                    text,
+                    panel.get(position + "_finish") or panel.get("header_finish", "dark_silver"),
+                    panel.get(position + "_color"),
+                )
+                result.append(discord.File(io.BytesIO(data), filename=text_file(position)))
         return result
     except BaseException:
         for file in result:

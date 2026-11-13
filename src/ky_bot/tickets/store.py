@@ -95,6 +95,14 @@ def new_panel(name, channel=0):
         footer_content="emblem",
         footer_banner_text="",
         footer_icon=None,
+        before_text=None,
+        before_style="plain",
+        before_finish=None,
+        before_color=None,
+        after_text="",
+        after_style="plain",
+        after_finish=None,
+        after_color=None,
     )
 
 
@@ -128,11 +136,37 @@ def effective(config, type_id, panel_id=None):
 def validate(config):
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-    from .presentation import BODY_STYLES, HEADING_STYLES
+    from .presentation import BODY_STYLES, HEADING_STYLES, PANEL_TEXT_STYLES, panel_text
 
     if len(config["types"]) > 100 or len(config["panels"]) > 100:
         raise ValueError("A server can configure up to 100 panels and 100 ticket types.")
     for panel in config["panels"].values():
+        for position, limit in (("before", 1500), ("after", 1000)):
+            text = panel_text(panel, position)
+            style = panel.get(position + "_style", "plain")
+            if len(text) > limit or style not in PANEL_TEXT_STYLES:
+                raise ValueError(
+                    f"Use a supported text style and up to {limit} characters "
+                    f"{position} the buttons."
+                )
+            if style == "decorative" and text and (len(text) > 80 or "\n" in text):
+                raise ValueError("KY BOT special text uses one line of up to 80 characters.")
+            if panel.get(position + "_finish") not in {
+                None,
+                "gold",
+                "dark_silver",
+                "silver_neon",
+                "red_iridescent",
+            }:
+                raise ValueError("Choose a supported panel text finish.")
+            color = panel.get(position + "_color")
+            if color is not None:
+                try:
+                    if len(color) != 6:
+                        raise ValueError
+                    int(color, 16)
+                except ValueError:
+                    raise ValueError("Use a six-digit panel text color.") from None
         title = panel.get("header_title")
         if title is not None and (not isinstance(title, str) or len(title) > 80 or "\n" in title):
             raise ValueError("Use a single-line header title of up to 80 characters.")

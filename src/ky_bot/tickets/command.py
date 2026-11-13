@@ -19,7 +19,7 @@ from ky_bot.errors import send_private
 from ky_bot.log_style import send_log, style_log
 from ky_bot.views.menu_context import defer_menu, display_menu, menu_parent
 
-from .store import Store, effective
+from .store import Store, effective, new_panel
 from .views import (
     Admin,
     Confirm,
@@ -379,7 +379,10 @@ class Tickets(commands.Cog):
             layout = copy.deepcopy(panel["published_layout"])
             for key, kind in layout["types"].items():
                 kind["enabled"] = config["types"].get(key, {}).get("enabled", False)
-            config = {"panels": {token: panel | layout["panel"]}, "types": layout["types"]}
+            base = new_panel(panel["name"]) | {
+                key: panel[key] for key in ("message", "published_channel", "channel", "enabled")
+            }
+            config = {"panels": {token: base | layout["panel"]}, "types": layout["types"]}
             panel = config["panels"][token]
         view = PublicPanel(config, token, page=page)
         uploads = await asyncio.to_thread(public_files, panel, config, token, page)
