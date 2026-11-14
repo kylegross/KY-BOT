@@ -2354,7 +2354,7 @@ class Confirm(Panel):
             action,
             reason,
         )
-        from ky_bot.log_style import PREFIX, SUFFIX
+        from ky_bot.log_style import decorated_title
 
         owner_name = ticket.get("owner_username")
         if not owner_name:
@@ -2362,8 +2362,9 @@ class Confirm(Panel):
             get_user = getattr(bot, "get_user", None)
             member = get_user(ticket["owner"]) if get_user else None
             owner_name = member.name if member else f"User {ticket['owner']}"
+        title = decorated_title(f"{action.upper()} TICKET · {safe(owner_name)}?")
         self.text(
-            f"### {PREFIX}{action.upper()} TICKET · {safe(owner_name)}?{SUFFIX}\n"
+            f"**{title}**\n"
             + (
                 "Save its transcript and permanently remove the ticket conversation."
                 if action == "delete"

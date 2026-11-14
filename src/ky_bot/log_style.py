@@ -10,10 +10,15 @@ SUFFIX = "  𑁍ੈ\\*"
 ICON = "attachment://ky_bot_logo.png"
 
 
+def decorated_title(title):
+    """Use the exact same title ornaments for logs and ticket confirmations."""
+    if title.startswith(PREFIX) and title.endswith(SUFFIX):
+        return title
+    return PREFIX + title[: 256 - len(PREFIX) - len(SUFFIX)] + SUFFIX
+
+
 def style_log(embed):
-    title = embed.title or "ACTIVITY LOG"
-    if not (title.startswith(PREFIX) and title.endswith(SUFFIX)):
-        embed.title = PREFIX + title[: 256 - len(PREFIX) - len(SUFFIX)] + SUFFIX
+    embed.title = decorated_title(embed.title or "ACTIVITY LOG")
     if embed.timestamp is None:
         embed.timestamp = discord.utils.utcnow()
     embed.set_footer(text="KY BOT", icon_url=ICON)

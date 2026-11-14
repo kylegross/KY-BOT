@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import discord
 
-from ky_bot.log_style import PREFIX, SUFFIX
+from ky_bot.log_style import PREFIX, SUFFIX, style_log
 from ky_bot.tickets.store import defaults, new_panel, new_type
 from ky_bot.tickets.views import Admin, Confirm
 
@@ -46,6 +46,8 @@ class TicketNavigationTests(unittest.IsolatedAsyncioTestCase):
             title = menu.panel.children[0].content
             self.assertIn(PREFIX + action.upper() + " TICKET", title)
             self.assertIn("example.user?" + SUFFIX, title)
+            expected = style_log(discord.Embed(title=f"{action.upper()} TICKET · example.user?"))
+            self.assertEqual(title.splitlines()[0], f"**{expected.title}**")
             self.assertNotIn("aaaaaaaa", title)
             cancel = next(
                 c
