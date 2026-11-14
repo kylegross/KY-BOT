@@ -5,6 +5,7 @@ import copy
 import uuid
 
 import discord
+
 from ky_bot.errors import report_error, send_private
 from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import private_parent
@@ -169,9 +170,14 @@ class Admin(Panel):
         notice=None,
         tickets=(),
         opening=False,
+        panel_context=None,
     ):
         super().__init__(timeout=None if parent.panel_manager else 600, artwork=True)
         self.cog, self.parent, self.revision = cog, parent, revision
+        self.panel_context = (
+            panel_context if panel_context in config["panels"]
+            else selected if selected in config["panels"] else None
+        )
         self.opening = opening
         self.original_config = config
         if opening:
@@ -936,6 +942,9 @@ class Admin(Panel):
             destination = "text_" + page.removeprefix("text_format_")
         elif page in {"panel_text_before", "panel_text_after"}:
             destination = "text_format_" + page.removeprefix("panel_text_")
+        if page == "types" and self.panel_context:
+            destination = "panel"
+        back_selected = self.panel_context if destination == "panel" else selected
         if page == "home":
             if getattr(parent, "back_menu", None):
                 self.row("LOGS", "Return to the log categories.", "Back", self.back_logs)
@@ -948,7 +957,7 @@ class Admin(Panel):
                 "Back",
                 self.go(
                     destination,
-                    selected
+                    back_selected
                     if destination
                     in {
                         "panel",
@@ -994,6 +1003,7 @@ class Admin(Panel):
             pick=pick,
             offset=offset,
             opening=self.opening,
+            panel_context=self.panel_context if page not in {"home", "panels"} else None,
         )
 
     async def open_opening(self, i):
@@ -1955,7 +1965,8 @@ class TicketButton(
         self.token, self.action, self.kind = token, action, kind
         super().__init__(
             discord.ui.Button(
-                label=label or {"transcript": "Save Transcript", "manage": "Manage Ticket"}.get(
+                label=label
+                or {"transcript": "Save Transcript", "manage": "Manage Ticket"}.get(
                     action, action.title()
                 ),
                 emoji=emoji,
@@ -2032,6 +2043,8 @@ class PublicPanel(Panel):
         self.text_block(item, "before")
         if item["image"]:
             self.panel.add_item(discord.ui.MediaGallery(NoAltMediaGalleryItem(item["image"])))
+        if enabled:
+            self.panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
         for index, (key, kind) in enumerate(enabled):
             if kind and kind["enabled"]:
                 control = TicketButton(
@@ -2059,6 +2072,8 @@ class PublicPanel(Panel):
                         accessory=control,
                     )
                 )
+        if enabled:
+            self.panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
         self.text_block(item, "after")
         if pages > 1:
             self.text(f"-# Page {page + 1} of {pages}")
@@ -2098,7 +2113,9 @@ class PublicPanel(Panel):
         for block in blocks(item, position):
             if not (block.get("heading", "").strip() or block.get("body", "").strip()):
                 continue
-            if block.get("divider"):
+            if block.get("divider") and not (
+                self.panel.children and isinstance(self.panel.children[-1], discord.ui.Separator)
+            ):
                 self.panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
             for part in ("heading", "body"):
                 content = block.get(part, "")
@@ -2263,7 +2280,8 @@ class Manage(Panel):
             ),
         ):
             self.row(
-                title, description,
+                title,
+                description,
                 "Save Transcript" if action == "transcript" else action.title(),
                 self.do(action),
             )

@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import discord
+
 from ky_bot.tickets.artwork import public_files
 from ky_bot.tickets.presentation import published_layout, visible_types
 from ky_bot.tickets.sections import blocks, image_file, new_section
@@ -38,8 +39,8 @@ class TicketSectionsTests(unittest.IsolatedAsyncioTestCase):
         text = public_text(view)
         self.assertIn("**NSFW ACCESS**", text)
         self.assertIn("**WHAT HAPPENS NEXT**", text)
-        self.assertFalse(
-            any(isinstance(item, discord.ui.Separator) for item in view.walk_children())
+        self.assertEqual(
+            sum(isinstance(item, discord.ui.Separator) for item in view.walk_children()), 2
         )
         view.stop()
         value["panels"][PANEL].update(before_heading="", after_heading="")
@@ -60,13 +61,13 @@ class TicketSectionsTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(rendered.index("Eligibility"), rendered.index("ky:ticket:"))
         self.assertGreater(rendered.index("Privacy"), rendered.index("ky:ticket:"))
         self.assertEqual(
-            sum(isinstance(item, discord.ui.Separator) for item in view.walk_children()), 2
+            sum(isinstance(item, discord.ui.Separator) for item in view.walk_children()), 3
         )
         view.stop()
         before["divider"] = after["divider"] = False
         view = PublicPanel(value, PANEL)
-        self.assertFalse(
-            any(isinstance(item, discord.ui.Separator) for item in view.walk_children())
+        self.assertEqual(
+            sum(isinstance(item, discord.ui.Separator) for item in view.walk_children()), 2
         )
         view.stop()
 
@@ -74,8 +75,8 @@ class TicketSectionsTests(unittest.IsolatedAsyncioTestCase):
         value = config()
         value["panels"][PANEL]["before_sections"] = [new_section() | dict(heading="", body="")]
         view = PublicPanel(value, PANEL)
-        self.assertFalse(
-            any(isinstance(item, discord.ui.Separator) for item in view.walk_children())
+        self.assertEqual(
+            sum(isinstance(item, discord.ui.Separator) for item in view.walk_children()), 2
         )
         self.assertFalse(any(line.strip() == "-#" for line in public_text(view).splitlines()))
         view.stop()
@@ -227,3 +228,20 @@ class TicketSectionsTests(unittest.IsolatedAsyncioTestCase):
         value["panels"][PANEL]["before_sections"] = [new_section() for _ in range(4)]
         with self.assertRaisesRegex(ValueError, "three"):
             validate(value)
+
+    async def test_topic_choices_always_have_outer_rules_and_editable_heading_styles(self):
+        value = config()
+        value["types"][KIND].update(name="Applications", heading_style="italic")
+        other = "c" * 32
+        value["types"][other] = new_type("Appeals") | dict(heading_style="underline")
+        value["panels"][PANEL]["types"].append(other)
+        view = PublicPanel(value, PANEL)
+        children = list(view.panel.children)
+        topics = [
+            index for index, child in enumerate(children) if isinstance(child, discord.ui.Section)
+        ]
+        self.assertIsInstance(children[topics[0] - 1], discord.ui.Separator)
+        self.assertIsInstance(children[topics[-1] + 1], discord.ui.Separator)
+        self.assertIn("*Applications*", public_text(view))
+        self.assertIn("__Appeals__", public_text(view))
+        view.stop()

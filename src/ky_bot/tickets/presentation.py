@@ -1,6 +1,7 @@
 """Ticket section formatting follows the custom embed menu's text options."""
 
 import discord
+
 from ky_bot.custom_embeds.model import FIELD_STYLES, styled
 
 PER_PAGE = 5
@@ -68,7 +69,7 @@ def visible_types(config, token, page=0):
         + bool(panel["footer"].strip())
         + native_title
         + 4
-        + 2
+        + 2 * bool(entries)
         + content
     )
     fixed_images = int(header) + int(footer) + images
