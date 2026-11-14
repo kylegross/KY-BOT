@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
+
 from ky_bot.errors import send_private
 from ky_bot.log_style import send_log, style_log
 from ky_bot.views.menu_context import defer_menu, display_menu, menu_parent
@@ -254,8 +255,22 @@ class Tickets(commands.Cog):
             return applied
 
     async def validate_type(self, guild, settings):
-        category = guild.get_channel(settings["category"])
-        self.validate_destination(category, category=True)
+        if settings.get("thread_parent"):
+            from .threads import validate_parent
+
+            parent = validate_parent(guild.get_channel(settings["thread_parent"]))
+            for role_id in (
+                settings["support_roles"]
+                + settings["manager_roles"]
+                + settings.get("approver_roles", [])
+            ):
+                role = guild.get_role(role_id)
+                if role is not None:
+                    validate_parent(parent, role)
+        elif "thread_parent" in settings:
+            raise ValueError("Select the ticket panel channel before publishing.")
+        else:
+            self.validate_destination(guild.get_channel(settings["category"]), category=True)
         if not settings["support_roles"] and not settings["manager_roles"]:
             raise ValueError("Select at least one support or ticket manager role.")
         if settings.get("require_approval") and not (
@@ -288,7 +303,9 @@ class Tickets(commands.Cog):
                 raise ValueError("Choose at least one ticket type for this panel.")
             for kind in panel["types"]:
                 if config["types"][kind]["enabled"]:
-                    await self.validate_type(guild, effective(config, kind, token))
+                    await self.validate_type(
+                        guild, effective(config, kind, token) | {"thread_parent": panel["channel"]}
+                    )
             from .artwork import public_files
 
             uploads = await asyncio.to_thread(public_files, panel, config, token)
@@ -484,21 +501,53 @@ class Tickets(commands.Cog):
             if [q for q, _ in answers] != questions:
                 raise ValueError("The intake form changed. Reopen the ticket form.")
             await self.validate_type(i.guild, settings)
+            from .opening import OpenedPanel, example_ticket
+
+            # Check the complete user response before reserving or creating a channel.
+            if settings.get("opening_panel"):
+                sample = example_ticket(settings["opening_panel"]) | dict(
+                    owner=i.user.id,
+                    owner_username=i.user.name,
+                    number=99999999999999999999,
+                    claimed=18446744073709551615,
+                    type_name=config["types"][kind_id]["name"],
+                    answers=answers,
+                    state="pending_approval"
+                    if settings.get("require_approval")
+                    else "waiting_staff",
+                )
+                preview = OpenedPanel(settings["opening_panel"], sample)
+                preview.stop()
+            from .threads import sync_access, validate_parent
+
+            parent = validate_parent(i.guild.get_channel(settings["thread_parent"]), i.user)
             ticket = await self.store.reserve(
-                i.guild_id, i.user.id, panel_id, kind_id, answers, expected_config=config
+                i.guild_id,
+                i.user.id,
+                panel_id,
+                kind_id,
+                answers,
+                expected_config=config,
+                owner_username=i.user.name,
             )
+            channel = None
             try:
-                channel = await i.guild.create_text_channel(
-                    name=f"{channel_name(ticket['type_name'])[:55]}-{ticket['id'][:8]}",
-                    category=i.guild.get_channel(settings["category"]),
-                    overwrites=self.overwrites(
-                        i.guild, ticket, closed=settings.get("require_approval", False)
-                    ),
-                    topic=f"KY BOT ticket {ticket['id']}",
+                channel = await parent.create_thread(
+                    name=f"ky-ticket-{ticket['id']}",
+                    type=discord.ChannelType.private_thread,
+                    invitable=False,
+                    auto_archive_duration=10080,
                     reason="Private support ticket",
                 )
+                # Persist the ID before invitations or renaming. The temporary name
+                # also allows recovery if Discord succeeded just before a restart.
+                ticket = await self.store.update(ticket, channel=channel.id)
+                await channel.edit(
+                    name=f"{channel_name(i.user.name)[:70]}-{ticket['member_number']}"
+                )
+                await sync_access(channel, ticket, pending=settings.get("require_approval", False))
             except discord.HTTPException as error:
-                if 400 <= error.status < 500:
+                if channel is None and 400 <= error.status < 500:
                     await self.store.update(ticket, state="failed")
                 raise
             ticket = await self.store.update(
@@ -511,7 +560,12 @@ class Tickets(commands.Cog):
                 await self.send_intro(ticket, channel)
             except discord.HTTPException:
                 log.warning("Ticket introduction will be retried after channel creation")
-        await i.edit_original_response(content=f"Your private ticket is ready: {channel.mention}")
+        await i.edit_original_response(
+            content="Your ticket request is waiting for staff approval. "
+            "You'll receive thread access when it is approved."
+            if settings.get("require_approval")
+            else f"Your private ticket is ready: {channel.mention}"
+        )
 
     async def send_intro(self, ticket, channel):
         if ticket["settings"].get("opening_panel"):
@@ -578,11 +632,6 @@ class Tickets(commands.Cog):
         finally:
             for file in files:
                 file.close()
-        if ticket["answers"]:
-            embed = discord.Embed(title="Ticket intake", color=int(design["color"], 16))
-            for question, answer in ticket["answers"]:
-                embed.add_field(name=question, value=answer[:1000] or "—", inline=False)
-            await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
         await self.store.update(ticket, intro_sent=True, intro_message=message.id)
 
     async def refresh_intro(self, ticket, channel):
@@ -633,7 +682,15 @@ class Tickets(commands.Cog):
                 if ticket["state"] != "pending_approval":
                     raise ValueError("This ticket is not waiting for approval.")
                 channel = await self.get_channel(ticket)
-                await channel.edit(overwrites=self.overwrites(i.guild, ticket))
+                if isinstance(channel, discord.Thread):
+                    from .threads import notify_owner, sync_access
+
+                    await sync_access(channel, ticket)
+                    await notify_owner(
+                        i.guild, ticket, f"Your ticket was approved: {channel.mention}"
+                    )
+                else:
+                    await channel.edit(overwrites=self.overwrites(i.guild, ticket))
                 ticket = await self.store.update(
                     ticket,
                     state="waiting_staff",
@@ -720,11 +777,19 @@ class Tickets(commands.Cog):
                     "approved_by"
                 )
                 channel = await self.get_channel(ticket)
-                await channel.edit(overwrites=self.overwrites(i.guild, ticket, closed=pending))
+                if isinstance(channel, discord.Thread):
+                    from .threads import sync_access
+
+                    await channel.edit(archived=False, locked=False, auto_archive_duration=10080)
+                    await sync_access(channel, ticket, pending=pending)
+                else:
+                    await channel.edit(overwrites=self.overwrites(i.guild, ticket, closed=pending))
                 ticket = await self.store.update(
                     ticket,
                     state="pending_approval" if pending else "waiting_staff",
                     closed_at=0,
+                    archive_at=0,
+                    thread_archived_at=0,
                     paused=False,
                     last_activity=time.time(),
                     waiting_since=time.time(),
@@ -979,9 +1044,13 @@ class Tickets(commands.Cog):
                         raise ValueError("A ticket can have at most 25 extra participants.")
                     changes["guests"] = sorted(guests)
                     updated = ticket | changes
-                    await (await self.get_channel(ticket)).edit(
-                        overwrites=self.overwrites(i.guild, updated)
-                    )
+                    channel = await self.get_channel(ticket)
+                    if isinstance(channel, discord.Thread):
+                        from .threads import sync_access
+
+                        await sync_access(channel, updated)
+                    else:
+                        await channel.edit(overwrites=self.overwrites(i.guild, updated))
                 elif action == "transfer":
                     if not manager(i.user, ticket["settings"]):
                         raise ValueError("Only ticket managers can transfer tickets between teams.")
@@ -991,6 +1060,9 @@ class Tickets(commands.Cog):
                         settings["opening_panel"] = ticket["settings"]["opening_panel"]
                     if not staff(i.user, settings):
                         raise ValueError("You must also have access to the destination team.")
+                    channel = await self.get_channel(ticket)
+                    if isinstance(channel, discord.Thread):
+                        settings["thread_parent"] = channel.parent_id
                     await self.validate_type(i.guild, settings)
                     changes.update(
                         type=value,
@@ -999,11 +1071,16 @@ class Tickets(commands.Cog):
                         claimed=0,
                     )
                     updated = ticket | changes
-                    await (await self.get_channel(ticket)).edit(
-                        category=i.guild.get_channel(settings["category"]),
-                        overwrites=self.overwrites(i.guild, updated),
-                        sync_permissions=False,
-                    )
+                    if isinstance(channel, discord.Thread):
+                        from .threads import sync_access
+
+                        await sync_access(channel, updated)
+                    else:
+                        await channel.edit(
+                            category=i.guild.get_channel(settings["category"]),
+                            overwrites=self.overwrites(i.guild, updated),
+                            sync_permissions=False,
+                        )
                     await self.store.event(
                         ticket, "TICKET TRANSFERRED OUT", i.user.id, changes["type_name"]
                     )
@@ -1024,7 +1101,10 @@ class Tickets(commands.Cog):
         channel = self.bot.get_channel(ticket["channel"]) or await self.bot.fetch_channel(
             ticket["channel"]
         )
-        if not isinstance(channel, discord.TextChannel) or channel.guild.id != ticket["guild"]:
+        if (
+            not isinstance(channel, (discord.TextChannel, discord.Thread))
+            or channel.guild.id != ticket["guild"]
+        ):
             raise ValueError("This ticket channel is unavailable.")
         return channel
 
@@ -1059,7 +1139,7 @@ class Tickets(commands.Cog):
         metadata = json.dumps(
             {
                 key: ticket[key]
-                for key in ("id", "type_name", "owner", "created", "priority", "reason")
+                for key in ("id", "type_name", "owner", "created", "priority", "reason", "answers")
             },
             ensure_ascii=False,
             indent=2,
@@ -1149,9 +1229,27 @@ class Tickets(commands.Cog):
         channel = await self.get_channel(ticket)
         ticket = ticket | {"reason": reason}
         await self.transcript(ticket)
-        await channel.edit(overwrites=self.overwrites(channel.guild, ticket, closed=True))
+        closed_at = time.time()
+        if isinstance(channel, discord.Thread):
+            from .threads import notify_owner, sync_access
+
+            await channel.edit(locked=True, archived=False, auto_archive_duration=10080)
+            await sync_access(channel, ticket, closed=True)
+            await notify_owner(
+                channel.guild,
+                ticket,
+                "Your ticket has been closed. Staff will archive it in 24 hours.",
+            )
+        else:
+            await channel.edit(overwrites=self.overwrites(channel.guild, ticket, closed=True))
         ticket = await self.store.update(
-            ticket, state="closed", closed_at=time.time(), reason=reason, close_requested_by=0
+            ticket,
+            state="closed",
+            closed_at=closed_at,
+            reason=reason,
+            close_requested_by=0,
+            archive_at=closed_at + 86400 if isinstance(channel, discord.Thread) else 0,
+            thread_archived_at=0,
         )
         await self.refresh_intro(ticket, channel)
         await self.store.event(ticket, "TICKET CLOSED", actor, reason)
@@ -1310,7 +1408,44 @@ class Tickets(commands.Cog):
         if guild is None:
             return
         if ticket["state"] == "creating" and time.time() - ticket["created"] > 120:
-            # Recover a successful Discord create if the process stopped before its DB update.
+            if ticket.get("thread_mode"):
+                from .threads import sync_access
+
+                channel = (
+                    await self.get_channel(ticket)
+                    if ticket.get("channel")
+                    else next(
+                        (
+                            thread
+                            for thread in await guild.active_threads()
+                            if thread.name == f"ky-ticket-{ticket['id']}"
+                            and thread.owner_id == guild.me.id
+                            and thread.parent_id == ticket["settings"]["thread_parent"]
+                            and thread.type == discord.ChannelType.private_thread
+                        ),
+                        None,
+                    )
+                )
+                if channel is None:
+                    await self.store.update(ticket, state="failed")
+                    return
+                pending = ticket["settings"].get("require_approval", False)
+                owner_name = ticket.get("owner_username") or str(ticket["owner"])
+                await channel.edit(
+                    name=f"{channel_name(owner_name)[:70]}-{ticket['member_number']}",
+                    archived=False,
+                    locked=False,
+                )
+                await sync_access(channel, ticket, pending=pending)
+                ticket = await self.store.update(
+                    ticket,
+                    channel=channel.id,
+                    state="pending_approval" if pending else "waiting_staff",
+                )
+                await self.send_intro(ticket, channel)
+                await self.store.event(ticket, "TICKET RECOVERED", 0)
+                return
+            # Recover legacy text-channel tickets created before thread support.
             channels = await guild.fetch_channels()
             channel = next(
                 (
@@ -1332,6 +1467,19 @@ class Tickets(commands.Cog):
                 await self.store.event(ticket, "TICKET RECOVERED", 0)
             else:
                 await self.store.update(ticket, state="failed")
+            return
+        if ticket["state"] == "closed" and ticket.get("thread_mode"):
+            deadline = ticket.get("archive_at") or ticket["closed_at"] + 86400
+            if time.time() >= deadline and not ticket.get("thread_archived_at"):
+                try:
+                    channel = await self.get_channel(ticket)
+                except discord.NotFound:
+                    await self.store.update(ticket, state="deleted")
+                    await self.store.event(ticket, "TICKET THREAD REMOVED", 0)
+                    return
+                await channel.edit(archived=True, locked=True, reason="Ticket closed for 24 hours")
+                await self.store.update(ticket, thread_archived_at=time.time())
+                await self.store.event(ticket, "TICKET THREAD ARCHIVED", 0)
             return
         if ticket["state"] not in ACTIVE or ticket["paused"]:
             return

@@ -11,13 +11,14 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import discord
+from PIL import Image
+
 from ky_bot.admin_functions.activity import Activity
 from ky_bot.admin_functions.settings_view import SettingsView
 from ky_bot.tickets.artwork import normalize, public_files
 from ky_bot.tickets.command import Tickets
 from ky_bot.tickets.store import Store, defaults, effective, new_panel, new_type, validate
 from ky_bot.tickets.views import Admin, Manage, PublicPanel, TicketButton, private_admin_parent
-from PIL import Image
 
 PANEL = "a" * 32
 KIND = "b" * 32
@@ -75,7 +76,9 @@ class TicketTests(unittest.IsolatedAsyncioTestCase):
 
     async def reserve(self, owner=5):
         ticket = await self.store.reserve(1, owner, PANEL, KIND, [("How can we help?", "Test")])
-        return await self.store.update(ticket, state="waiting_staff", channel=300, intro_sent=True)
+        return await self.store.update(
+            ticket, state="waiting_staff", channel=300, intro_sent=True, thread_mode=False
+        )
 
     async def test_multiple_panels_and_destination_precedence(self):
         config = copy.deepcopy(self.config)
@@ -405,21 +408,39 @@ class TicketTests(unittest.IsolatedAsyncioTestCase):
         support.id = 7
         guild.get_role = Mock(return_value=support)
         guild.get_member = Mock(return_value=i.user)
-        channel = Mock(spec=discord.TextChannel)
+        parent = Mock(spec=discord.TextChannel)
+        parent.id = 200
+        parent.guild = guild
+        parent.permissions_for = Mock(return_value=discord.Permissions.all())
+        channel = Mock(spec=discord.Thread)
         channel.id = 300
+        channel.guild = guild
+        channel.parent = parent
         channel.mention = "<#300>"
         channel.send = AsyncMock(return_value=SimpleNamespace(id=400))
-        guild.create_text_channel = AsyncMock(return_value=channel)
+        channel.edit = AsyncMock()
+        channel.fetch_members = AsyncMock(return_value=[SimpleNamespace(id=100)])
+        channel.add_user = AsyncMock()
+        channel.remove_user = AsyncMock()
+        parent.create_thread = AsyncMock(return_value=channel)
+        guild.get_channel = Mock(return_value=parent)
+        guild.create_text_channel = AsyncMock()
+        guild.chunked = True
+        guild.members = [i.user, member(9, roles=[7])]
         i.guild = guild
         self.cog.validate_type = AsyncMock()
+        i.user.name = "test.user"
         await self.cog.create_ticket(i, PANEL, KIND, [("How can we help?", "An issue")], 100)
-        overwrites = guild.create_text_channel.await_args.kwargs["overwrites"]
-        self.assertFalse(overwrites[guild.default_role].view_channel)
-        self.assertTrue(overwrites[support].view_channel)
-        self.assertTrue(overwrites[i.user].view_channel)
+        self.assertEqual(channel.edit.await_args.kwargs["name"], "test-user-1")
+        self.assertEqual(
+            parent.create_thread.await_args.kwargs["type"], discord.ChannelType.private_thread
+        )
+        self.assertFalse(parent.create_thread.await_args.kwargs["invitable"])
+        guild.create_text_channel.assert_not_awaited()
+        self.assertEqual({call.args[0].id for call in channel.add_user.await_args_list}, {5, 9})
         mentions = channel.send.await_args_list[0].kwargs["allowed_mentions"]
-        self.assertEqual(len(channel.send.await_args_list), 2)
-        self.assertFalse(channel.send.await_args_list[1].kwargs["allowed_mentions"].roles)
+        self.assertEqual(len(channel.send.await_args_list), 1)
+        self.assertIn("## An issue", str(channel.send.await_args.kwargs["view"].to_components()))
         self.assertFalse(mentions.everyone)
         self.assertFalse(mentions.users)
         self.assertEqual([value.id for value in mentions.roles], [7])

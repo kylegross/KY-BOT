@@ -27,14 +27,19 @@ class TicketNumberTests(unittest.IsolatedAsyncioTestCase):
 
                 tickets = await asyncio.gather(*(reserve(1, owner) for owner in range(10, 15)))
                 self.assertEqual(sorted(t["number"] for t in tickets), [1, 2, 3, 4, 5])
-                self.assertEqual((await reserve(2, 30))["number"], 1)
+                self.assertTrue(all(t["member_number"] == 1 for t in tickets))
+                self.assertEqual((await reserve(1, 10))["member_number"], 2)
+                self.assertEqual((await reserve(2, 10))["member_number"], 1)
+                self.assertEqual((await reserve(2, 30))["number"], 2)
                 await store.update(tickets[0], state="deleted")
             finally:
                 await store.close()
             store = await Store.open(path)
             try:
                 ticket = await store.reserve(1, 40, "a" * 32, "b" * 32, [])
-                self.assertEqual(ticket["number"], 6)
+                self.assertEqual(ticket["number"], 7)
+                ticket = await store.reserve(1, 10, "a" * 32, "b" * 32, [])
+                self.assertEqual(ticket["member_number"], 3)
             finally:
                 await store.close()
 

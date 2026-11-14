@@ -175,8 +175,11 @@ class Admin(Panel):
         super().__init__(timeout=None if parent.panel_manager else 600, artwork=True)
         self.cog, self.parent, self.revision = cog, parent, revision
         self.panel_context = (
-            panel_context if panel_context in config["panels"]
-            else selected if selected in config["panels"] else None
+            panel_context
+            if panel_context in config["panels"]
+            else selected
+            if selected in config["panels"]
+            else None
         )
         self.opening = opening
         self.original_config = config
@@ -275,9 +278,15 @@ class Admin(Panel):
         elif page == "panel" and opening:
             self.row(
                 "OPENED TICKET PANEL",
-                "Shown inside each new private ticket channel.",
+                "Shown inside each new private ticket thread.",
                 "Edit title",
                 self.edit_panel,
+            )
+            self.row(
+                "DETAILS & BUTTONS",
+                "Edit ticket labels, identity, submitted-message style and button appearance.",
+                "Configure",
+                self.go("opening_details", selected),
             )
             self.row(
                 "MESSAGE SECTIONS",
@@ -299,8 +308,12 @@ class Admin(Panel):
             )
             self.text(
                 "-# Saved changes apply to newly opened tickets. Existing tickets retain "
-                "their opening design. Intake answers are posted separately below it."
+                "their opening design. Submitted messages appear inside this panel."
             )
+        elif page in {"opening_details", "opening_formats", "opening_buttons"}:
+            from .opening import build_opening_editor
+
+            build_opening_editor(self, page, pick)
         elif page == "panel":
             item = config["panels"][selected]
             self.row("SELECTED PANEL", safe(item["name"]), "Edit text", self.edit_panel)
@@ -313,7 +326,7 @@ class Admin(Panel):
             )
             self.row(
                 "CHANNEL SETTINGS",
-                "Ticket category, logs, workflow and automation for this panel.",
+                "Private threads, logs, workflow and automation for this panel.",
                 "Configure",
                 self.go("panel_settings", selected),
             )
@@ -416,7 +429,7 @@ class Admin(Panel):
             )
             self.row(
                 "CHANNELS & LOGS",
-                "Ticket category and log / transcript destinations.",
+                "Private thread behavior and log / transcript destinations.",
                 "Configure",
                 self.go("destinations", selected),
             )
@@ -554,7 +567,7 @@ class Admin(Panel):
             )
             self.row(
                 "CHANNELS & LOGS",
-                "Ticket category and multiple log / transcript destinations.",
+                "Private thread behavior and multiple log / transcript destinations.",
                 "Configure",
                 self.go("destinations", selected),
             )
@@ -660,7 +673,7 @@ class Admin(Panel):
                 )
                 self.row(
                     "CHANNELS & LOGS",
-                    "Default category and multiple logging destinations.",
+                    "Private ticket threads and multiple logging destinations.",
                     "Configure",
                     self.go("destinations"),
                 )
@@ -731,7 +744,7 @@ class Admin(Panel):
             self.text(
                 "-# Support staff handle tickets. Approvers review waiting requests. "
                 "Managers can also approve, reassign and transfer tickets. "
-                "Require approval keeps the member's ticket read-only until approved."
+                "Approval requests stay staff-only until approved."
             )
         elif page == "log_access":
             self.setting("LOG VIEWER ROLES", "log_viewer_roles", self.settings, roles=True)
@@ -782,7 +795,10 @@ class Admin(Panel):
                 self.reset_panel_logs,
             )
         elif page == "destinations":
-            self.setting("TICKET CATEGORY", "category", self.settings, category=True)
+            self.text(
+                "**PRIVATE TICKET THREADS**\nTickets open beneath the channel containing "
+                "the published panel. Closed threads are archived after 24 hours."
+            )
             self.setting("ACTIVITY LOG CHANNELS", "log_channels", self.settings, channels=True)
             self.setting(
                 "TRANSCRIPT CHANNELS",
@@ -942,6 +958,10 @@ class Admin(Panel):
             destination = "text_" + page.removeprefix("text_format_")
         elif page in {"panel_text_before", "panel_text_after"}:
             destination = "text_format_" + page.removeprefix("panel_text_")
+        if page == "opening_details":
+            destination = "panel"
+        elif page in {"opening_formats", "opening_buttons"}:
+            destination = "opening_details"
         if page == "types" and self.panel_context:
             destination = "panel"
         back_selected = self.panel_context if destination == "panel" else selected
@@ -968,6 +988,7 @@ class Admin(Panel):
                         "type_appearance",
                         "panel_types",
                         "panel_text",
+                        "opening_details",
                         "text_before",
                         "text_after",
                         "text_format_before",
@@ -2287,7 +2308,7 @@ class Manage(Panel):
             )
         if staff and ticket["state"] == "closed":
             self.row(
-                "DELETE CHANNEL",
+                "DELETE TICKET",
                 "Requires a saved transcript and a second confirmation.",
                 "Delete",
                 self.do("delete"),
@@ -2333,10 +2354,18 @@ class Confirm(Panel):
             action,
             reason,
         )
+        from ky_bot.log_style import PREFIX, SUFFIX
+
+        owner_name = ticket.get("owner_username")
+        if not owner_name:
+            bot = getattr(cog, "bot", None)
+            get_user = getattr(bot, "get_user", None)
+            member = get_user(ticket["owner"]) if get_user else None
+            owner_name = member.name if member else f"User {ticket['owner']}"
         self.text(
-            f"**{action.upper()} TICKET {ticket['id'][:8]}?**\n"
+            f"### {PREFIX}{action.upper()} TICKET · {safe(owner_name)}?{SUFFIX}\n"
             + (
-                "Save its transcript and permanently remove the channel."
+                "Save its transcript and permanently remove the ticket conversation."
                 if action == "delete"
                 else safe(reason)
             )
@@ -2348,7 +2377,7 @@ class Confirm(Panel):
             self.confirm,
         )
         self.row("CANCEL", "Keep the ticket as it is.", "Cancel", self.cancel)
-        self.finish()
+        section_dividers(self.panel, navigation_on_right=True)
 
     async def interaction_check(self, i):
         return i.user.id == self.user and i.guild_id == self.ticket["guild"]

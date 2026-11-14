@@ -13,14 +13,14 @@ Center setup starts with an explicit channel selection instead of assuming that 
 Command Center channel should host the public panel.
 
 Each selected panel has **Channel Settings** for its own support team, access rules,
-ticket category, log/transcript destinations, messages, limits and automation. These
+private-thread behavior, log/transcript destinations, messages, limits and automation. These
 controls are available from both setup entry points.
 
 **Panel → Staff & Approval Roles** is a direct shortcut to support roles, ticket
 approvers and ticket managers. Support staff handle ordinary ticket operations.
 Approvers review requests; managers can also approve, assign and transfer tickets.
 The optional **Require Ticket Approval** toggle creates tickets in a waiting state
-with the opener's replies disabled. Configured approvers or managers can approve
+with access limited to staff until approved. Configured approvers or managers can approve
 the request or decline it with a reason. Approval is off by default. Pending requests
 count against opening limits, and ordinary messages/status changes cannot approve them.
 
@@ -35,10 +35,10 @@ as another text heading below the artwork; setup menus also omit their duplicate
 ## Initial setup
 
 1. In **Shared Defaults → Staff & Access**, choose support and ticket-manager roles.
-2. In **Shared Defaults → Channels & Logs**, choose the ticket category, one or more
+2. In **Shared Defaults → Channels & Logs**, choose one or more
    activity log channels, and one or more transcript channels. Logs must be staff-only.
 3. Create ticket types such as Support, Member Reports and Appeals. Each type can
-   have up to five required intake questions and independent staff/access, category,
+   have up to five required intake questions and independent staff/access,
    logs, transcript, workflow, messages and automation overrides.
 4. Create a panel, select its public channel and offered ticket types, customize its
    title, description, accent color, image and footer, then preview and publish it.
@@ -151,9 +151,11 @@ database retention does not remove them or the Discord ticket channel.
 Install updated dependencies (including `tzdata` for Windows support-hour timezones),
 restart KY BOT and sync its commands once to expose `/ticket setup` and `/ticket manage`.
 The feature starts disabled. Configure and publish a test panel before enabling it.
-KY BOT needs Manage Channels and Manage Permissions in the ticket category, and View
-Channel, Send Messages, Embed Links, Read Message History and Attach Files in ticket
-and logging destinations. Administrator permission for the bot is unnecessary.
+KY BOT needs Create Private Threads and Manage Threads in the panel channel, plus
+View Channel, Send Messages, Send Messages in Threads, Embed Links, Read Message
+History and Attach Files. Existing legacy channel tickets still require their original
+channel-management permissions. Log destinations retain their configured access rules.
+Administrator permission for the bot is unnecessary.
 
 Advanced conditional intake routing, a searchable knowledge base, message-context
 ticket creation and AI assistance are future extensions, not active features.
@@ -216,18 +218,18 @@ type affects each panel using it when that panel is republished.
 ### Opened ticket panel
 
 In **Tickets → Ticket Panels → choose a panel → Opened Ticket Panel**, edit the
-message shown inside each new private ticket. The same editor is available through
+message shown inside each new private ticket thread. The same editor is available through
 `/ticket setup`. Message Sections provides optional headings, independently styled
 text, and up to three additional sections on each side of the controls, each with
 an optional divider. Appearance provides the standard KY BOT artwork or custom
 uploads, editable header lettering, footer text/icons, accent color and body image.
-Private Preview shows the layout with its buttons disabled.
+Private Preview shows the layout, a sample submitted message, and disabled buttons.
 
-New tickets open as separate private text channels under the configured ticket
-category, not as threads in the public panel channel. The member selects a topic,
+New tickets open as private threads beneath the channel containing the published
+ticket panel. No new text channel is created. The member selects a topic,
 completes any intake form, and receives a link to the private channel. Required
-approval keeps the member read-only until approved. Intake answers appear below
-the opening panel. Staff claim and respond, then close with a reason and confirmation;
+approval keeps the thread staff-only until approved. Intake answers appear inside
+the opening panel after the welcome text and a divider. Staff claim and respond, then close with a reason and confirmation;
 transcripts and activity go to their configured destinations.
 
 Standard opening controls are Claim/Unclaim, Close, Transcript and Manage.
@@ -242,3 +244,51 @@ retain their saved design. These edits do not republish the public ticket-openin
 panel. Claim, approval, closure and reopen refresh the original opening panel's
 status and controls while retaining its artwork. Existing legacy ticket messages
 continue to use their original controls.
+
+
+#### Opening details, buttons and submitted messages
+
+**Opened Ticket Panel → Details & Buttons** edits the title/status lines, approval
+notice, submitted-message identity, per-line formatting, status labels and each
+standard button's label, emoji and color. Available placeholders are `{type}`,
+`{number}`, `{username}`, `{user_id}`, `{owner}`, `{status}` and `{assignee}`.
+Blank templates hide a line. Button actions and access checks remain unchanged.
+
+The ticket opener's submitted message now appears in the same panel, directly
+below the welcome sections and a divider. Its default identity line is plain
+`username (user ID)`; the response uses medium bold heading text. Multiple intake
+questions retain their question labels. The username is captured when the ticket
+opens. Full intake responses are included in saved transcripts. The complete panel
+is checked before ticket creation; responses that exceed Discord's message limits
+must be shortened rather than creating a ticket with a missing introduction.
+
+
+### Private ticket threads and delayed archival
+
+New tickets are private threads in the published panel's text channel, named
+`username-1`, `username-2`, and so on using each member's durable server-scoped
+count. The panel channel is also the thread parent; the former ticket category
+setting applies only to existing legacy channel tickets. Reposting a panel elsewhere
+affects future tickets; existing threads retain their original parent.
+
+KY BOT requires View Channel, Send Messages, Send Messages in Threads, Create Private
+Threads, Manage Threads, Read Message History, Attach Files and Embed Links in the
+panel channel. Staff and participants need View Channel and Send Messages in Threads.
+Configured support, manager and approver members are invited explicitly; members
+cannot invite others. Discord administrators and users with Manage Threads retain
+Discord's native moderator visibility. Do not grant that permission just to make
+someone ticket support staff.
+
+Discord private threads do not offer per-member read-only overrides. Approval requests
+remain staff-only until approved; approval adds the opener and attempts to DM the
+thread link. Closing saves the transcript, removes member/guest access, keeps the
+thread available to staff, and records a durable deadline exactly 24 hours after
+closure. The maintenance worker archives and locks it on its first pass after that
+deadline (normally within a minute); later messages do not extend the deadline.
+The deadline survives bot restarts. Archived tickets remain recoverable, not deleted.
+Reopening unarchives/unlocks the thread, restores approved participants and cancels
+the old archive deadline. Transfers change teams and invitations while preserving
+the thread's parent. Existing legacy text-channel tickets keep their original lifecycle.
+
+Close/decline/delete confirmations display the opener's username with the standard
+log title decoration and keep Cancel as a right-side button.

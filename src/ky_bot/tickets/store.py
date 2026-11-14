@@ -9,6 +9,11 @@ from ky_bot.askdm.store import Store as Connection
 
 SCHEMA = (
     (
+        "CREATE TABLE IF NOT EXISTS ticket_member_numbers "
+        "(guild BIGINT NOT NULL, owner BIGINT NOT NULL, last_number BIGINT NOT NULL, "
+        "PRIMARY KEY(guild,owner))"
+    ),
+    (
         "CREATE TABLE IF NOT EXISTS ticket_numbers "
         "(guild BIGINT PRIMARY KEY, last_number BIGINT NOT NULL)"
     ),
@@ -144,6 +149,7 @@ def effective(config, type_id, panel_id=None):
     from .opening import opening_design
 
     result["opening_panel"] = opening_design(panel, welcome=result["welcome"])
+    result["thread_parent"] = panel.get("published_channel") or panel.get("channel", 0)
     return result
 
 
@@ -409,6 +415,7 @@ class Store(Connection):
         *,
         now=None,
         expected_config=None,
+        owner_username=None,
     ):
         now = time.time() if now is None else now
         async with self.transaction(guild):
@@ -460,9 +467,23 @@ class Store(Connection):
                 "ON CONFLICT(guild) DO UPDATE SET last_number=excluded.last_number",
                 (guild, number),
             )
+            member_row = await self.execute(
+                "SELECT last_number FROM ticket_member_numbers WHERE guild=? AND owner=?",
+                (guild, owner),
+            )
+            # Include tickets created before per-member numbering was introduced.
+            member_number = (member_row[0] if member_row else len(rows)) + 1
+            await self.execute(
+                "INSERT INTO ticket_member_numbers(guild,owner,last_number) VALUES (?,?,?) "
+                "ON CONFLICT(guild,owner) DO UPDATE SET last_number=excluded.last_number",
+                (guild, owner, member_number),
+            )
             token = uuid.uuid4().hex
             data = dict(
                 number=number,
+                member_number=member_number,
+                owner_username=owner_username,
+                thread_mode=True,
                 panel=panel_id,
                 type=type_id,
                 type_name=config["types"][type_id]["name"],

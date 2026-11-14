@@ -87,7 +87,7 @@ class OpeningPanelTests(unittest.IsolatedAsyncioTestCase):
                 )
             )
             self.assertEqual(
-                sum(isinstance(item, discord.ui.Separator) for item in view.walk_children()), 1
+                sum(isinstance(item, discord.ui.Separator) for item in view.walk_children()), 2
             )
         finally:
             for file in files:
@@ -117,7 +117,8 @@ class OpeningPanelTests(unittest.IsolatedAsyncioTestCase):
         )
         await cog.send_intro(ticket, channel)
         self.assertIsInstance(channel.send.await_args_list[0].kwargs["view"], OpenedPanel)
-        self.assertEqual(channel.send.await_args_list[1].kwargs["embed"].title, "Ticket intake")
+        self.assertEqual(channel.send.await_count, 1)
+        self.assertIn("## Answer", str(channel.send.await_args.kwargs["view"].to_components()))
         await cog.refresh_intro(ticket | dict(state="closed"), channel)
         self.assertIsInstance(message.edit.await_args.kwargs["view"], OpenedPanel)
         self.assertNotIn("attachments", message.edit.await_args.kwargs)
