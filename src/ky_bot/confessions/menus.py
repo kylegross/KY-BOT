@@ -300,6 +300,46 @@ class Admin(discord.ui.LayoutView):
 
         return navigate
 
+    def private_destination(self, panel, key, label):
+        config, revision, page = self.config, self.revision, self.page
+        panel.add_item(
+            discord.ui.TextDisplay(
+                "**"
+                + label.upper()
+                + "**\n-# "
+                + (f"<#{config[key]}>" if config[key] else "Not selected")
+                + "\n-# Select another channel, or clear × to remove it."
+            )
+        )
+        picker = discord.ui.ChannelSelect(
+            placeholder=label,
+            channel_types=[discord.ChannelType.text],
+            min_values=0,
+            default_values=[discord.Object(id=config[key])] if config[key] else [],
+        )
+
+        async def choose(event):
+            await event.response.defer(ephemeral=True)
+            selected = picker.values[0].id if picker.values else 0
+            changes = {key: selected}
+            if not selected:
+                changes.update(
+                    {"logging": False}
+                    if key == "log_channel"
+                    else {"approval": False, "reports": False}
+                )
+            await self.save(event, revision, **changes)
+            await self.show(
+                event,
+                page,
+                "Private destination saved."
+                if selected
+                else "Destination removed; its dependent features are off.",
+            )
+
+        picker.callback = choose
+        panel.add_item(discord.ui.ActionRow(picker))
+
     async def show(self, i, page, notice=None):
         from .store import defaults
 
@@ -451,6 +491,7 @@ class Admin(discord.ui.LayoutView):
                 "Turn off" if config["replies"] else "Turn on",
                 toggle("replies"),
             )
+            self.private_destination(panel, "queue_channel", "Approval & report channel")
             row(
                 "REPORTING",
                 "On" if config["reports"] else "Off · Set a private review channel first.",
@@ -501,48 +542,8 @@ class Admin(discord.ui.LayoutView):
                 "Turn off" if config["approval"] else "Turn on",
                 toggle("approval"),
             )
-            for key, label in (
-                ("log_channel", "Author log channel"),
-                ("queue_channel", "Approval & report channel"),
-            ):
-                panel.add_item(
-                    discord.ui.TextDisplay(
-                        "**"
-                        + label.upper()
-                        + "**\n-# "
-                        + (f"<#{config[key]}>" if config[key] else "Not selected")
-                        + "\n-# Select another channel, or clear × to remove it."
-                    )
-                )
-                picker = discord.ui.ChannelSelect(
-                    placeholder=label,
-                    channel_types=[discord.ChannelType.text],
-                    min_values=0,
-                    default_values=[discord.Object(id=config[key])] if config[key] else [],
-                )
-                revision = self.revision
-
-                async def choose(event, key=key, picker=picker, revision=revision):
-                    await event.response.defer(ephemeral=True)
-                    selected = picker.values[0].id if picker.values else 0
-                    changes = {key: selected}
-                    if not selected:
-                        changes.update(
-                            {"logging": False}
-                            if key == "log_channel"
-                            else {"approval": False, "reports": False}
-                        )
-                    await self.save(event, revision, **changes)
-                    await self.show(
-                        event,
-                        "logging",
-                        "Private destination saved."
-                        if selected
-                        else "Destination removed; its dependent features are off.",
-                    )
-
-                picker.callback = choose
-                panel.add_item(discord.ui.ActionRow(picker))
+            self.private_destination(panel, "log_channel", "Author log channel")
+            self.private_destination(panel, "queue_channel", "Approval & report channel")
             row(
                 "PENDING APPROVALS",
                 "Only administrators can view authors and approve or reject.",

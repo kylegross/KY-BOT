@@ -104,8 +104,8 @@ GROUPS = {
     ),
     "custom_embeds:delete": (("DELETE EMBED", ("CONFIRM DELETION", "KEEP EMBED")),),
     "askdm": (
-        ("REQUEST SETTINGS", ("REQUESTS",)),
         ("CHANNELS & LOGGING", ("REQUEST CHANNEL", "STAFF LOG CHANNEL")),
+        ("REQUEST SETTINGS", ("REQUESTS",)),
         ("ACCESS & PRIVACY", ("CHANNEL REQUEST VISIBILITY", "ROLE PERMISSIONS & RESTRICTIONS")),
         ("MEMBER PANEL", ("MEMBER PANEL",)),
     ),

@@ -142,6 +142,40 @@ class Admin(discord.ui.LayoutView):
             self.button("Turn off" if self.config[key] else "Turn on", change),
         )
 
+    def destination_picker(self, panel, key, title, page):
+        panel.add_item(
+            discord.ui.TextDisplay(
+                f"**{title}**\n"
+                + (f"<#{self.config[key]}>" if self.config[key] else "Not selected")
+            )
+        )
+
+        async def choose(click, values):
+            changes = {key: values[0].id if values else 0}
+            if not values:
+                changes.update(
+                    {"logging": False}
+                    if key == "log_channel"
+                    else {
+                        "approval": False,
+                        "response_approval": False,
+                        "reports": False,
+                    }
+                )
+            await self.save(click, self.revision, **changes)
+            await self.show(click, page)
+
+        self.picker(
+            panel,
+            discord.ui.ChannelSelect(
+                placeholder=title.title(),
+                channel_types=[discord.ChannelType.text],
+                min_values=0,
+                default_values=[discord.Object(id=self.config[key])] if self.config[key] else [],
+            ),
+            choose,
+        )
+
     async def edit_values(self, i, title, keys, *, page=None):
         # key, label, max length, required, paragraph
         fields = [
@@ -294,6 +328,8 @@ class Admin(discord.ui.LayoutView):
                 )
             )
         elif page == "delivery":
+            self.destination_picker(panel, "queue_channel", "APPROVAL CHANNEL", "delivery")
+            self.destination_picker(panel, "log_channel", "AUTHOR LOG CHANNEL", "delivery")
             for key, title in (
                 ("approval", "QUESTION APPROVAL"),
                 ("response_approval", "ADVICE RESPONSE APPROVAL"),
@@ -302,12 +338,6 @@ class Admin(discord.ui.LayoutView):
                 ("sticky", "REPOST SUBMISSION PANEL"),
             ):
                 self.toggle(panel, key, title)
-            self.setting(
-                panel,
-                "DESTINATIONS",
-                "Private approval and log channels.",
-                self.navigate("destinations"),
-            )
 
             async def limits(click):
                 await self.edit_values(
@@ -332,29 +362,7 @@ class Admin(discord.ui.LayoutView):
                 ("queue_channel", "APPROVAL CHANNEL"),
                 ("log_channel", "AUTHOR LOG CHANNEL"),
             ):
-                panel.add_item(
-                    discord.ui.TextDisplay(
-                        f"**{title}**\n"
-                        + (f"<#{self.config[key]}>" if self.config[key] else "Not selected")
-                    )
-                )
-
-                async def choose(click, values, key=key):
-                    await self.save(click, self.revision, **{key: values[0].id if values else 0})
-                    await self.show(click, "destinations")
-
-                self.picker(
-                    panel,
-                    discord.ui.ChannelSelect(
-                        placeholder=title.title(),
-                        channel_types=[discord.ChannelType.text],
-                        min_values=0,
-                        default_values=[discord.Object(id=self.config[key])]
-                        if self.config[key]
-                        else [],
-                    ),
-                    choose,
-                )
+                self.destination_picker(panel, key, title, "destinations")
         elif page == "style":
             self.setting(
                 panel,
