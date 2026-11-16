@@ -121,6 +121,8 @@ def post_card(config, post, *, staff=False, buttons=()):
     details = []
     if post["parent"]:
         details.append("Reply to confession **" + str(post["data"]["parent_number"]) + "**")
+        if post["data"].get("is_original_poster"):
+            details.append("**Original Poster**")
     if staff:
         author = (
             f"<@{post['author']}> · User ID: `{post['author']}`"
@@ -136,7 +138,8 @@ def post_card(config, post, *, staff=False, buttons=()):
         )
     if post["data"].get("message"):
         url = (
-            f"https://discord.com/channels/{post['guild']}/{post['channel']}/"
+            f"https://discord.com/channels/{post['guild']}/"
+            f"{post['data'].get('message_channel', post['channel'])}/"
             f"{post['data']['message']}"
         )
         details.append(f"[View confession]({url})")
@@ -173,7 +176,8 @@ def author_log_embed(config, post, display_name=None):
     identifier = str(post["data"]["number"])
     if post["data"].get("message"):
         url = (
-            f"https://discord.com/channels/{post['guild']}/{post['channel']}/"
+            f"https://discord.com/channels/{post['guild']}/"
+            f"{post['data'].get('message_channel', post['channel'])}/"
             f"{post['data']['message']}"
         )
         identifier = f"[{identifier}]({url})"

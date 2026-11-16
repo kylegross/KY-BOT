@@ -18,7 +18,14 @@ Choose private administrator-only destinations before turning on author logging
 or either approval option. Question approval and advice response approval are
 independent. Each published question accepts multiple responses through its
 Respond to question button. Responses are anonymous by default; Show My Name is
-an explicit choice on the private confirmation. Replies link to the original question.
+an explicit choice on the private confirmation. The first published response creates a
+thread attached to the original question; subsequent responses use that same thread.
+Each response includes a Reply button. The original author can reply without the
+advice role while retaining the access role, and those replies display **Original Poster**.
+Authorship is verified with the existing private per-server author key, including when
+author logging is off. Replies to individual responses reference that response in the
+same thread. Approval applies to those follow-ups too. No author is automatically
+added as a thread member, which would disclose their identity.
 
 New-question notifications are optional and happen after publication, including
 after approval. They mention only the configured advice role. Make that role
@@ -26,7 +33,11 @@ mentionable or allow KY BOT to mention it in the ask channel.
 
 Appearance includes the same standard artwork/lettering finishes as Confessions,
 custom header/footer uploads, a header image title, decorative text color, accent
-color, footer text, question/advice headings, and the ask-channel prompt. The
+color, optional footer text, question/advice headings, and the ask-channel prompt.
+Header title color/finish can be set independently, and standard headers and footers
+support custom base/highlight/shadow/iridescent palettes with private previews.
+The default branding footer text is omitted. Settings pages use the Command Center's
+category headings, fine rules, and spacing. The
 access-panel editor supports section/row edits, adding/removing/reordering,
 decorative side lines, optional text-only rows, button labels and emojis. Discord's
 component limits allow up to four sections and six rows, with 2,800 description
@@ -49,6 +60,10 @@ and in author logs when enabled. Unlogged anonymous submissions clear their dire
 author ID after publication/rejection; a keyed server-specific identifier supports
 cooldowns. Choosing Show My Name intentionally retains the public responder ID.
 Turning a setting off does not delete existing Discord log/review messages.
+
+KY BOT also needs Create Public Threads and Send Messages in Threads in the ask
+channel. Archived threads reopen for approved replies; moderator-locked threads are
+left locked, and advice delivery waits until a moderator reopens them.
 
 Offline checks cover role dependencies, independent approval combinations,
 multiple responses, privacy revisions, delivery recovery, notifications, and layout

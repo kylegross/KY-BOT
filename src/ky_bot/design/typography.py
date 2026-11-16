@@ -3,9 +3,23 @@
 import os
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageColor, ImageDraw, ImageFilter, ImageFont
 
 SECTION_HEADING_LEFT = 6
+
+
+def section_rule(image, ink_right, style, text_color=None):
+    """Continue a decorative section heading with the Command Center's fine right-hand rule."""
+    from ky_bot.design.collection import COLOURS
+
+    left = ink_right + 24
+    right = image.width - 8
+    if left < right:
+        color = ImageColor.getrgb(text_color or COLOURS[style]) + (120,)
+        ImageDraw.Draw(image).line(
+            (left, image.height // 2, right, image.height // 2), fill=color, width=1
+        )
+
 
 TAGLINE = "POWERFUL BY NATURE. SIMPLE BY DESIGN."
 ROLES = {

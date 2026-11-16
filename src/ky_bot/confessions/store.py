@@ -306,6 +306,35 @@ class Store:
                 await self.execute("SELECT * FROM confession_posts WHERE id=?", (token,))
             )
 
+    async def _root(self, token, guild, channel):
+        """Resolve old nested replies and new root-normalized replies under the store lock."""
+        seen = set()
+        while token and token not in seen:
+            seen.add(token)
+            post = self.unpack(
+                await self.execute("SELECT * FROM confession_posts WHERE id=?", (token,))
+            )
+            if (
+                not post
+                or post["guild"] != guild
+                or post["channel"] != channel
+                or (post["state"] != "published")
+            ):
+                raise ValueError("The original post is no longer available for replies.")
+            if not post["parent"]:
+                return post
+            token = post["parent"]
+        raise ValueError("The original post is unavailable.")
+
+    async def root(self, token, guild, channel):
+        async with self.lock:
+            return await self._root(token, guild, channel)
+
+    async def is_original(self, guild, channel, token, member):
+        async with self.transaction():
+            root = await self._root(token, guild, channel)
+            return hmac.compare_digest(root["author_key"], await self._key(guild, member))
+
     async def submit(self, guild, channel, author, roles, body, operation, revision, parent=None):
         async with self.transaction():
             existing = self.unpack(
@@ -342,18 +371,12 @@ class Store:
             )
             if last and now - last[0] < config["cooldown"]:
                 raise ValueError("Please wait before submitting another confession or reply.")
+            reply_to = parent
             if parent:
-                source = self.unpack(
-                    await self.execute("SELECT * FROM confession_posts WHERE id=?", (parent,))
-                )
-                if (
-                    not config["replies"]
-                    or not source
-                    or source["guild"] != guild
-                    or source["channel"] != channel
-                    or source["state"] != "published"
-                ):
+                if not config["replies"]:
                     raise ValueError("This confession is not available for replies.")
+                source = await self._root(parent, guild, channel)
+                parent = source["id"]
             if parent:
                 count = await self.execute(
                     "SELECT COUNT(*) FROM confession_posts WHERE parent=?", (parent,)
@@ -375,6 +398,8 @@ class Store:
             }
             if parent:
                 data["parent_number"] = source["data"]["number"]
+                data["reply_to"] = reply_to
+                data["is_original_poster"] = hmac.compare_digest(source["author_key"], key)
             await self.execute(
                 "INSERT INTO confession_posts VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (

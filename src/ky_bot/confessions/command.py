@@ -9,6 +9,7 @@ from discord.ext import commands, tasks
 
 from ky_bot.errors import report_error, send_private
 from ky_bot.log_style import send_log
+from ky_bot.services.anonymous_threads import message_destination, reply_reference, reply_thread
 
 from .cards import Card, author_log_embed, post_card, privacy, safe, uploads
 from .store import Store
@@ -246,6 +247,7 @@ class Confessions(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.panel_locks = {}
+        self.thread_locks = {}
 
     async def cog_load(self):
         self.store = await Store.open(
@@ -405,11 +407,19 @@ class Confessions(commands.Cog):
     async def publish(self, guild, post, config):
         channel = destination(guild, post["channel"])
         if post["parent"]:
-            parent = await self.store.post(post["parent"])
-            if not parent or parent["state"] != "published":
+            try:
+                parent = await self.store.root(post["parent"], guild.id, post["channel"])
+                async with self.thread_locks.setdefault(parent["id"], asyncio.Lock()):
+                    channel = await reply_thread(
+                        guild, channel, parent, self.store, label="Confession"
+                    )
+            except (ValueError, discord.HTTPException) as error:
+                # No reply was sent; preserve it in the review queue for an administrator.
+                await self.store.transition(post["id"], {"ready"}, "pending", delivery_blocked=True)
                 raise ValueError(
-                    "The original confession is no longer available. Reject this reply instead."
-                )
+                    "Your reply is saved in Pending approvals because its thread is unavailable. "
+                    "An administrator can reopen the thread and publish it, or reject the reply."
+                ) from error
         # Respect the privacy mode accepted at submission; never introduce retroactive author logs.
         should_log = post["data"]["logging"] and config["logging"]
         if should_log:
@@ -421,16 +431,24 @@ class Confessions(commands.Cog):
                 for a in ("reply", "report")
                 if config["replies" if a == "reply" else "reports"]
             ]
+            reference = await reply_reference(self.store, post, channel) if post["parent"] else None
             message = await self.send_card(
-                channel, config, post_card(config, post, buttons=buttons)
+                channel,
+                config,
+                post_card(config, post, buttons=buttons),
+                **({"reference": reference} if reference else {}),
             )
             post = await self.store.transition(
-                post["id"], {"publishing"}, "published", message=message.id
+                post["id"],
+                {"publishing"},
+                "published",
+                message=message.id,
+                message_channel=channel.id,
             )
         except BaseException:
             await self.store.transition(post["id"], {"publishing"}, "uncertain")
             raise
-        if config["sticky"]:
+        if config["sticky"] and not post["parent"]:
             # Count successful confession/reply posts, but never the bot's own panel.
             await self.store.panel(guild.id, post["channel"], count=True)
         if post["data"]["logging"]:
@@ -488,6 +506,7 @@ class Confessions(commands.Cog):
         if action == "reply":
             if post["state"] != "published":
                 raise ValueError("This confession is no longer available for replies.")
+            await self.store.root(token, post["guild"], post["channel"])
             return await self.begin(interaction, post["channel"], token)
         if action == "report":
             if not config["reports"]:
@@ -535,11 +554,7 @@ class Confessions(commands.Cog):
             # Only admins can advance the queue, even when they have moderation permissions.
             destination(interaction.guild, post["channel"])
             if post["parent"]:
-                parent = await self.store.post(post["parent"])
-                if not parent or parent["state"] != "published":
-                    raise ValueError(
-                        "The original confession was removed. Reject this reply instead."
-                    )
+                await self.store.root(post["parent"], post["guild"], post["channel"])
             async with self.store.lock:
                 banned = await self.store.execute(
                     "SELECT reason FROM confession_bans WHERE guild=? AND author_key=?",
@@ -568,7 +583,7 @@ class Confessions(commands.Cog):
         elif action == "remove":
             if post["state"] != "published":
                 raise ValueError("This confession is not currently published.")
-            channel = destination(interaction.guild, post["channel"])
+            channel = await message_destination(interaction.guild, post)
             try:
                 await channel.get_partial_message(post["data"]["message"]).delete()
             except discord.NotFound:

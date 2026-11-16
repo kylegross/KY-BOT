@@ -17,6 +17,22 @@ def safe(value):
     return discord.utils.escape_mentions(str(value))
 
 
+def artwork_bytes(config, kind):
+    if config[kind]:
+        return base64.b64decode(config[kind])
+    palette = config.get(kind + "_palette")
+    return standard_artwork(
+        kind,
+        config["artwork_finish"],
+        config["header_title"],
+        config.get("header_text_finish") or config["text_finish"],
+        config.get("header_text_color") or config["text_color"],
+        tuple(palette.get(key) for key in ("base", "highlight", "shadow", "accent"))
+        if palette
+        else None,
+    )
+
+
 def heading_image(text, config, decorated=False):
     if not decorated:
         return title_image(text, config["text_finish"], config["text_color"])
@@ -42,17 +58,7 @@ class Panel(discord.ui.LayoutView):
         self.add_item(self.panel)
         if banner:
             for key in ("header",):
-                data = (
-                    base64.b64decode(config[key])
-                    if config[key]
-                    else standard_artwork(
-                        key,
-                        config["artwork_finish"],
-                        config["header_title"],
-                        config["text_finish"],
-                        config["text_color"],
-                    )
-                )
+                data = artwork_bytes(config, key)
                 self.image("advice_" + key + ".png", data)
 
     def image(self, name, data):
@@ -66,19 +72,9 @@ class Panel(discord.ui.LayoutView):
             )
 
     def footer(self, config):
-        if config["footer_text"]:
+        if config["footer_text"] and config["footer_text"] != "KY BOT · Ask for Advice":
             self.panel.add_item(discord.ui.TextDisplay("-# " + safe(config["footer_text"])))
-        data = (
-            base64.b64decode(config["footer"])
-            if config["footer"]
-            else standard_artwork(
-                "footer",
-                config["artwork_finish"],
-                config["header_title"],
-                config["text_finish"],
-                config["text_color"],
-            )
-        )
+        data = artwork_bytes(config, "footer")
         self.panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
         self.image("advice_footer.png", data)
 
@@ -135,6 +131,8 @@ def post_panel(post, config, *, review=False):
         view.panel.add_item(
             discord.ui.TextDisplay(f"-# Response from <@{name}>" if name else "-# Anonymous advice")
         )
+        if post["data"].get("is_original_poster"):
+            view.panel.add_item(discord.ui.TextDisplay("**Original Poster**"))
     if review:
         author = post["author"]
         view.panel.add_item(
@@ -146,8 +144,16 @@ def post_panel(post, config, *, review=False):
         view.panel.add_item(
             discord.ui.ActionRow(Action(post["id"], "approve"), Action(post["id"], "reject"))
         )
-    elif not post["parent"]:
-        view.panel.add_item(discord.ui.ActionRow(Action(post["id"], "respond")))
+    else:
+        view.panel.add_item(
+            discord.ui.ActionRow(
+                Action(
+                    post["id"],
+                    "respond",
+                    label="Reply" if post["parent"] else "Respond to question",
+                )
+            )
+        )
     # Stable reference also lets delivery recovery find a post after a connection failure.
     view.panel.add_item(discord.ui.TextDisplay(f"-# Reference: {post['id']}"))
     view.footer(config)

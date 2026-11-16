@@ -10,6 +10,7 @@ from discord.ext import commands, tasks
 
 from ky_bot.confessions.command import destination
 from ky_bot.errors import report_error, send_private
+from ky_bot.services.anonymous_threads import reply_reference, reply_thread
 
 from .panels import access_panel, post_panel, safe, submission_panel
 from .store import Store
@@ -191,6 +192,7 @@ class Advice(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.role_locks, self.panel_locks, self.delivery_locks = {}, {}, {}
+        self.thread_locks = {}
         self.panel_inflight = set()
 
     async def cog_load(self):
@@ -221,7 +223,7 @@ class Advice(commands.Cog):
             for file in files:
                 file.close()
 
-    async def member(self, i, channel, *, responding=False):
+    async def member(self, i, channel, *, responding=False, parent=None):
         if not i.guild:
             raise ValueError("Use this inside your server.")
         member = await i.guild.fetch_member(i.user.id)
@@ -233,7 +235,10 @@ class Advice(commands.Cog):
         if not target.permissions_for(member).view_channel:
             raise ValueError("You do not have access to this ask channel.")
         if responding and config["advice_role"] not in roles:
-            raise ValueError("Select Give Advice in the access panel before responding.")
+            if not parent or not await self.store.is_original(
+                i.guild_id, channel, parent, member.id
+            ):
+                raise ValueError("Select Give Advice in the access panel before responding.")
         return member, revision, config
 
     async def action(self, i, token, action):
@@ -248,8 +253,9 @@ class Advice(commands.Cog):
         if not post or post["guild"] != i.guild_id:
             raise ValueError("This question or response is unavailable.")
         if action == "respond":
-            if post["parent"] or post["state"] != "published":
-                raise ValueError("Choose a published question to respond to.")
+            if post["state"] != "published":
+                raise ValueError("Choose a published question or advice response to reply to.")
+            await self.store.root(token, post["guild"], post["channel"])
             return await self.begin(i, post["channel"], post["id"])
         await administrator(i)
         await i.response.defer(ephemeral=True)
@@ -310,7 +316,7 @@ class Advice(commands.Cog):
     async def begin(self, i, channel, parent=None):
         # Acknowledge the member fetch before opening the modal via a private start button.
         await i.response.defer(ephemeral=True)
-        _, revision, config = await self.member(i, channel, responding=bool(parent))
+        _, revision, config = await self.member(i, channel, responding=bool(parent), parent=parent)
         form = Submission(self, i, channel, revision, config, parent)
         view = discord.ui.View(timeout=600)
         button = discord.ui.Button(label="Write advice" if parent else "Write question")
@@ -325,7 +331,9 @@ class Advice(commands.Cog):
         await i.followup.send("Open your private submission form.", view=view, ephemeral=True)
 
     async def submit(self, i, form, body, named):
-        member, _, config = await self.member(i, form.channel, responding=bool(form.parent))
+        member, _, config = await self.member(
+            i, form.channel, responding=bool(form.parent), parent=form.parent
+        )
         approval = config["response_approval"] if form.parent else config["approval"]
         if approval:
             destination(i.guild, config["queue_channel"], private=True)
@@ -368,27 +376,29 @@ class Advice(commands.Cog):
         if post["state"] in {"ready", "sending"}:
             channel = destination(guild, post["channel"])
             if post["parent"]:
-                source = await self.store.post(post["parent"])
-                if not source or source["state"] != "published":
-                    raise ValueError("The original question is unavailable.")
+                source = await self.store.root(post["parent"], guild.id, post["channel"])
+                async with self.thread_locks.setdefault(source["id"], asyncio.Lock()):
+                    channel = await reply_thread(
+                        guild, channel, source, self.store, label="Question"
+                    )
             if post["state"] == "ready":
                 await self.store.transition(post["id"], {"ready"}, "sending")
             message = await self.find_delivery(channel, post["id"], since=post["created"])
             if message is None:
                 view = post_panel(post, config)
-                if post["parent"]:
-                    source = await self.store.post(post["parent"])
-                    view.panel.add_item(
-                        discord.ui.ActionRow(
-                            discord.ui.Button(
-                                label="View original question",
-                                url=f"https://discord.com/channels/{guild.id}/{channel.id}/"
-                                f"{source['data']['message']}",
-                            )
-                        )
-                    )
-                message = await self.send_panel(channel, view)
-            await self.store.transition(post["id"], {"sending"}, "published", message=message.id)
+                reference = (
+                    await reply_reference(self.store, post, channel) if post["parent"] else None
+                )
+                message = await self.send_panel(
+                    channel, view, **({"reference": reference} if reference else {})
+                )
+            await self.store.transition(
+                post["id"],
+                {"sending"},
+                "published",
+                message=message.id,
+                message_channel=channel.id,
+            )
             post = await self.store.post(post["id"])
         if post["state"] != "published":
             return
@@ -470,6 +480,12 @@ class Advice(commands.Cog):
         for target in (public, entrance):
             if not target.permissions_for(guild.me).read_message_history:
                 raise ValueError("KY BOT needs Read Message History in both channels.")
+        permissions = public.permissions_for(guild.me)
+        if not permissions.create_public_threads or not permissions.send_messages_in_threads:
+            raise ValueError(
+                "KY BOT needs Create Public Threads and Send Messages in Threads "
+                "in the ask channel."
+            )
         if not guild.me.guild_permissions.manage_channels:
             raise ValueError("KY BOT needs Manage Channels to configure channel visibility.")
         for key in ("queue_channel", "log_channel"):

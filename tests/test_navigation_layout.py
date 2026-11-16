@@ -131,3 +131,21 @@ class NavigationLayoutTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(panel.children[-1], footer)
         self.assertIsInstance(panel.children[-2], discord.ui.Section)
         self.assertEqual(panel.children[-2].accessory.label, "Home")
+
+    async def test_grouped_selectors_have_a_gap_between_blocks_not_inside_their_labels(self):
+        panel = discord.ui.Container()
+        panel.add_item(
+            discord.ui.MediaGallery(discord.MediaGalleryItem("attachment://ky_strip_design.png"))
+        )
+        first = discord.ui.TextDisplay("**FIRST ROLE**\nChoose role one.")
+        second = discord.ui.TextDisplay("**SECOND ROLE**\nChoose role two.")
+        panel.add_item(first)
+        panel.add_item(discord.ui.ActionRow(discord.ui.RoleSelect()))
+        panel.add_item(second)
+        panel.add_item(discord.ui.ActionRow(discord.ui.RoleSelect()))
+        count = panel._total_count
+        section_dividers(panel)
+        section_dividers(panel)
+        self.assertEqual(panel._total_count, count)
+        self.assertEqual(first.content, "**FIRST ROLE**\nChoose role one.")
+        self.assertEqual(second.content, "-# \u200b\n**SECOND ROLE**\nChoose role two.")

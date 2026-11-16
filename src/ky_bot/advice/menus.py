@@ -9,9 +9,11 @@ from ky_bot.confessions.menus import Artwork
 from ky_bot.design.menu_design import FINISHES
 from ky_bot.errors import report_error, send_private
 from ky_bot.views.menu_context import display_menu, menu_parent
+from ky_bot.views.sections import section_dividers
 
 from .command import administrator
-from .panels import Panel, access_panel, submission_panel
+from .layout import arrange, attachments
+from .panels import Panel, access_panel, artwork_bytes, submission_panel
 from .store import defaults, validate
 
 
@@ -151,7 +153,7 @@ class Admin(discord.ui.LayoutView):
             for key in ("sticky_count", "cooldown", "max_length"):
                 if key in values:
                     values[key] = int(values[key])
-            for key in ("color", "text_color"):
+            for key in ("color", "text_color", "header_text_color"):
                 if key in values:
                     values[key] = values[key].lstrip("#") or None
             await self.save(click, self.revision, **values)
@@ -186,13 +188,12 @@ class Admin(discord.ui.LayoutView):
         self.clear_items()
         view = Panel(defaults())
         panel = view.panel
-        view.heading("ASK FOR ADVICE", defaults())
         if notice:
             panel.add_item(discord.ui.TextDisplay(notice))
         if page == "channels":
             panel.add_item(
                 discord.ui.TextDisplay(
-                    "Choose the **ask channel** to create or edit its settings. "
+                    "**ASK CHANNEL**\nChoose the ask channel to create or edit its settings. "
                     "Members join through a separate access channel."
                 )
             )
@@ -434,7 +435,14 @@ class Admin(discord.ui.LayoutView):
                 self.setting(
                     panel,
                     kind.upper() + " IMAGE",
-                    "Custom upload or generated branded artwork.",
+                    "Using your uploaded image."
+                    if self.config[kind]
+                    else "Generated artwork · "
+                    + (
+                        "custom colors"
+                        if self.config.get(kind + "_palette")
+                        else FINISHES[self.config["artwork_finish"]]
+                    ),
                     self.button("Upload", upload, modal=True),
                 )
 
@@ -442,20 +450,70 @@ class Admin(discord.ui.LayoutView):
                 await self.edit_values(
                     click,
                     "Header banner title",
-                    (("header_title", "Header image title", 80, True, False),),
+                    (
+                        ("header_title", "Header image title", 80, True, False),
+                        (
+                            "header_text_color",
+                            "Title hex color (blank follows text style)",
+                            7,
+                            False,
+                            False,
+                        ),
+                    ),
                 )
 
             self.setting(
                 panel,
-                "HEADER IMAGE TITLE",
+                "HEADER IMAGE TITLE & COLOR",
                 self.config["header_title"],
                 self.button("Edit", title, modal=True),
             )
 
             async def finish(click, values):
-                await self.save(click, self.revision, artwork_finish=values[0])
+                await self.save(
+                    click,
+                    self.revision,
+                    artwork_finish=values[0],
+                    header=None,
+                    footer=None,
+                    header_palette=None,
+                    footer_palette=None,
+                )
                 await self.show(click, "artwork")
 
+            async def title_finish(click, values):
+                await self.save(
+                    click,
+                    self.revision,
+                    header_text_finish=(None if values[0] == "follow" else values[0]),
+                )
+                await self.show(click, "artwork")
+
+            panel.add_item(discord.ui.TextDisplay("**HEADER IMAGE TITLE FINISH**"))
+            self.picker(
+                panel,
+                discord.ui.Select(
+                    placeholder="Header title finish",
+                    options=[
+                        discord.SelectOption(
+                            label="Follow decorative text",
+                            value="follow",
+                            default=self.config["header_text_finish"] is None,
+                        ),
+                        *[
+                            discord.SelectOption(
+                                label=label,
+                                value=key,
+                                default=self.config["header_text_finish"] == key,
+                            )
+                            for key, label in FINISHES.items()
+                        ],
+                    ],
+                ),
+                title_finish,
+            )
+
+            panel.add_item(discord.ui.TextDisplay("**ARTWORK FINISH**"))
             self.picker(
                 panel,
                 discord.ui.Select(
@@ -472,8 +530,49 @@ class Admin(discord.ui.LayoutView):
                 finish,
             )
 
+            for kind in ("header", "footer"):
+
+                async def colors(click, kind=kind):
+                    from ky_bot.design.palette_editor import PaletteModal
+
+                    selected, revision = self.channel, self.revision
+                    snapshot = copy.deepcopy(self.config)
+
+                    async def allowed(event):
+                        await self.allowed(event)
+                        if self.channel != selected:
+                            raise ValueError("The channel changed. Reopen the artwork editor.")
+                        return True
+
+                    def render(palette):
+                        config = snapshot | {kind: None, kind + "_palette": palette}
+                        return [("advice_custom_" + kind + ".png", artwork_bytes(config, kind))]
+
+                    async def commit(event, palette):
+                        await event.response.defer(ephemeral=True)
+                        await self.save(event, revision, **{kind: None, kind + "_palette": palette})
+                        await self.show(event, "artwork", "Custom artwork colors saved.")
+
+                    await click.response.send_modal(
+                        PaletteModal(self.config.get(kind + "_palette"), render, commit, allowed)
+                    )
+
+                self.setting(
+                    panel,
+                    "CUSTOM " + kind.upper() + " COLORS",
+                    "Choose base, highlight, shadow and iridescent colors; preview before saving.",
+                    self.button("Custom colors", colors, modal=True),
+                )
+
             async def reset(click):
-                await self.save(click, self.revision, header=None, footer=None)
+                await self.save(
+                    click,
+                    self.revision,
+                    header=None,
+                    footer=None,
+                    header_palette=None,
+                    footer_palette=None,
+                )
                 await self.show(click, "artwork", "Standard artwork restored.")
 
             self.setting(
@@ -481,6 +580,16 @@ class Admin(discord.ui.LayoutView):
                 "STANDARD ARTWORK",
                 "Restore both generated images.",
                 self.button("Restore", reset),
+            )
+
+            async def preview_artwork(click):
+                await self.preview(click, True)
+
+            self.setting(
+                panel,
+                "PREVIEW ARTWORK",
+                "View the current header, footer and title colors.",
+                self.button("Preview", preview_artwork),
             )
         elif page in {"sections", "section", "row"}:
             await self.section_page(i, panel, page)
@@ -520,6 +629,7 @@ class Admin(discord.ui.LayoutView):
             )
         elif page == "queue":
             # Keep submission text and author identities off the shared settings panel.
+            panel.add_item(discord.ui.TextDisplay("**PENDING APPROVALS**"))
             posts = await self.cog.store.pending(self.guild, self.channel)
             if posts:
                 options = [
@@ -567,7 +677,14 @@ class Admin(discord.ui.LayoutView):
         panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
         controls = discord.ui.ActionRow()
         if page != "channels":
-            controls.add_item(self.navigate("channels" if page == "main" else "main", "Back"))
+            previous = {
+                "main": "channels",
+                "destinations": "delivery",
+                "artwork": "style",
+                "section": "sections",
+                "row": "section",
+            }.get(page, "main")
+            controls.add_item(self.navigate(previous, "Back"))
         controls.add_item(self.navigate(page, "Refresh"))
         if self.parent:
 
@@ -585,10 +702,12 @@ class Admin(discord.ui.LayoutView):
             controls.add_item(self.button("Home", home))
         panel.add_item(controls)
         view.footer(defaults())
+        arrange(panel, page)
+        section_dividers(panel, navigation_on_right=True)
         # Transfer the rendered container to this owner-checked settings view.
         view.remove_item(panel)
         self.add_item(panel)
-        files = view.uploads()
+        files = view.uploads() + attachments(page)
         try:
             await display_menu(i, self, files, self.parent)
         finally:
@@ -606,6 +725,7 @@ class Admin(discord.ui.LayoutView):
             await self.show(click, target)
 
         if page == "sections":
+            panel.add_item(discord.ui.TextDisplay("**PANEL SECTIONS**"))
 
             async def select(click, values):
                 self.section, self.row = int(values[0]), 0
@@ -692,6 +812,7 @@ class Admin(discord.ui.LayoutView):
                 self.row = int(values[0])
                 await self.show(click, "row")
 
+            panel.add_item(discord.ui.TextDisplay("**TEXT ROWS**"))
             self.picker(
                 panel,
                 discord.ui.Select(
@@ -749,6 +870,7 @@ class Admin(discord.ui.LayoutView):
                 updated[self.section]["rows"][self.row]["action"] = values[0]
                 await store(click, updated)
 
+            panel.add_item(discord.ui.TextDisplay("**BUTTON ACTION**"))
             self.picker(
                 panel,
                 discord.ui.Select(

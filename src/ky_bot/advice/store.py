@@ -1,5 +1,6 @@
 """Advice storage, isolated from Confessions, with revision and state checks."""
 
+import hmac
 import json
 import time
 import uuid
@@ -17,7 +18,7 @@ def defaults():
         panel_title="ASK FOR ADVICE",
         panel_text="Have a question or need another perspective? Ask anonymously here.",
         submit_label="Ask anonymously",
-        footer_text="KY BOT · Ask for Advice",
+        footer_text="",
         sticky=True,
         access_channel=0,
         access_role=0,
@@ -25,6 +26,8 @@ def defaults():
         response_approval=False,
         notifications=False,
         response_title="ADVICE",
+        header_text_color=None,
+        header_text_finish=None,
         sections=[
             dict(
                 heading="ASK FOR ADVICE",
@@ -87,6 +90,12 @@ def validate(config):
     if result["response_approval"] and not result["queue_channel"]:
         raise ValueError("Choose a private approval destination first.")
     result.update(validate_confession(base))
+    from ky_bot.design.menu_design import FINISHES
+    from ky_bot.design.text_colour import text_colour
+
+    result["header_text_color"] = text_colour(result["header_text_color"])
+    if result["header_text_finish"] is not None and result["header_text_finish"] not in FINISHES:
+        raise ValueError("Choose a standard header title finish or follow decorative text.")
     if (
         not isinstance(result["response_title"], str)
         or not 1 <= len(result["response_title"]) <= 80
@@ -224,23 +233,17 @@ class Store(ConfessionStore):
                 raise ValueError("Settings changed. Reopen the form to review its privacy notice.")
             if not config["enabled"] or config["access_role"] not in roles:
                 raise ValueError("Join Ask for Advice before submitting.")
-            if parent and config["advice_role"] not in roles:
-                raise ValueError("Choose Give Advice before responding to questions.")
             if not isinstance(body, str) or not body.strip() or len(body) > config["max_length"]:
                 raise ValueError(f"Use 1–{config['max_length']} characters.")
             source = None
+            reply_to = parent
             if parent:
-                source = self.unpack(
-                    await self.execute("SELECT * FROM advice_posts WHERE id=?", (parent,))
-                )
-                if (
-                    not source
-                    or source["guild"] != guild
-                    or source["channel"] != channel
-                    or (source["state"] != "published" or source["parent"])
-                ):
-                    raise ValueError("Choose a published question in this channel.")
+                source = await self._root(parent, guild, channel)
+                parent = source["id"]
             key = await self._key(guild, author)
+            is_original = bool(source and hmac.compare_digest(source["author_key"], key))
+            if parent and not is_original and config["advice_role"] not in roles:
+                raise ValueError("Choose Give Advice before responding to questions.")
             now = time.time()
             last = await self.execute(
                 "SELECT created FROM advice_posts WHERE guild=? AND channel=? AND author_key=? "
@@ -259,6 +262,8 @@ class Store(ConfessionStore):
                 logging=config["logging"],
                 approval=approval,
                 public_author=author if parent and named else None,
+                is_original_poster=is_original,
+                reply_to=reply_to,
                 queue_channel=config["queue_channel"],
                 log_channel=config["log_channel"],
                 message=0,

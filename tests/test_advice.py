@@ -9,7 +9,7 @@ import discord
 
 from ky_bot.advice.command import Advice, Confirm
 from ky_bot.advice.menus import Admin
-from ky_bot.advice.panels import access_panel, post_panel, submission_panel
+from ky_bot.advice.panels import access_panel, artwork_bytes, post_panel, submission_panel
 from ky_bot.advice.store import Store, defaults, validate
 
 
@@ -82,7 +82,11 @@ class AdviceTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaisesRegex(ValueError, "Join"):
                 await self.submit(operation=2, roles=roles)
         with self.assertRaisesRegex(ValueError, "Give Advice"):
-            await self.submit(operation=3, parent=question["id"])
+            await self.store.submit(
+                1, 10, 101, [30], "Advice", 3, self.revision, parent=question["id"]
+            )
+        own_reply = await self.submit(operation=4, parent=question["id"])
+        self.assertTrue(own_reply["data"]["is_original_poster"])
 
     async def test_anonymous_questions_and_optional_named_responses(self):
         question = await self.published_question()
@@ -122,7 +126,7 @@ class AdviceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unpublished_and_cross_channel_parents_rejected(self):
         root = await self.submit()
-        with self.assertRaisesRegex(ValueError, "published question"):
+        with self.assertRaisesRegex(ValueError, "original post"):
             await self.submit(2, roles=[30, 40], parent=root["id"])
 
     async def test_settings_validation(self):
@@ -204,6 +208,100 @@ class AdviceTests(unittest.IsolatedAsyncioTestCase):
             self.assertLessEqual(menu.total_children_count, 40, page)
             menu.to_components()
         menu.stop()
+
+    async def test_every_settings_page_uses_shared_category_artwork_and_spacing(self):
+        cog = SimpleNamespace(store=self.store)
+        for parent in (None, SimpleNamespace(panel_manager=None)):
+            menu = Admin(cog, 7, 1, parent=parent)
+            menu.channel = 10
+            menu.allowed = AsyncMock()
+            interaction = SimpleNamespace(guild_id=1)
+            for page in (
+                "channels",
+                "main",
+                "roles",
+                "delivery",
+                "destinations",
+                "style",
+                "artwork",
+                "sections",
+                "section",
+                "row",
+                "publish",
+                "queue",
+            ):
+                with patch("ky_bot.advice.menus.display_menu", new=AsyncMock()) as display:
+                    await menu.show(interaction, page, "Saved settings.")
+                self.assertLessEqual(menu.total_children_count, 40, page)
+                media = {
+                    item.media.url.removeprefix("attachment://")
+                    for child in menu.walk_children()
+                    if isinstance(child, discord.ui.MediaGallery)
+                    for item in child.items
+                }
+                files = display.await_args.args[2]
+                self.assertTrue(media <= {file.filename for file in files}, page)
+                self.assertTrue(any(name.startswith("ky_strip_") for name in media), page)
+                self.assertNotIn("KY BOT · Ask for Advice", str(menu.to_components()), page)
+                if page == "main":
+                    first = next(
+                        item
+                        for item in menu.walk_children()
+                        if isinstance(item, discord.ui.Section)
+                        and "CHANNELS & ROLES" in item.children[0].content
+                    )
+                    self.assertTrue(first.children[0].content.endswith("\n-# \u200b"))
+            menu.stop()
+
+    async def test_artwork_page_exposes_title_color_and_both_custom_palettes(self):
+        menu = Admin(SimpleNamespace(store=self.store), 7, 1)
+        menu.channel = 10
+        menu.allowed = AsyncMock()
+        i = SimpleNamespace(guild_id=1, response=SimpleNamespace(send_modal=AsyncMock()))
+        with patch("ky_bot.advice.menus.display_menu", new=AsyncMock()):
+            await menu.show(i, "artwork")
+        headings = [
+            item.children[0].content
+            for item in menu.walk_children()
+            if isinstance(item, discord.ui.Section)
+        ]
+        for heading in (
+            "HEADER IMAGE TITLE & COLOR",
+            "CUSTOM HEADER COLORS",
+            "CUSTOM FOOTER COLORS",
+        ):
+            self.assertTrue(any(heading in text for text in headings), heading)
+        section = next(
+            item
+            for item in menu.walk_children()
+            if isinstance(item, discord.ui.Section)
+            and "HEADER IMAGE TITLE & COLOR" in item.children[0].content
+        )
+        await section.accessory.callback(i)
+        modal = i.response.send_modal.await_args.args[0]
+        self.assertEqual(set(modal.fields), {"header_title", "header_text_color"})
+        menu.stop()
+
+    async def test_artwork_uses_persisted_custom_palettes_and_independent_title_color(self):
+        await self.configure(
+            header_palette={"base": "#7B2CBF"},
+            footer_palette={"base": "#22CC88"},
+            header_text_color="#FFAA00",
+            header_text_finish="gold",
+        )
+        config = (await self.store.config(1, 10))[1]
+        with patch("ky_bot.advice.panels.standard_artwork", return_value=b"art") as render:
+            artwork_bytes(config, "header")
+            self.assertEqual(render.call_args.args[3:5], ("gold", "#FFAA00"))
+            self.assertEqual(render.call_args.args[5][0], "#7B2CBF")
+            artwork_bytes(config, "footer")
+            self.assertEqual(render.call_args.args[5][0], "#22CC88")
+
+    async def test_old_default_footer_is_hidden_but_custom_footer_is_kept(self):
+        config = self.config | {"footer_text": "KY BOT · Ask for Advice"}
+        self.assertNotIn("KY BOT · Ask for Advice", str(access_panel(10, config).to_components()))
+        config["footer_text"] = "My community footer"
+        self.assertIn("My community footer", str(access_panel(10, config).to_components()))
 
     async def test_role_buttons_enforce_dependencies_and_leave_removes_both(self):
         await self.store.panel(1, 20, message=777)
@@ -313,7 +411,7 @@ class AdviceTests(unittest.IsolatedAsyncioTestCase):
         cog = Advice(SimpleNamespace())
         cog.store = self.store
         cog.find_delivery = AsyncMock(side_effect=[SimpleNamespace(id=1), None])
-        target = SimpleNamespace(send=AsyncMock(return_value=SimpleNamespace(id=2)))
+        target = SimpleNamespace(id=10, send=AsyncMock(return_value=SimpleNamespace(id=2)))
         with patch("ky_bot.advice.command.destination", return_value=target):
             await cog.deliver(SimpleNamespace(id=1), post)
         self.assertIn("view", target.send.await_args.kwargs)
@@ -324,7 +422,7 @@ class AdviceTests(unittest.IsolatedAsyncioTestCase):
         cog = Advice(SimpleNamespace())
         cog.store = self.store
         cog.find_delivery = AsyncMock(return_value=SimpleNamespace(id=123))
-        target = SimpleNamespace(send=AsyncMock())
+        target = SimpleNamespace(id=10, send=AsyncMock())
         with patch("ky_bot.advice.command.destination", return_value=target):
             await cog.deliver(SimpleNamespace(id=1), post)
             await self.configure(notifications=True)

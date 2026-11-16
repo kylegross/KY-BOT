@@ -272,11 +272,30 @@ identities and report reasons are visible to administrators in private review co
 KY BOT stores confession/reply content, channel/message and operation identifiers,
 submission state and moderation records needed to deliver and manage the feature.
 A keyed per-server pseudonymous author identifier supports cooldowns and confession bans.
+That same identifier also privately verifies the original author for replies marked
+**Original Poster**. Anonymous replies are posted by KY BOT in a thread attached to
+the original post; the bot does not add anonymous authors as thread members.
 Direct author IDs are stored when needed for approval or enabled author logging; unlogged
 posts clear that direct ID after publication or rejection. This does not erase existing
 messages in Discord’s private review or log channels. Turning logging on later does not
 add author identities to earlier unlogged posts. Access to Discord review/log messages
 is controlled by server administrators and Discord permissions.
+
+## Ask for Advice
+
+Questions and responses are anonymous publicly unless a responder explicitly chooses
+to show their name. Original authors can reply with an **Original Poster** indicator,
+verified using a keyed per-server identifier without exposing their Discord identity.
+Replies are published by KY BOT in the original question's thread. The bot does not
+add anonymous authors as thread members.
+
+Question and response approvals are configured independently. Approval queues identify
+authors to administrators, even when ongoing author logging is off. Optional private
+author logs also retain the submission and author ID. Direct author IDs are cleared
+after publication/rejection when logging is off; an explicitly chosen public responder
+ID is retained for attribution. Stored data includes submissions, thread/message and
+operation identifiers, role/channel settings, delivery states, and approval records.
+Turning settings off does not delete existing Discord log or review messages.
 
 ### Private Support Tickets
 

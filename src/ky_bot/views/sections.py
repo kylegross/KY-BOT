@@ -126,6 +126,15 @@ def section_dividers(panel: discord.ui.Container, *, navigation_on_right: bool =
     )
     previous = None
     for child in children:
+        if (
+            branded_groups
+            and isinstance(previous, discord.ui.ActionRow)
+            and any(not isinstance(control, discord.ui.Button) for control in previous.children)
+            and isinstance(child, discord.ui.TextDisplay)
+            and child.content.startswith("**")
+        ):
+            # Keep labels attached to their own picker, with a gap after the previous control.
+            child.content = "-# \u200b\n" + child.content
         adjacent_sections = (
             not branded_groups
             and isinstance(previous, discord.ui.Section)

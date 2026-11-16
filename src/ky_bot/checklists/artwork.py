@@ -7,7 +7,12 @@ from PIL import Image, ImageOps
 from ky_bot.design.collection import floral_background
 from ky_bot.design.footers import centered_overlay, read_upload, rectangular_frame, text_ink
 from ky_bot.design.headers import render_header
-from ky_bot.design.typography import SECTION_HEADING_LEFT, section_heading_mask, text_mask
+from ky_bot.design.typography import (
+    SECTION_HEADING_LEFT,
+    section_heading_mask,
+    section_rule,
+    text_mask,
+)
 
 
 def png(image):
@@ -30,9 +35,11 @@ def title_image(title, style, text_color=None):
             if len(text) <= 4:
                 raise
             text = text.rstrip("…")[:-1] + "…"
+    mask = ImageOps.contain(mask, (960, mask.height), Image.Resampling.LANCZOS)
     ink = text_ink(mask, style, text_color)
     label = Image.new("RGBA", (1120, mask.height + 32))
     label.alpha_composite(ink, (SECTION_HEADING_LEFT, 16))
+    section_rule(label, SECTION_HEADING_LEFT + mask.width, style, text_color)
     return png(label)
 
 

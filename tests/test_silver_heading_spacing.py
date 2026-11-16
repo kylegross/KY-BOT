@@ -10,6 +10,16 @@ from ky_bot.views.menu_strips import GROUPS, strip_files
 
 
 class SilverHeadingSpacingTests(unittest.TestCase):
+    def test_dynamic_decorative_headings_have_fine_right_hand_rules(self):
+        from ky_bot.confessions.headings import title_image as confession_heading
+
+        for render in (title_image, confession_heading):
+            with Image.open(io.BytesIO(render("SETTINGS", "silver_neon"))) as image:
+                right_edge = image.getchannel("A").crop((1000, 0, 1112, image.height))
+                bounds = right_edge.getbbox()
+                self.assertIsNotNone(bounds)
+                self.assertEqual(bounds[3] - bounds[1], 1)
+
     def test_shared_custom_embed_heading_retains_glyph_size_with_six_pixel_inset(self):
         mask = section_heading_mask("SAVED EMBEDS")
         with Image.open(io.BytesIO(title_image("SAVED EMBEDS", "silver_neon"))) as image:

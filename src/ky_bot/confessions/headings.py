@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageOps
 from ky_bot.design.collection import COLOURS
 from ky_bot.design.footers import text_ink
 from ky_bot.design.headers import asset
-from ky_bot.design.typography import SECTION_HEADING_LEFT
+from ky_bot.design.typography import SECTION_HEADING_LEFT, section_rule
 from ky_bot.design.welcome import font, readable
 
 DIVIDER = " 𖥸 "
@@ -104,9 +104,10 @@ def title_image(title, finish="silver_neon", text_color=None):
     for glyph in scaled:
         mask.paste(glyph, (x, (line_height - glyph.height) // 2))
         x += glyph.width + gap
-    mask = ImageOps.contain(mask, (1080, line_height), Image.Resampling.LANCZOS)
+    mask = ImageOps.contain(mask, (960, line_height), Image.Resampling.LANCZOS)
     image = Image.new("RGBA", (1120, mask.height + 32))
     image.alpha_composite(paint(mask), (SECTION_HEADING_LEFT, 16))
+    section_rule(image, SECTION_HEADING_LEFT + mask.width, finish, text_color)
     stream = io.BytesIO()
     image.save(stream, format="PNG")
     return stream.getvalue()
