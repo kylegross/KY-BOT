@@ -26,8 +26,11 @@ GROUPS = {
     ),
     "settings:overview": (
         ("SERVER SETUP", ("COMMAND CENTER CHANNEL", "WELCOME EXPERIENCE")),
-        ("COMMUNITY", ("LEVELING", "CONFESSIONS", "ASK TO DM/FR")),
+        ("COMMUNITY", ("COMMUNITY FEATURES",)),
         ("ADMINISTRATION", ("GENERAL SETTINGS", "MANAGE EMBEDS", "MODERATION", "TICKETS", "LOGS")),
+    ),
+    "settings:community": (
+        ("COMMUNITY", ("LEVELING", "CONFESSIONS", "ASK FOR ADVICE", "ASK TO DM/FR")),
     ),
     "settings:general": (
         ("AUTOMATION", ("AUTODELETE", "AUTOTHREAD", "AUTOREACT")),

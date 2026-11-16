@@ -25,6 +25,7 @@ EXTENSIONS = (
     "ky_bot.leveling.command",
     "ky_bot.askdm.command",
     "ky_bot.confessions.command",
+    "ky_bot.advice.command",
     "ky_bot.moderation.command",
     "ky_bot.custom_embeds.command",
     "ky_bot.stealing.command",

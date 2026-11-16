@@ -50,7 +50,7 @@ class MenuStripTests(unittest.IsolatedAsyncioTestCase):
         callback.assert_awaited_once_with("interaction")
 
     async def test_command_center_and_welcome_match_approved_order_and_media(self):
-        for section in ("overview", "general", "welcome", "logging"):
+        for section in ("overview", "community", "general", "welcome", "logging"):
             view = SettingsView(50, 1, Mock())
             view.show_section(section)
             self.assertEqual(
@@ -159,8 +159,6 @@ class MenuStripTests(unittest.IsolatedAsyncioTestCase):
             }
             spaced = {
                 "COMMAND CENTER CHANNEL",
-                "LEVELING",
-                "CONFESSIONS",
                 "GENERAL SETTINGS",
                 "MANAGE EMBEDS",
                 "MODERATION",
@@ -168,7 +166,7 @@ class MenuStripTests(unittest.IsolatedAsyncioTestCase):
             }
             for title in spaced:
                 self.assertTrue(rows[title].children[0].content.endswith("\n-# \u200b"), title)
-            for title in ("WELCOME EXPERIENCE", "ASK TO DM/FR", "LOGS"):
+            for title in ("WELCOME EXPERIENCE", "COMMUNITY FEATURES", "LOGS"):
                 self.assertFalse(rows[title].children[0].content.endswith("\n-# \u200b"), title)
             view.to_components()
             view.stop()

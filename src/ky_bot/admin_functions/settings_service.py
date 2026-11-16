@@ -8,6 +8,7 @@ import discord
 from ky_bot.admin_functions.settings_repository import SettingsRepository
 
 SETTINGS_TITLES = {
+    "community": ("COMMUNITY", "ky_settings_title.png"),
     "overview": ("SERVER SETTINGS", "ky_settings_title.png"),
     "general": ("GENERAL SETTINGS", "ky_settings_general_title.png"),
     "welcome": ("WELCOME SETTINGS", "ky_settings_welcome_title.png"),

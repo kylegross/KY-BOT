@@ -24,6 +24,9 @@ def settings_title_file(section: str) -> discord.File:
 
 
 def _base_settings_files(section: str, design=None) -> list[discord.File]:
+    if section == "community" and design is None:
+        # Reuse the packaged Command Center banner; the Community strip labels this page.
+        return _base_settings_files("overview")
     if design is not None:
         from ky_bot.design.menu_design import menu_files
 
@@ -199,19 +202,9 @@ class SettingsView(discord.ui.LayoutView):
             )
             separator()
             row(
-                "**LEVELING**\n-# Message XP, optional voice XP, rewards and member rankings.",
-                self.automation_navigation("Leveling"),
-            )
-            separator()
-            row(
-                "**CONFESSIONS**\n-# Anonymous posts, replies, approval queues "
-                "and channel styling.",
-                self.automation_navigation("Confessions"),
-            )
-            separator()
-            row(
-                "**ASK TO DM/FR**\n-# Consent requests, role restrictions, channels and logs.",
-                self.automation_navigation("AskDM"),
+                "**COMMUNITY FEATURES**\n-# "
+                "Leveling, Confessions, Ask for Advice and Ask to DM/FR.",
+                self.navigation("Manage", "community"),
             )
             separator()
             row(
@@ -233,6 +226,23 @@ class SettingsView(discord.ui.LayoutView):
                 "**MANAGE EMBEDS**\n-# Custom posts, images, formatting and sticky messages.",
                 self.automation_navigation("CustomEmbeds", label="Manage"),
             )
+        elif section == "community":
+            for title, description, cog in (
+                ("LEVELING", "XP, rewards and member rankings.", "Leveling"),
+                ("CONFESSIONS", "Anonymous posts, replies, approvals and styling.", "Confessions"),
+                (
+                    "ASK FOR ADVICE",
+                    "Anonymous questions, advice roles and response approvals.",
+                    "Advice",
+                ),
+                (
+                    "ASK TO DM/FR",
+                    "Consent requests, role restrictions, channels and logs.",
+                    "AskDM",
+                ),
+            ):
+                row(f"**{title}**\n-# {description}", self.automation_navigation(cog))
+                separator()
         elif section == "general":
             for index, (title, description, cog_name) in enumerate(
                 (
