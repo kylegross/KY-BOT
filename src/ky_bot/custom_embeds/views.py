@@ -499,7 +499,7 @@ class EditModal(discord.ui.Modal):
                 if attachment.size > 8 * 1024 * 1024:
                     raise ValueError("Upload an image under 8 MB.")
                 encoded = await asyncio.to_thread(image_upload, await attachment.read())
-                changes = {self.mode: encoded}
+                changes = {self.mode: encoded, self.mode + "_palette": None}
             else:
                 changes = {key: field.value for key, field in self.fields.items()}
                 if self.mode in {"section_add", "section_edit"}:
@@ -769,13 +769,47 @@ class Editor(Base):
                         i,
                         revision,
                         **(
-                            {key: standard_image(key, picker.values[0])}
+                            {key: standard_image(key, picker.values[0]), key + "_palette": None}
                             | ({"header_finish": picker.values[0]} if key == "header" else {})
                         ),
                     )
 
                 picker.callback = standard
                 self.panel.add_item(discord.ui.ActionRow(picker))
+
+                async def custom_colors(i, key=key):
+                    import base64
+
+                    from ky_bot.design.palette_editor import PaletteModal
+
+                    from .artwork import custom_image
+
+                    def render(palette):
+                        return [
+                            (
+                                "custom_palette_" + key + ".png",
+                                base64.b64decode(custom_image(key, palette)),
+                            )
+                        ]
+
+                    async def commit(i, palette):
+                        await i.response.defer()
+                        image = await asyncio.to_thread(custom_image, key, palette)
+                        changes = {key: image, key + "_palette": palette}
+                        if key == "header":
+                            changes["header_finish"] = "dark_silver"
+                        await s.save(i, revision, **changes)
+
+                    await i.response.send_modal(
+                        PaletteModal(data.get(key + "_palette"), render, commit, s.allowed)
+                    )
+
+                self.row(
+                    "**CUSTOM "
+                    + key.upper()
+                    + " COLORS**\nPreview a metallic palette before saving it.",
+                    button("Custom colors", custom_colors),
+                )
                 if key == "header":
                     self.row(
                         "**HEADER IMAGE TITLE**\n"
@@ -789,7 +823,7 @@ class Editor(Base):
 
                     async def remove(i, key=key):
                         await i.response.defer()
-                        await s.save(i, revision, **{key: None})
+                        await s.save(i, revision, **{key: None, key + "_palette": None})
 
                     self.row(
                         f"**REMOVE {title}**\nClear it from this draft.",

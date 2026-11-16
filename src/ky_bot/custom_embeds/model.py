@@ -52,6 +52,8 @@ def defaults():
         header=None,
         header_title="",
         header_finish="dark_silver",
+        header_palette=None,
+        footer_palette=None,
         footer=None,
         channel=0,
         sticky_every=0,
@@ -107,6 +109,10 @@ def validate(data, *, publish=False):
         raise ValueError("Choose a valid header finish.")
     if data["header_title"]:
         heading_text(data["header_title"])
+    from ky_bot.design.metallic import parse_palette
+
+    data["header_palette"] = parse_palette(data.get("header_palette"))
+    data["footer_palette"] = parse_palette(data.get("footer_palette"))
     data["text_color"] = text_colour(data["text_color"])
     if data["text_finish"] not in FINISHES:
         raise ValueError("Choose a decorative text finish.")
@@ -258,6 +264,12 @@ def render(data):
         if data[key]:
             name = "custom_" + key + ".png"
             raw = base64.b64decode(data[key])
+            if data.get(key + "_palette"):
+                from .artwork import custom_image
+
+                # Rebuild palette artwork with the current metallic renderer, even
+                # when a saved embed still contains PNGs from an earlier finish.
+                raw = base64.b64decode(custom_image(key, data[key + "_palette"]))
             if key == "header" and data["header_title"]:
                 from ky_bot.design.headers import render_header
                 from ky_bot.design.menu_design import FINISHES
@@ -268,7 +280,10 @@ def render(data):
                     (key for key in FINISHES if data["header"] == standard_image("header", key)),
                     data["header_finish"],
                 )
-                raw = render_header(raw, finish, height=280, title=data["header_title"])
+                from ky_bot.design.metallic import using_palette
+
+                with using_palette(data.get("header_palette")):
+                    raw = render_header(raw, finish, height=280, title=data["header_title"])
             attachments.append(discord.File(io.BytesIO(raw), filename=name, description=""))
             panel.add_item(discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://" + name)))
     if not panel.children:

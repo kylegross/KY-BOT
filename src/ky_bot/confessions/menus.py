@@ -171,7 +171,9 @@ class Artwork(discord.ui.Modal):
                 return base64.b64encode(stream.getvalue()).decode("ascii")
 
             value = await asyncio.to_thread(normalize)
-            await self.menu.save(i, self.revision, **{self.kind: value})
+            await self.menu.save(
+                i, self.revision, **{self.kind: value, self.kind + "_palette": None}
+            )
             await self.menu.show(i, self.return_page, "Artwork saved.")
         except (ValueError, OSError) as error:
             await send_private(i, str(error))
@@ -571,7 +573,11 @@ class Admin(discord.ui.LayoutView):
                             label=label,
                             value=value,
                             default=config[key] == value
-                            and not (page == "lettering" and config["text_color"]),
+                            and not (page == "lettering" and config["text_color"])
+                            and not (
+                                page == "artwork"
+                                and (config.get("header_palette") or config.get("footer_palette"))
+                            ),
                         )
                         for value, label in FINISHES.items()
                     ],
@@ -599,6 +605,8 @@ class Admin(discord.ui.LayoutView):
                     values = {key: picker.values[0]}
                     if key == "text_finish":
                         values["text_color"] = None
+                    else:
+                        values.update(header_palette=None, footer_palette=None)
                     await self.save(event, revision, **values)
                     await self.show(event, page, "Finish saved for this channel only.")
 
@@ -649,8 +657,70 @@ class Admin(discord.ui.LayoutView):
                     ("art:footer",),
                 )
 
+                for part in ("header", "footer"):
+
+                    async def custom(event, part=part):
+                        from ky_bot.design.palette_editor import PaletteModal
+
+                        selected, revision = self.channel, self.revision
+                        snapshot = dict(config)
+
+                        async def allowed(event):
+                            await self.allowed(event)
+                            if self.channel != selected:
+                                raise ValueError(
+                                    "The selected channel changed. Reopen its artwork menu."
+                                )
+                            return True
+
+                        def render(palette):
+                            colors = tuple(
+                                palette.get(key)
+                                for key in ("base", "highlight", "shadow", "accent")
+                            )
+                            raw = standard_artwork(
+                                part,
+                                snapshot["artwork_finish"],
+                                snapshot["header_title"],
+                                snapshot["text_finish"],
+                                snapshot["text_color"],
+                                colors,
+                            )
+                            return [("confession_palette_" + part + ".png", raw)]
+
+                        async def commit(event, palette):
+                            await event.response.defer(ephemeral=True)
+                            await self.save(
+                                event, revision, **{part + "_palette": palette, part: None}
+                            )
+                            await self.show(
+                                event, "artwork", "Custom metallic colors saved for this channel."
+                            )
+
+                        await event.response.send_modal(
+                            PaletteModal(config.get(part + "_palette"), render, commit, allowed)
+                        )
+
+                    control = discord.ui.Button(label="Custom colors")
+                    control.callback = custom
+                    panel.add_item(
+                        discord.ui.Section(
+                            "**CUSTOM "
+                            + part.upper()
+                            + " COLORS**\nPreview metallic colors before saving.",
+                            accessory=control,
+                        )
+                    )
+
                 async def reset(event):
-                    await self.save(event, self.revision, header=None, footer=None)
+                    await self.save(
+                        event,
+                        self.revision,
+                        header=None,
+                        footer=None,
+                        header_palette=None,
+                        footer_palette=None,
+                    )
                     await self.show(event, "artwork", "Standard artwork restored for this channel.")
 
                 row(

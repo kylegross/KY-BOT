@@ -30,3 +30,22 @@ def standard_image(kind, finish):
     stream = io.BytesIO()
     image.save(stream, format="PNG")
     return base64.b64encode(stream.getvalue()).decode("ascii")
+
+
+def custom_image(kind, palette):
+    from ky_bot.design.metallic import tint, using_palette
+
+    with using_palette(palette):
+        if kind == "header":
+            image = tint(
+                Image.open(io.BytesIO(design_file("dark_silver", compact=True))).convert("RGBA")
+            )
+        elif kind == "footer":
+            image = floral_background("dark_silver", (1600, 150))
+            image.alpha_composite(centered_overlay("dark_silver", image.size))
+            image.alpha_composite(rectangular_frame("dark_silver", image.size))
+        else:
+            raise ValueError("Choose a header or footer.")
+    stream = io.BytesIO()
+    image.save(stream, format="PNG")
+    return base64.b64encode(stream.getvalue()).decode("ascii")

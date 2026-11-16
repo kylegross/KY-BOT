@@ -53,6 +53,12 @@ def uploads(config, view=None):
                 config.get("header_title", "CONFESSIONS"),
                 config.get("text_finish", "silver_neon"),
                 config.get("text_color"),
+                tuple(
+                    config[key + "_palette"].get(part)
+                    for part in ("base", "highlight", "shadow", "accent")
+                )
+                if config.get(key + "_palette")
+                else None,
             )
         )
         result.append(discord.File(io.BytesIO(data), filename="confession_" + key + ".png"))

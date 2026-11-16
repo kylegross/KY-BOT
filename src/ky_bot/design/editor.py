@@ -621,11 +621,58 @@ class Editor(discord.ui.LayoutView):
                 for key, label in FINISHES.items():
 
                     async def choose(i, key=key):
-                        s.change(style=key)
+                        s.change(style=key, header_palette=None, footer_palette=None)
                         await s.show(i)
 
                     row(
                         label.upper(), "Artwork, text and accent follow this finish.", label, choose
+                    )
+            if page == "finish" and s.selected != ["welcome_image"]:
+                for part in ("header", "footer"):
+
+                    async def custom(i, part=part):
+                        from .menu_design import render_menu
+                        from .palette_editor import PaletteModal
+
+                        generation = self.generation
+                        if not await s.allowed(i, generation):
+                            return
+                        profile = copy.deepcopy(s.drafts[s.selected[0]])
+
+                        def render(palette):
+                            draft = dict(profile, **{part + "_palette": palette})
+                            pair = render_menu(draft, "CUSTOM COLOR PREVIEW")
+                            return [
+                                ("palette_" + part + ".png", pair[0 if part == "header" else 1])
+                            ]
+
+                        async def allowed(i):
+                            return await s.allowed(i, generation)
+
+                        async def commit(i, palette):
+                            await i.response.defer()
+                            s.change(**{part + "_palette": palette})
+                            await s.show(
+                                i, notice="Colors added to draft. Preview and Apply to save."
+                            )
+
+                        await i.response.send_modal(
+                            PaletteModal(profile.get(part + "_palette"), render, commit, allowed)
+                        )
+
+                    async def launch(i, part=part, custom=custom):
+                        await custom(i, part)
+
+                    # This control launches a modal directly, before any defer.
+                    control = discord.ui.Button(label="Custom colors")
+                    control.callback = launch
+                    panel.add_item(
+                        discord.ui.Section(
+                            "**CUSTOM "
+                            + part.upper()
+                            + " COLORS**\nBase, highlights, shadows and iridescence.",
+                            accessory=control,
+                        )
                     )
             row("RETURN TO EDITING", "Keep selected options.", "Back", edit)
         else:
@@ -645,7 +692,12 @@ class Editor(discord.ui.LayoutView):
 
             row(
                 "FINISH",
-                FINISHES[next(iter(finishes))]
+                "Custom metallic colors"
+                if any(
+                    s.drafts[key].get("header_palette") or s.drafts[key].get("footer_palette")
+                    for key in s.selected
+                )
+                else FINISHES[next(iter(finishes))]
                 if len(finishes) == 1
                 else "Mixed finishes · choose to update all selected menus",
                 "Choose",

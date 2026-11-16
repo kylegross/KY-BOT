@@ -37,4 +37,6 @@ def floral_background(style: str, size: tuple[int, int]) -> Image.Image:
             end,
             (size[0] - end.width - padding if right else padding, (size[1] - end.height) // 2),
         )
-    return result
+    from .metallic import tint
+
+    return tint(result)

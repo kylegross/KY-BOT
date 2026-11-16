@@ -55,6 +55,8 @@ def defaults():
         color="D6E2F3",
         header_title="CONFESSIONS",
         artwork_finish="silver_neon",
+        header_palette=None,
+        footer_palette=None,
         text_finish="silver_neon",
         text_color=None,
         logging=False,
@@ -83,6 +85,10 @@ def defaults():
 
 
 def validate(config):
+    from ky_bot.design.metallic import parse_palette
+
+    parse_palette(config.get("header_palette"))
+    parse_palette(config.get("footer_palette"))
     result = defaults() | config
     if set(result) != set(defaults()):
         raise ValueError("Unknown confession setting.")

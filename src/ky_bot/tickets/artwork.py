@@ -5,9 +5,10 @@ import io
 from functools import lru_cache
 
 import discord
+from PIL import Image
+
 from ky_bot.design.footers import read_upload
 from ky_bot.design.menu_design import default_profile, render_menu
-from PIL import Image
 
 
 def normalize(data, kind):
@@ -29,7 +30,7 @@ def normalize(data, kind):
 
 
 @lru_cache(maxsize=32)
-def standard(title, finish, footer_text="", footer_icon=None, footer_background=None):
+def standard(title, finish, footer_text="", footer_icon=None, footer_background=None, palette=None):
     profile = default_profile("tickets")
     profile.update(
         style=finish,
@@ -38,6 +39,9 @@ def standard(title, finish, footer_text="", footer_icon=None, footer_background=
         footer_icon=footer_icon,
         footer_background=footer_background,
     )
+    if palette:
+        colors = dict(zip(("base", "highlight", "shadow", "accent"), palette))
+        profile.update(header_palette=colors, footer_palette=colors)
     return render_menu(profile, title)
 
 
@@ -46,6 +50,12 @@ def public_files(panel, config=None, token=None, page=0):
     try:
         for index, kind in enumerate(("header", "footer")):
             mode = panel.get(kind + "_mode", "ky")
+            colors = panel.get(kind + "_palette") if mode == "ky" else None
+            palette = (
+                tuple(colors.get(key) for key in ("base", "highlight", "shadow", "accent"))
+                if colors
+                else None
+            )
             if mode == "none":
                 continue
             if mode == "custom":
@@ -67,7 +77,9 @@ def public_files(panel, config=None, token=None, page=0):
                 if title is None:
                     title = panel["title"]
                 title = (title or None) if kind == "header" else "KY BOT"
-                data = standard(title, panel.get(kind + "_finish", "dark_silver"))[index]
+                data = standard(title, panel.get(kind + "_finish", "dark_silver"), palette=palette)[
+                    index
+                ]
             if kind == "footer" and panel.get("footer_content", "emblem") in {
                 "text",
                 "icon",
@@ -82,6 +94,7 @@ def public_files(panel, config=None, token=None, page=0):
                     text,
                     icon,
                     background,
+                    palette,
                 )[1]
             result.append(discord.File(io.BytesIO(data), filename=f"ticket_panel_{kind}.png"))
         if config is not None:

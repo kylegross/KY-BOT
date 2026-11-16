@@ -1435,7 +1435,7 @@ class Admin(Panel):
         finish = item.get(kind + "_finish", "dark_silver")
         self.row(
             "KY BOT FINISH",
-            FINISHES[finish],
+            "Custom metallic colors" if item.get(kind + "_palette") else FINISHES[finish],
             "Choose",
             self.go(self.page, self.selected, pick="finish"),
         )
@@ -1450,10 +1450,49 @@ class Admin(Panel):
 
             async def choose_finish(i):
                 await self.set_panel_art(
-                    i, {kind + "_finish": select_finish.values[0], kind + "_mode": "ky"}
+                    i,
+                    {
+                        kind + "_finish": select_finish.values[0],
+                        kind + "_mode": "ky",
+                        kind + "_palette": None,
+                    },
                 )
 
             self.picker(select_finish, choose_finish)
+
+        async def custom_colors(i):
+            from ky_bot.design.palette_editor import PaletteModal
+
+            from .artwork import public_files
+
+            original = copy.deepcopy(item)
+
+            def render(palette):
+                draft = dict(original, **{kind + "_palette": palette, kind + "_mode": "ky"})
+                files = public_files(draft)
+                try:
+                    return [
+                        (file.filename, file.fp.read())
+                        for file in files
+                        if file.filename == "ticket_panel_" + kind + ".png"
+                    ]
+                finally:
+                    for file in files:
+                        file.close()
+
+            async def commit(i, palette):
+                await self.set_panel_art(i, {kind + "_palette": palette, kind + "_mode": "ky"})
+
+            await i.response.send_modal(
+                PaletteModal(item.get(kind + "_palette"), render, commit, self.interaction_check)
+            )
+
+        self.row(
+            "CUSTOM METALLIC COLORS",
+            "Preview a base hex with optional shine, shadow and accent colors.",
+            "Custom colors",
+            custom_colors,
+        )
 
         async def upload(i):
             await i.response.send_modal(ArtworkUpload(self, kind))

@@ -38,18 +38,34 @@ def banner_title(title, text_finish, text_color):
     layer = Image.new("RGBA", (1600, 260))
     left, top = (1600 - mask.width) // 2, (260 - mask.height) // 2
     layer.alpha_composite(text_ink(mask, text_finish, text_color), (left, top))
+    from ky_bot.design.metallic import base_color
+
     pen = ImageDraw.Draw(layer)
     for y in (top - 14, top + mask.height + 14):
         pen.line(
             (left - 10, y, left + mask.width + 10, y),
-            fill=text_color or COLOURS[text_finish],
+            fill=text_color or base_color(COLOURS[text_finish]),
             width=2,
         )
     return layer
 
 
 @lru_cache(maxsize=128)
-def standard_artwork(kind, finish, title, text_finish, text_color):
+def standard_artwork(kind, finish, title, text_finish, text_color, palette=None):
+    from ky_bot.design.metallic import using_palette
+
+    colors = dict(zip(("base", "highlight", "shadow", "accent"), palette)) if palette else None
+    with using_palette(colors):
+        return _standard_artwork(
+            kind,
+            "dark_silver" if palette else finish,
+            title,
+            "dark_silver" if palette else text_finish,
+            text_color,
+        )
+
+
+def _standard_artwork(kind, finish, title, text_finish, text_color):
     if kind == "footer":
         image = floral_background(finish, (1600, 150))
         image.alpha_composite(centered_overlay(finish, image.size))

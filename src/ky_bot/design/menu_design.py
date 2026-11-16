@@ -37,6 +37,8 @@ def default_profile(key):
         footer_icon=None,
         dim=35,
         text_color=None,
+        header_palette=None,
+        footer_palette=None,
     )
 
 
@@ -80,40 +82,46 @@ def normalized_upload(data, *, icon=False):
 
 
 def render_menu(profile, title):
-    style, height = profile["style"], profile["height"]
-    header = render_header(
-        decode(profile["header_background"]) or png(floral_background(style, (1600, height))),
-        style,
-        framed=profile["framed"],
-        height=height,
-        title=profile["title"] or title,
-        rotated_divider=profile.get("_rotated_divider", False),
-        text_color=profile.get("text_color"),
-    )
-    size = (1600, 150)
-    background = decode(profile["footer_background"])
-    footer = (
-        ImageOps.fit(read_upload(background), size, Image.Resampling.LANCZOS)
-        if background
-        else floral_background(style, size)
-    )
-    if profile["footer_text"]:
-        mask = text_mask(
-            profile["footer_text"], role="display", size=52, min_size=24, max_width=1000
+    from .metallic import using_palette
+
+    height = profile["height"]
+    with using_palette(profile.get("header_palette")):
+        style = "dark_silver" if profile.get("header_palette") else profile["style"]
+        header = render_header(
+            decode(profile["header_background"]) or png(floral_background(style, (1600, height))),
+            style,
+            framed=profile["framed"],
+            height=height,
+            title=profile["title"] or title,
+            rotated_divider=profile.get("_rotated_divider", False),
+            text_color=profile.get("text_color"),
         )
-        ink = text_ink(mask, style, profile.get("text_color"))
-        footer.alpha_composite(ink, ((1600 - mask.width) // 2, (150 - mask.height) // 2))
-    elif profile["footer_icon"]:
-        icon = ImageOps.contain(
-            read_upload(decode(profile["footer_icon"]), icon=True),
-            (85, 85),
-            Image.Resampling.LANCZOS,
+    with using_palette(profile.get("footer_palette")):
+        style = "dark_silver" if profile.get("footer_palette") else profile["style"]
+        size = (1600, 150)
+        background = decode(profile["footer_background"])
+        footer = (
+            ImageOps.fit(read_upload(background), size, Image.Resampling.LANCZOS)
+            if background
+            else floral_background(style, size)
         )
-        footer.alpha_composite(icon, ((1600 - icon.width) // 2, (150 - icon.height) // 2))
-    else:
-        footer.alpha_composite(centered_overlay(style, size))
-    if profile["framed"]:
-        footer.alpha_composite(rectangular_frame(style, size, radius=8, inset=10))
+        if profile["footer_text"]:
+            mask = text_mask(
+                profile["footer_text"], role="display", size=52, min_size=24, max_width=1000
+            )
+            ink = text_ink(mask, style, profile.get("text_color"))
+            footer.alpha_composite(ink, ((1600 - mask.width) // 2, (150 - mask.height) // 2))
+        elif profile["footer_icon"]:
+            icon = ImageOps.contain(
+                read_upload(decode(profile["footer_icon"]), icon=True),
+                (85, 85),
+                Image.Resampling.LANCZOS,
+            )
+            footer.alpha_composite(icon, ((1600 - icon.width) // 2, (150 - icon.height) // 2))
+        else:
+            footer.alpha_composite(centered_overlay(style, size))
+        if profile["framed"]:
+            footer.alpha_composite(rectangular_frame(style, size, radius=8, inset=10))
     return header, png(footer)
 
 

@@ -94,6 +94,8 @@ def new_panel(name, channel=0):
         footer="KY BOT • Private support",
         types=[],
         overrides={},
+        header_palette=None,
+        footer_palette=None,
         header_mode="ky",
         header_finish="dark_silver",
         header_custom=None,
@@ -164,6 +166,10 @@ def validate(config):
         from .sections import validate_sections
 
         validate_sections(panel)
+        from ky_bot.design.metallic import parse_palette
+
+        parse_palette(panel.get("header_palette"))
+        parse_palette(panel.get("footer_palette"))
         for position, limit in (("before", 1500), ("after", 1000)):
             text = panel_text(panel, position)
             style = panel.get(position + "_style", "plain")

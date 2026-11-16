@@ -69,6 +69,8 @@ def rectangular_frame(
     """A quiet, proportionate outline that matches the illustrated floral collection."""
     from ky_bot.design.collection import COLOURS
 
+    from .metallic import base_color
+
     if style not in STYLES:
         raise FooterError("Choose silver neon, gold, dark silver, or iridescent red.")
     frame = Image.new("RGBA", size)
@@ -76,7 +78,7 @@ def rectangular_frame(
     ImageDraw.Draw(frame).rounded_rectangle(
         (inset, inset, width - 1 - inset, height - 1 - inset),
         radius=radius,
-        outline=COLOURS[style],
+        outline=base_color(COLOURS[style]),
         width=3,
     )
     return frame
@@ -163,7 +165,9 @@ def metal(mask: Image.Image, style: str, *, sheen: float = 1.0) -> Image.Image:
         result.alpha_composite(edge)
     result.alpha_composite(colored)
     result.putalpha(mask)
-    return result
+    from .metallic import tint
+
+    return tint(result)
 
 
 def text_ink(mask: Image.Image, style: str, text_color: str | None = None) -> Image.Image:
@@ -251,7 +255,9 @@ def centered_overlay(
     if style not in STYLES or not 60 <= icon_scale <= 120:
         raise FooterError("Choose a finish and an icon size from 60 to 120 percent.")
     result = rectangular_frame(style, size) if framed else Image.new("RGBA", size)
-    icon = asset(f"{style}_icon.png").convert("RGBA")
+    from .metallic import tint
+
+    icon = tint(asset(f"{style}_icon.png").convert("RGBA"))
     icon = icon.crop(icon.getchannel("A").getbbox())
     limit = round(size[1] * 0.58 * icon_scale / 100)
     icon = ImageOps.contain(icon, (limit, limit), Image.Resampling.LANCZOS)

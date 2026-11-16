@@ -114,6 +114,8 @@ def published_layout(config, token):
         "image",
         "footer",
         "types",
+        "header_palette",
+        "footer_palette",
         "header_mode",
         "header_finish",
         "header_custom",

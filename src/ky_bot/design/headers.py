@@ -30,7 +30,9 @@ def background_mask(*, framed: bool = True, height: int = SIZE[1]) -> Image.Imag
 def overlay(style: str, *, framed: bool = True, height: int = SIZE[1]) -> Image.Image:
     if style not in STYLES:
         raise FooterError("Choose gold, iridescent silver, dark silver, or iridescent red.")
-    result = asset(f"{style}_brand.png")
+    from .metallic import tint
+
+    result = tint(asset(f"{style}_brand.png"))
     if framed:
         # The brand sits above the frame, within the top-left interior safe area.
         frame = rectangular_frame(style, (SIZE[0], height))
@@ -104,7 +106,9 @@ def render_header(
         rule_left = (SIZE[0] - rule_width) // 2
         gap = min(28, round(height * 28 / 520))
         top, bottom = y - gap, y + mask.height + gap
-        colour = text_color or COLOURS[style]
+        from .metallic import base_color
+
+        colour = text_color or base_color(COLOURS[style])
         # A feathered contrast area retains the background texture without a boxed title.
         shade = Image.new("L", size)
         ImageDraw.Draw(shade).rounded_rectangle(
