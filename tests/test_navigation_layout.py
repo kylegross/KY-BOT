@@ -187,3 +187,49 @@ class NavigationLayoutTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertFalse(navigation_item(item))
         self.assertTrue(navigation_item(discord.ui.ActionRow(discord.ui.Button(label="Refresh"))))
+
+    async def test_root_settings_and_every_settings_submenu_keep_footer_divider(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+
+        from navigation_audit import assert_footer_dividers
+
+        from ky_bot.admin_functions.settings_service import SETTINGS_TITLES
+        from ky_bot.admin_functions.settings_view import SettingsView
+
+        for shared in (False, True):
+            view = SettingsView(7, 1, Mock())
+            if shared:
+                view.panel_manager = SimpleNamespace()
+            for page in SETTINGS_TITLES:
+                for picker in (False, True):
+                    with self.subTest(page=page, picker=picker, shared=shared):
+                        view.show_section(page, picker=picker, notice="Saved.")
+                        assert_footer_dividers(self, view)
+                        self.assertLessEqual(view.total_children_count, 40)
+            view.stop()
+
+    async def test_independently_built_checklist_controls_have_a_close_divider(self):
+        from types import SimpleNamespace
+
+        from navigation_audit import assert_footer_dividers
+
+        from ky_bot.checklists.task_actions import TaskActions
+
+        service = SimpleNamespace(
+            store=SimpleNamespace(board=lambda _: {"style": "silver_neon"}, subtasks=lambda _: [])
+        )
+        view = TaskActions(
+            service,
+            {
+                "id": 1,
+                "channel": 10,
+                "title": "Example",
+                "done": False,
+                "category_id": None,
+                "revision": 0,
+            },
+        )
+        assert_footer_dividers(self, view)
+        self.assertLessEqual(view.total_children_count, 40)
+        view.stop()

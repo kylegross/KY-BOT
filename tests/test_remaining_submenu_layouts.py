@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import discord
+from navigation_audit import assert_footer_dividers
 
 from ky_bot.admin_functions.autodelete import command as autodelete
 from ky_bot.admin_functions.autoreact import command as autoreact
@@ -30,6 +31,7 @@ class RemainingSubmenuLayoutTests(unittest.IsolatedAsyncioTestCase):
     def assert_artwork(self, view, attachments):
         try:
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
             self.assertLessEqual(len(attachments), 10)
             self.assertTrue(media_names(view).issubset({item.filename for item in attachments}))
             self.assertTrue(any(name.startswith("ky_strip_") for name in media_names(view)))
@@ -97,6 +99,7 @@ class RemainingSubmenuLayoutTests(unittest.IsolatedAsyncioTestCase):
                 attachments = help_files(view)
                 try:
                     self.assertLessEqual(view.total_children_count, 40)
+                    assert_footer_dividers(self, view)
                     self.assertLessEqual(len(attachments), 10)
                     self.assertTrue(
                         media_names(view).issubset({item.filename for item in attachments})

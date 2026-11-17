@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import discord
+from navigation_audit import assert_footer_dividers
 from PIL import Image
 
 from ky_bot.admin_functions.settings_view import SettingsView
@@ -231,6 +232,7 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
             )
             self.assertIn("**Bold**", str(view.to_components()))
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
         finally:
             view.stop()
             for file in files:
@@ -442,6 +444,7 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
             session.page = page
             view = Editor(session, "Draft saved.")
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
             self.assertLessEqual(view.content_length(), 4000)
             view.to_components()
             if page != "main":
@@ -484,6 +487,7 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
         for page in (0, 1):
             view = Library(self.cog, 50, 1, rows, page=page)
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
             view.stop()
         parent = SettingsView(50, 1, Mock())
         for section, picker in (
@@ -493,6 +497,7 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
         ):
             parent.show_section(section, picker=picker)
             self.assertLessEqual(parent.total_children_count, 40)
+            assert_footer_dividers(self, parent)
         parent.stop()
 
     async def test_all_manage_embed_footer_controls_are_right_and_neutral(self):
@@ -567,6 +572,7 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(selected, SavedEmbed)
         self.assertEqual(set(controls(selected)), {"Edit embed", "Delete embed", "All embeds"})
         self.assertLessEqual(selected.total_children_count, 40)
+        assert_footer_dividers(self, selected)
         artwork = editor_artwork(selected)
         for item in artwork:
             item.close()
@@ -659,6 +665,7 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
                 self.assertLessEqual(len(attachments), 10)
                 self.assertTrue(refs <= {x.filename for x in attachments}, page)
                 self.assertLessEqual(view.total_children_count, 40, page)
+                assert_footer_dividers(self, view)
                 view.to_components()
             finally:
                 for attachment in attachments:

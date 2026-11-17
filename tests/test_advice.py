@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import discord
+from navigation_audit import assert_footer_dividers
 
 from ky_bot.advice.command import Advice, Confirm
 from ky_bot.advice.menus import Admin
@@ -174,6 +175,7 @@ class AdviceTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual(separators[0].spacing, discord.SeparatorSpacing.small)
         self.assertLessEqual(view.total_children_count, 40)
+        assert_footer_dividers(self, view)
         view.to_components()
         preview = access_panel(10, self.config, preview=True)
         self.assertTrue(
@@ -208,6 +210,7 @@ class AdviceTests(unittest.IsolatedAsyncioTestCase):
             with patch("ky_bot.advice.menus.display_menu", new=AsyncMock()):
                 await menu.show(interaction, page)
             self.assertLessEqual(menu.total_children_count, 40, page)
+            assert_footer_dividers(self, menu)
             menu.to_components()
         menu.stop()
 
@@ -237,6 +240,7 @@ class AdviceTests(unittest.IsolatedAsyncioTestCase):
                 with patch("ky_bot.advice.menus.display_menu", new=AsyncMock()) as display:
                     await menu.show(interaction, page, "Saved settings.")
                 self.assertLessEqual(menu.total_children_count, 40, page)
+                assert_footer_dividers(self, menu)
                 media = {
                     item.media.url.removeprefix("attachment://")
                     for child in menu.walk_children()

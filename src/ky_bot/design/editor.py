@@ -22,7 +22,7 @@ from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import display_menu, menu_parent
 from ky_bot.views.menu_strips import add_strip, category_files
 from ky_bot.views.save_notice import mark_saved, take_notice
-from ky_bot.views.sections import section_dividers
+from ky_bot.views.sections import navigation_divider, section_dividers
 
 TARGETS = {
     "settings:overview": "Server settings",
@@ -937,7 +937,7 @@ class Editor(discord.ui.LayoutView):
             for child in reversed(panel.children):
                 if panel._total_count <= 40:
                     break
-                if isinstance(child, discord.ui.Separator):
+                if isinstance(child, discord.ui.Separator) and not navigation_divider(panel, child):
                     panel.remove_item(child)
             if panel._total_count > 40:
                 raise ValueError("Design editor exceeds Discord's component limit.")
@@ -945,7 +945,9 @@ class Editor(discord.ui.LayoutView):
             # Keep every preview action while dropping redundant labels and empty rules.
             # The artwork already identifies the menu, and navigation has been removed above.
             for child in list(panel.children):
-                if isinstance(child, (discord.ui.TextDisplay, discord.ui.Separator)):
+                if isinstance(child, discord.ui.TextDisplay) or (
+                    isinstance(child, discord.ui.Separator) and not navigation_divider(panel, child)
+                ):
                     panel.remove_item(child)
             for sample_panel in self.children:
                 if isinstance(sample_panel, discord.ui.Container):
@@ -960,7 +962,9 @@ class Editor(discord.ui.LayoutView):
                     for child in reversed(sample_panel.children):
                         if self.total_children_count + panel._total_count - 1 <= 40:
                             break
-                        if isinstance(child, discord.ui.Separator):
+                        if isinstance(child, discord.ui.Separator) and not navigation_divider(
+                            sample_panel, child
+                        ):
                             sample_panel.remove_item(child)
             destination = self.children[-1]
             # Larger Command Center previews keep every inline action and both

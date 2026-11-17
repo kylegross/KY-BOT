@@ -7,6 +7,7 @@ from types import SimpleNamespace as NS
 from unittest.mock import AsyncMock, Mock
 
 import discord
+from navigation_audit import assert_footer_dividers
 
 from ky_bot.admin_functions.activity import Activity
 from ky_bot.admin_functions.autodelete.autodelete_logging import TYPES, ActivityLogs
@@ -197,6 +198,7 @@ class FlashTests(unittest.IsolatedAsyncioTestCase):
         self.source.edit.assert_awaited_once()
         view = Menu(self.cog, 5, 1, self.source)
         self.assertLessEqual(view.total_children_count, 40)
+        assert_footer_dividers(self, view)
         self.assertLessEqual(view.content_length(), 4000)
         self.assertIn("IMAGES AND VIDEOS ARE NOT SAVED", str(view.to_components()))
         view.stop()

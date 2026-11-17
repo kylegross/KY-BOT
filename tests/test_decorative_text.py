@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import discord
+from navigation_audit import assert_footer_dividers
 from PIL import Image
 
 from ky_bot.checklists.artwork import title_image
@@ -94,6 +95,7 @@ class DecorativeTextTests(unittest.IsolatedAsyncioTestCase):
         view, attachments = render(data)
         try:
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
             children = list(view.children[0].children)
             section_indices = [
                 n
@@ -232,6 +234,7 @@ class DecorativeTextTests(unittest.IsolatedAsyncioTestCase):
             session.page = page
             view = Editor(session, "Draft saved.")
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
             if page == "sections":
                 add = next(
                     x
@@ -248,6 +251,7 @@ class DecorativeTextTests(unittest.IsolatedAsyncioTestCase):
         await design.select(["checklist"])
         view = DesignEditor(design, notice="Draft saved.")
         self.assertLessEqual(view.total_children_count, 40)
+        assert_footer_dividers(self, view)
         view.stop()
         modal = AppearanceModal(design, formatting=True)
         self.assertEqual(

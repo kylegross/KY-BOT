@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import discord
+from navigation_audit import assert_footer_dividers
 from PIL import Image
 
 from ky_bot.admin_functions.activity import Activity
@@ -295,6 +296,7 @@ class TicketTests(unittest.IsolatedAsyncioTestCase):
                     notice="Saved",
                 )
                 self.assertLessEqual(view.total_children_count, 40)
+                assert_footer_dividers(self, view)
                 self.assertLessEqual(view.content_length(), 4000)
                 for item in view.walk_children():
                     if isinstance(item, discord.ui.Section):
@@ -305,6 +307,7 @@ class TicketTests(unittest.IsolatedAsyncioTestCase):
         for is_staff in (True, False):
             view = Manage(self.cog, ticket, 5, staff=is_staff)
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
             view.stop()
 
     async def test_command_center_and_maximum_panel_fit(self):
@@ -313,6 +316,7 @@ class TicketTests(unittest.IsolatedAsyncioTestCase):
                 1, 1, SimpleNamespace(), panel_manager=SimpleNamespace() if shared else None
             )
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
             self.assertIn("TICKETS", str(view.to_components()))
             view.stop()
         for count in (1, 5, 6, 25):
@@ -321,6 +325,7 @@ class TicketTests(unittest.IsolatedAsyncioTestCase):
             config["panels"][PANEL]["types"] = list(config["types"])
             view = PublicPanel(config, PANEL, preview=True)
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
             self.assertTrue(
                 all(
                     item.item.disabled
@@ -546,6 +551,7 @@ class TicketTests(unittest.IsolatedAsyncioTestCase):
         ):
             view = Admin(self.cog, parent, None, config, page=page, selected=PANEL, notice="Saved")
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
             self.assertEqual(view.settings["category"], 55)
             view.stop()
 
@@ -588,6 +594,7 @@ class TicketTests(unittest.IsolatedAsyncioTestCase):
         await control.callback(i)
         self.assertEqual((await self.store.config(1))[1]["panels"][PANEL]["types"], [])
         self.assertLessEqual(checked.total_children_count, 40)
+        assert_footer_dividers(self, checked)
         view.stop()
         checked.stop()
 
@@ -613,6 +620,7 @@ class TicketTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(selected), 2)
         self.assertEqual(view.show.await_args.kwargs["offset"], 5)
         self.assertLessEqual(view.total_children_count, 40)
+        assert_footer_dividers(self, view)
         view.stop()
 
     async def test_header_footer_can_mix_standard_and_custom_artwork(self):
@@ -665,6 +673,7 @@ class TicketTests(unittest.IsolatedAsyncioTestCase):
                 pick="source",
             )
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
             view.stop()
         menu.stop()
         sent["view"].stop()

@@ -12,6 +12,7 @@ NAVIGATION_LABELS = LEFT_NAVIGATION | {
     "return to main menu",
     "main menu",
     "return to editing",
+    "cancel setup",
     "all embeds",
     "back to logs",
     "back to welcome",
@@ -41,6 +42,21 @@ def navigation_item(item):
         isinstance(button, discord.ui.Button)
         and (button.label or "").casefold() in NAVIGATION_LABELS
         for button in buttons
+    )
+
+
+def navigation_divider(panel, item):
+    """Whether this rule separates the general navigation from menu content."""
+    if not isinstance(item, discord.ui.Separator):
+        return False
+    children = list(panel.children)
+    index = children.index(item)
+    if index + 1 < len(children) and navigation_item(children[index + 1]):
+        return True
+    return (
+        index + 2 < len(children)
+        and isinstance(children[index + 1], discord.ui.TextDisplay)
+        and navigation_item(children[index + 2])
     )
 
 

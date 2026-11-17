@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import discord
+from navigation_audit import assert_footer_dividers
 
 from ky_bot.design.editor import DesignSession, Editor
 
@@ -39,6 +40,7 @@ class ChecklistStyleLimitTests(unittest.IsolatedAsyncioTestCase):
             )
             view = interaction.edit_original_response.call_args.kwargs["view"]
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
             self.assertEqual(view.total_children_count, len(list(view.walk_children())))
             self.assertEqual(
                 labels, [x.label for x in view.walk_children() if isinstance(x, discord.ui.Button)]
@@ -51,6 +53,7 @@ class ChecklistStyleLimitTests(unittest.IsolatedAsyncioTestCase):
         for page in ("edit", "targets", "finish"):
             view = Editor(self.session, page, notice="Draft updated.")
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
             view.to_components()
             view.stop()
 

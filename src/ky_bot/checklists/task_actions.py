@@ -115,6 +115,7 @@ class TaskActions(discord.ui.LayoutView):
         )
         row("TEXT & ORDER", "Edit the text or move the task within its category.", "Edit", edit)
         row("DELETE TASK", "Discussion and completion history are retained.", "Delete", delete)
+        panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
         row("PRIVATE CONTROLS", "Visible only to you.", "Close", close)
         self.add_item(panel)
 

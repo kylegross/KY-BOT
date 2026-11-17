@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import discord
+from navigation_audit import assert_footer_dividers
 
 from ky_bot.confessions.cards import post_card, privacy
 from ky_bot.confessions.command import Confessions, administrator
@@ -550,6 +551,7 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
         ):
             await menu.show(interaction, page)
             self.assertLessEqual(menu.total_children_count, 40, page)
+            assert_footer_dividers(self, menu)
             menu.to_components()
             panel = menu.children[0]
             intros = [
@@ -631,6 +633,7 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
         menu = LogMenu(cog, 7, 1, parent)
         await menu.show(interaction)
         self.assertLessEqual(menu.total_children_count, 40)
+        assert_footer_dividers(self, menu)
         self.assertIn("ky_strip_other_logs.png", str(menu.to_components()))
         section = next(
             child
@@ -642,6 +645,7 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
         feature.open_menu.assert_awaited_once_with(interaction, command_center=parent, logs=True)
         await menu.show(interaction, True)
         self.assertLessEqual(menu.total_children_count, 40)
+        assert_footer_dividers(self, menu)
         menu.stop()
         modal = BanMember(SimpleNamespace())
         self.assertIsInstance(modal.member, discord.ui.UserSelect)

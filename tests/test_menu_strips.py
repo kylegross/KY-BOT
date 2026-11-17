@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import discord
+from navigation_audit import assert_footer_dividers
 from PIL import Image
 
 from ky_bot.admin_functions.settings_view import SettingsView, settings_files
@@ -57,6 +58,7 @@ class MenuStripTests(unittest.IsolatedAsyncioTestCase):
                 strip_titles(view), [title for title, _ in GROUPS["settings:" + section]]
             )
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
             attachments = settings_files(section)
             try:
                 names = {file.filename for file in attachments}
@@ -82,6 +84,7 @@ class MenuStripTests(unittest.IsolatedAsyncioTestCase):
         sample = LevelMenu(session)
         self.assertEqual(strip_titles(sample), [title for title, _ in GROUPS["leveling"]])
         self.assertLessEqual(sample.total_children_count, 40)
+        assert_footer_dividers(self, sample)
         i = SimpleNamespace(
             user=SimpleNamespace(id=50), guild_id=1, guild=session.guild, client=SimpleNamespace()
         )
@@ -90,6 +93,7 @@ class MenuStripTests(unittest.IsolatedAsyncioTestCase):
         design.preview_key = "settings:leveling"
         preview = DesignEditor(design, "preview", sample=sample)
         self.assertLessEqual(preview.total_children_count, 40)
+        assert_footer_dividers(self, preview)
         preview.stop()
         sample.stop()
 
@@ -106,6 +110,7 @@ class MenuStripTests(unittest.IsolatedAsyncioTestCase):
         sample = SettingsView(50, 1, Mock())
         preview = DesignEditor(session, "preview", sample=sample)
         self.assertLessEqual(preview.total_children_count, 40)
+        assert_footer_dividers(self, preview)
         preview.stop()
         sample.stop()
 
@@ -152,6 +157,7 @@ class MenuStripTests(unittest.IsolatedAsyncioTestCase):
             view = SettingsView(50, 1, Mock(), panel_manager=manager)
             self.assertEqual(strip_titles(view), expected)
             self.assertLessEqual(view.total_children_count, 40)
+            assert_footer_dividers(self, view)
             rows = {
                 heading(item): item
                 for item in view.children[0].children

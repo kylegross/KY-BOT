@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import discord
+from navigation_audit import assert_footer_dividers
 
 from ky_bot.log_style import PREFIX, SUFFIX, style_log
 from ky_bot.tickets.store import defaults, new_panel, new_type
@@ -22,12 +23,14 @@ class TicketNavigationTests(unittest.IsolatedAsyncioTestCase):
         menu = Admin(cog, parent, "revision", config, page="panel_type_edit", selected="b" * 32)
         await menu.show(event, "type_appearance", "c" * 32)
         self.assertEqual(cog.admin.await_args.kwargs["panel_context"], "b" * 32)
+        assert_footer_dividers(self, menu)
         menu.stop()
         menu = Admin(cog, parent, "revision", config, page="types", panel_context="b" * 32)
         back = next(item for item in menu.walk_children() if getattr(item, "label", None) == "Back")
         await back.callback(event)
         self.assertEqual(cog.admin.await_args.kwargs["page"], "panel")
         self.assertEqual(cog.admin.await_args.kwargs["selected"], "b" * 32)
+        assert_footer_dividers(self, menu)
         menu.stop()
 
     async def test_global_type_list_back_still_returns_home(self):
@@ -37,6 +40,7 @@ class TicketNavigationTests(unittest.IsolatedAsyncioTestCase):
         await back.callback(SimpleNamespace(response=SimpleNamespace(defer=AsyncMock())))
         self.assertEqual(cog.admin.await_args.kwargs["page"], "home")
         self.assertIsNone(cog.admin.await_args.kwargs["panel_context"])
+        assert_footer_dividers(self, menu)
         menu.stop()
 
     async def test_confirmation_uses_owner_log_decoration_and_right_cancel(self):
@@ -55,7 +59,8 @@ class TicketNavigationTests(unittest.IsolatedAsyncioTestCase):
                 if isinstance(c, discord.ui.Section) and c.accessory.label == "Cancel"
             )
             self.assertEqual(cancel.accessory.callback, menu.cancel)
-            menu.stop()
+            assert_footer_dividers(self, menu)
+        menu.stop()
 
     async def test_legacy_confirmation_resolves_owner_name(self):
         cog = SimpleNamespace(
@@ -63,4 +68,5 @@ class TicketNavigationTests(unittest.IsolatedAsyncioTestCase):
         )
         menu = Confirm(cog, dict(id="a" * 32, owner=123, guild=1), 456, "close", "Resolved")
         self.assertIn("legacy.user", menu.panel.children[0].content)
+        assert_footer_dividers(self, menu)
         menu.stop()
