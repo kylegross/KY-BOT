@@ -10,6 +10,7 @@ from PIL import Image
 from ky_bot.errors import report_error, send_private
 from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import defer_menu, display_menu, menu_parent, private_parent
+from ky_bot.views.save_notice import mark_saved, take_notice
 from ky_bot.views.sections import section_dividers
 
 from .appearance import standard_artwork
@@ -316,6 +317,8 @@ class Admin(discord.ui.LayoutView):
             self.guild, self.channel, revision, **changes
         )
 
+        mark_saved(self)
+
     async def open_saved_colors(self, i):
         from ky_bot.design.saved_colors import open_library
 
@@ -416,6 +419,7 @@ class Admin(discord.ui.LayoutView):
         panel.add_item(discord.ui.ActionRow(picker))
 
     async def show(self, i, page, notice=None):
+        notice = take_notice(self, notice)
         from .store import defaults
 
         self.parent = menu_parent(self.parent, i)
@@ -530,6 +534,12 @@ class Admin(discord.ui.LayoutView):
                 "On" if config["enabled"] else "Paused",
                 "Turn off" if config["enabled"] else "Turn on",
                 toggle("enabled"),
+            )
+            row(
+                "PANEL TEXT",
+                "Edit the heading, description and submit button directly.",
+                "Edit text",
+                ("text",),
             )
             row(
                 "APPEARANCE",

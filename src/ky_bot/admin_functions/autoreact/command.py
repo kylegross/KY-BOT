@@ -15,6 +15,7 @@ from ky_bot.errors import report_error
 from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import defer_menu, menu_parent
 from ky_bot.views.menu_strips import category_files, filename, group_sections
+from ky_bot.views.save_notice import draft_notice, mark_saved
 from ky_bot.views.sections import section_dividers
 
 from .service import AutoReactService, emoji_key, parse_emojis, permissions, resolve_emoji
@@ -191,6 +192,14 @@ class Menu(discord.ui.LayoutView):
                     )
                 )
             )
+
+        notice = draft_notice(
+            s,
+            {"channels": s.channels, "settings": s.draft},
+            "Draft updated. Review before applying.",
+        )
+        if notice:
+            panel.add_item(discord.ui.TextDisplay(notice))
 
         def row(
             title,
@@ -453,6 +462,7 @@ class Menu(discord.ui.LayoutView):
                 for e in s.draft["emojis"]:
                     resolve_emoji(e, s.guild)
                 s.cog.store.save(s.guild.id, s.channels, s.draft, s.expected)
+                mark_saved(s)
                 await s.show(i)
                 await i.followup.send(
                     "Reaction rules saved. Applies to new posts; paused rules stay paused.",
@@ -527,6 +537,7 @@ class Menu(discord.ui.LayoutView):
                     if not expected:
                         raise ValueError("Select channels with saved rules first.")
                     s.cog.store.action(s.guild.id, expected, action)
+                    mark_saved(s)
                     await s.show(i)
 
                 row(

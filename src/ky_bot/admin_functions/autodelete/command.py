@@ -12,6 +12,7 @@ from ky_bot.errors import report_error
 from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import defer_menu, menu_parent
 from ky_bot.views.menu_strips import category_files, filename, group_sections
+from ky_bot.views.save_notice import draft_notice, mark_saved
 from ky_bot.views.sections import section_dividers
 
 from .autodelete_logging import TYPES
@@ -178,6 +179,19 @@ class Menu(discord.ui.LayoutView):
                     )
                 )
             )
+
+        notice = draft_notice(
+            s,
+            {
+                "channels": s.channels,
+                "content": s.content,
+                "seconds": s.seconds,
+                "logs": [s.log_destination, s.log_types, s.log_title],
+            },
+            "Draft updated. Review before applying.",
+        )
+        if notice:
+            panel.add_item(discord.ui.TextDisplay(notice))
 
         def row(title, description, label, target=None, action=None, disabled=False, modal=None):
             b = discord.ui.Button(label=label, disabled=disabled)
@@ -408,6 +422,7 @@ class Menu(discord.ui.LayoutView):
                             f"{s.seconds // 60} minutes",
                             i.user.id,
                         )
+                        mark_saved(s)
                     else:
                         s.cog.store.save(
                             s.guild.id,
@@ -417,6 +432,7 @@ class Menu(discord.ui.LayoutView):
                             f"{s.seconds // 60} minutes",
                             i.user.id,
                         )
+                        mark_saved(s)
                     s.original = None
                     await s.show(i)
                     await i.followup.send(
@@ -491,6 +507,7 @@ class Menu(discord.ui.LayoutView):
                 if not s.original:
                     raise ValueError("Choose a saved rule first.")
                 s.cog.store.delete(s.guild.id, s.original["id"], s.original)
+                mark_saved(s)
                 s.original = None
                 await s.show(i, "rules")
 
@@ -511,6 +528,7 @@ class Menu(discord.ui.LayoutView):
                             if rule["channel"] in s.channels:
                                 s.destinations(rule["content"])
                     count = s.cog.store.toggle(s.guild.id, s.channels, enabled)
+                    mark_saved(s)
                     await s.show(i)
                     await i.followup.send(f"{count} rules updated.", ephemeral=True)
 
@@ -563,6 +581,7 @@ class Menu(discord.ui.LayoutView):
                             "UPDATE activity_log_config SET enabled=0 WHERE guild=? AND source=?",
                             (s.guild.id, cid),
                         )
+                mark_saved(s)
                 await s.show(i, "logs")
 
             row(
@@ -609,6 +628,7 @@ class Menu(discord.ui.LayoutView):
                     s.cog.service.logs.save(
                         s.guild.id, cid, channel.id, s.log_types, title=s.log_title, color=0xBDC3CA
                     )
+                mark_saved(s)
                 await s.show(i, "logs")
 
             row(

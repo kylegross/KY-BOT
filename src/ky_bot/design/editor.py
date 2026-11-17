@@ -21,6 +21,7 @@ from ky_bot.errors import report_error, send_private
 from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import display_menu, menu_parent
 from ky_bot.views.menu_strips import add_strip, category_files
+from ky_bot.views.save_notice import mark_saved, take_notice
 from ky_bot.views.sections import section_dividers
 
 TARGETS = {
@@ -134,6 +135,7 @@ class DesignSession:
                 self.drafts[key] = profile
 
     def change(self, **values):
+        mark_saved(self, "Draft updated. Preview and Apply design to save.")
         for key in self.selected:
             self.drafts[key].update(values)
 
@@ -174,6 +176,7 @@ class DesignSession:
         )
 
     async def show(self, interaction, page="edit", notice=None):
+        notice = take_notice(self, notice)
         self.generation += 1
         if self.preview_origin is not None:
             closed = discord.ui.LayoutView(timeout=180)

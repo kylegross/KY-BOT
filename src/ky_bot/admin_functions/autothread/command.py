@@ -28,6 +28,7 @@ from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import defer_menu, menu_parent
 from ky_bot.views.menu_strips import category_files, group_sections
 from ky_bot.views.menu_strips import filename as category_filename
+from ky_bot.views.save_notice import draft_notice, mark_saved
 from ky_bot.views.sections import section_dividers
 
 PAGE_TITLES = {
@@ -177,6 +178,14 @@ class Menu(discord.ui.LayoutView):
                     )
                 )
             )
+
+        notice = draft_notice(
+            session,
+            {"channels": session.channels, "settings": session.draft},
+            "Draft updated. Review before applying.",
+        )
+        if notice:
+            panel.add_item(discord.ui.TextDisplay(notice))
 
         def row(title, description, label, target=None, callback=None):
             button = discord.ui.Button(label=label)
@@ -426,6 +435,8 @@ class Menu(discord.ui.LayoutView):
                         count = session.cog.store.toggle(
                             session.guild.id, session.channels, enabled
                         )
+                        mark_saved(session)
+                    await session.show(interaction)
                     await interaction.followup.send(
                         f"{count} rules {'enabled' if enabled else 'paused'}.", ephemeral=True
                     )
@@ -444,6 +455,7 @@ class Menu(discord.ui.LayoutView):
                     session.validate_channels(enabling=False)
                     if session.original:
                         session.cog.store.delete(session.guild.id, session.original["id"])
+                        mark_saved(session)
                     session.original, session.draft = None, defaults()
                 await session.show(interaction, "rules")
 
@@ -474,6 +486,7 @@ class Menu(discord.ui.LayoutView):
                     session.cog.store.save_configuration(
                         session.guild.id, session.channels, session.draft, session.original
                     )
+                    mark_saved(session)
                     session.original = None
                     session.channels = []
                     session.draft = defaults()

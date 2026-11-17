@@ -8,6 +8,7 @@ from ky_bot.confessions.command import destination
 from ky_bot.confessions.menus import Artwork
 from ky_bot.errors import report_error, send_private
 from ky_bot.views.menu_context import display_menu, menu_parent
+from ky_bot.views.save_notice import mark_saved, take_notice
 from ky_bot.views.sections import section_dividers
 
 from .command import administrator
@@ -116,6 +117,8 @@ class Admin(discord.ui.LayoutView):
         self.revision, self.config = await self.cog.store.configure(
             self.guild, self.channel, revision, **changes
         )
+
+        mark_saved(self)
 
     def button(self, label, callback, *, modal=False, disabled=False):
         button = discord.ui.Button(label=label, disabled=disabled)
@@ -293,6 +296,7 @@ class Admin(discord.ui.LayoutView):
                 file.close()
 
     async def show(self, i, page, notice=None):
+        notice = take_notice(self, notice)
         await self.allowed(i)
         self.parent = menu_parent(self.parent, i)
         self.page = page
@@ -403,9 +407,9 @@ class Admin(discord.ui.LayoutView):
                     "style",
                 ),
                 (
-                    "ACCESS PANEL SECTIONS",
-                    "Edit the text beside the four role buttons, or add/remove text blocks.",
-                    "sections",
+                    "PANEL TEXT & BUTTONS",
+                    "Edit bold labels, descriptions, button names and section headings.",
+                    "text",
                 ),
                 (
                     "PREVIEW & PUBLISH",
@@ -414,7 +418,12 @@ class Admin(discord.ui.LayoutView):
                 ),
                 ("PENDING APPROVALS", "Review questions and responses privately.", "queue"),
             ):
-                self.setting(panel, title, text, self.navigate(target))
+                self.setting(
+                    panel,
+                    title,
+                    text,
+                    self.navigate(target, "Edit panel text" if target == "text" else "Manage"),
+                )
             self.toggle(panel, "enabled", "ASK FOR ADVICE STATUS")
         elif page == "roles":
             panel.add_item(
@@ -558,7 +567,7 @@ class Admin(discord.ui.LayoutView):
                 panel,
                 "ACCESS PANEL TEXT",
                 "Headings, descriptions, button labels and emojis.",
-                self.navigate("sections", "Edit sections"),
+                self.navigate("text", "Edit panel text"),
             )
             self.setting(
                 panel,
@@ -767,6 +776,8 @@ class Admin(discord.ui.LayoutView):
                 "Saving does not update posted panels until you publish.",
                 self.navigate("publish", "Publish changes"),
             )
+        elif page == "text":
+            await self.text_page(panel)
         elif page in {"sections", "section", "row"}:
             await self.section_page(i, panel, page)
         elif page == "publish":
@@ -1038,6 +1049,100 @@ class Admin(discord.ui.LayoutView):
                 self.button("Edit line color", edit_lines, modal=True),
             )
         )
+
+    async def text_page(self, panel):
+        panel.add_item(
+            discord.ui.TextDisplay(
+                "Edit the text members see. Use the Edit button beside a heading or button row. "
+                "Changes save automatically; preview and publish when ready."
+            )
+        )
+
+        async def question_text(click):
+            await self.edit_values(
+                click,
+                "Question panel text",
+                (
+                    ("panel_title", "Question panel heading", 80, True, False),
+                    ("panel_text", "Description", 1000, False, True),
+                    ("submit_label", "Submit button label", 80, True, False),
+                ),
+                page="text",
+            )
+
+        self.setting(
+            panel,
+            "QUESTION PANEL TEXT",
+            "The second panel: heading, prompt and ask button.",
+            self.button("Edit", question_text, modal=True),
+        )
+        entries = []
+        for section_index, section in enumerate(self.config["sections"]):
+            entries.append((section_index, None, "SECTION HEADING", section["heading"] or "Hidden"))
+            for row_index, row in enumerate(section["rows"]):
+                label = row.get("heading") or row["label"] or "Text row"
+                entries.append((section_index, row_index, label.upper(), row["text"][:180]))
+        self.text_page_index = min(getattr(self, "text_page_index", 0), (len(entries) - 1) // 5)
+        for section_index, row_index, title, description in entries[
+            self.text_page_index * 5 : (self.text_page_index + 1) * 5
+        ]:
+
+            async def edit(click, section_index=section_index, row_index=row_index):
+                self.section, self.row = section_index, row_index or 0
+                section = self.config["sections"][section_index]
+                if row_index is None:
+                    fields = [
+                        (
+                            "heading",
+                            "Section heading (blank hides it)",
+                            section["heading"],
+                            80,
+                            False,
+                            False,
+                        )
+                    ]
+                else:
+                    row = section["rows"][row_index]
+                    fields = [
+                        (key, label, row.get(key, ""), limit, required, paragraph)
+                        for key, label, limit, required, paragraph in (
+                            ("heading", "Bold row label (optional)", 80, False, False),
+                            ("text", "Description", 1000, True, True),
+                            ("label", "Button label", 80, False, False),
+                            ("emoji", "Button emoji (optional)", 100, False, False),
+                        )
+                    ]
+
+                async def save(event, values):
+                    sections = copy.deepcopy(self.config["sections"])
+                    if row_index is None:
+                        sections[section_index]["heading"] = values["heading"]
+                    else:
+                        sections[section_index]["rows"][row_index].update(values)
+                    await self.save(event, self.revision, sections=sections)
+                    await self.show(event, "text")
+
+                await click.response.send_modal(Edit(self, "Edit panel text", fields, save))
+
+            self.setting(panel, title, description, self.button("Edit", edit, modal=True))
+        controls = discord.ui.ActionRow()
+        if len(entries) > 5:
+            for delta, label in ((-1, "Previous"), (1, "More text")):
+
+                async def turn(click, delta=delta):
+                    self.text_page_index += delta
+                    await self.show(click, "text")
+
+                controls.add_item(
+                    self.button(
+                        label,
+                        turn,
+                        disabled=not 0 <= self.text_page_index + delta <= (len(entries) - 1) // 5,
+                    )
+                )
+        controls.add_item(self.navigate("sections", "Add or arrange sections"))
+        controls.add_item(self.button("Preview", lambda click: self.preview(click, True)))
+        panel.add_item(controls)
 
     async def section_page(self, i, panel, page):
         sections = self.config["sections"]

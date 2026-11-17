@@ -84,10 +84,16 @@ def access_panel(channel, config, *, preview=False):
     view = Panel(config)
     for index, section in enumerate(config["sections"]):
         if index:
-            view.panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
+            view.panel.add_item(
+                discord.ui.Separator(visible=False, spacing=discord.SeparatorSpacing.large)
+            )
         style = config | config.get("section_styles", {}).get(str(index), {})
         view.heading(section["heading"], style, section["decorated"])
-        for row in section["rows"]:
+        for row_index, row in enumerate(section["rows"]):
+            if row_index:
+                view.panel.add_item(
+                    discord.ui.Separator(visible=False, spacing=discord.SeparatorSpacing.large)
+                )
             text = safe(row["text"])
             heading = row.get("heading", "").strip()
             if heading:
@@ -111,7 +117,7 @@ def submission_panel(channel, config, *, preview=False):
     button = Action(channel, "ask", label=config["submit_label"])
     button.item.disabled = preview
     view.panel.add_item(discord.ui.Section(safe(config["panel_text"]), accessory=button))
-    view.footer(config)
+    view.footer(config, divider=False)
     return view
 
 

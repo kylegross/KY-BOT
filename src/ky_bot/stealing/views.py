@@ -77,6 +77,7 @@ class Rename(discord.ui.Modal):
             batch.names.pop(self.asset.key, None)
         await i.response.defer()
         batch.mode = "pick"
+        batch.notice = "Name updated. Choose Copy selected to use it."
         batch.build()
         await show(i, batch)
 

@@ -277,3 +277,56 @@ class AppearanceWorkflowTests(unittest.IsolatedAsyncioTestCase):
         with patch("ky_bot.advice.menus.display_menu", new=AsyncMock()):
             await self.menu.show(self.i, "section")
             self.assertLessEqual(self.menu.total_children_count, 40)
+
+    async def test_quick_edit_opens_row_modal_and_shows_saved_at_top(self):
+        with patch("ky_bot.advice.menus.display_menu", new=AsyncMock()):
+            await self.menu.show(self.i, "text")
+            self.assertLessEqual(self.menu.total_children_count, 40)
+            edits = [
+                item
+                for item in self.menu.walk_children()
+                if isinstance(item, discord.ui.Button) and item.label == "Edit"
+            ]
+            await edits[2].callback(self.i)
+            modal = self.i.response.send_modal.await_args.args[0]
+            self.assertIn("heading", modal.fields)
+            await modal.callback(
+                self.i,
+                {
+                    "heading": "ACCESS ADVICE CHANNEL",
+                    "text": "Join us.",
+                    "label": "Join",
+                    "emoji": "",
+                },
+            )
+            self.assertTrue(
+                any(
+                    isinstance(item, discord.ui.TextDisplay) and item.content == "Saved."
+                    for item in self.menu.walk_children()
+                )
+            )
+            _, config = await self.store.config(1, 10)
+            self.assertEqual(config["sections"][0]["rows"][0]["text"], "Join us.")
+            await self.menu.show(self.i, "text")
+            self.assertFalse(
+                any(
+                    isinstance(item, discord.ui.TextDisplay) and item.content == "Saved."
+                    for item in self.menu.walk_children()
+                )
+            )
+
+    async def test_both_panels_have_no_visible_separators_and_rows_have_spacing(self):
+        from ky_bot.advice.panels import access_panel, submission_panel
+
+        for view in (
+            access_panel(10, self.config, preview=True),
+            submission_panel(10, self.config, preview=True),
+        ):
+            separators = [
+                item for item in view.walk_children() if isinstance(item, discord.ui.Separator)
+            ]
+            self.assertTrue(all(not item.visible for item in separators))
+            if len(view.files) > 3:
+                self.assertGreaterEqual(len(separators), 3)
+            self.assertLessEqual(view.total_children_count, 40)
+            view.stop()

@@ -13,6 +13,7 @@ from ky_bot.leveling.service import role_allowed
 from ky_bot.leveling.store import MAX_LEVEL, MAX_XP, defaults, level_for, threshold
 from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_strips import category_files, filename, group_sections, strip_files
+from ky_bot.views.save_notice import mark_saved, take_notice
 from ky_bot.views.sections import section_dividers
 
 PAGE_TITLES = {
@@ -72,8 +73,10 @@ class Session:
             self.guild.id, self.revision, **changes
         )
         self.cog.service.invalidate_voice(self.guild.id)
+        mark_saved(self)
 
     async def show(self, interaction, page="main", notice=None):
+        notice = take_notice(self, notice)
         self.revision, self.config = await self.cog.store.config(self.guild.id)
         _, profiles = await self.cog.bot.server_settings.repository.get_designs(self.guild.id)
         self.design = profile_for(profiles, "settings:leveling")

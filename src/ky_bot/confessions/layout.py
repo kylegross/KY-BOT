@@ -6,7 +6,7 @@ LAYOUTS = {
     "channels": (("DESTINATION", ("CONFESSION CHANNELS",)),),
     "channel": (
         ("CHANNEL & DELIVERY", ("CONFESSIONS", "SUBMISSION PANEL")),
-        ("DESIGN", ("APPEARANCE",)),
+        ("DESIGN", ("PANEL TEXT", "APPEARANCE")),
         ("ACCESS & PRIVACY", ("SUBMISSIONS & DELIVERY", "LOGGING & APPROVAL")),
     ),
     "behavior": (

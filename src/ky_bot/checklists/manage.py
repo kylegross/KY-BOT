@@ -42,15 +42,17 @@ class EditText(discord.ui.Modal):
                     fresh = self.service.store.category(item["id"], item["channel"])
                 self.service.wakeup.set()
             await interaction.followup.send(
-                view=ItemControls(self.service, fresh, self.kind), ephemeral=True
+                view=ItemControls(self.service, fresh, self.kind, saved=True), ephemeral=True
             )
         except ValueError as exc:
             await notice(interaction, str(exc), ephemeral=True)
 
 
 class ItemControls(InlineView):
-    def __init__(self, service, item, kind="task"):
+    def __init__(self, service, item, kind="task", *, saved=False):
         super().__init__(timeout=600)
+        if saved:
+            self.add_item(discord.ui.TextDisplay("Saved."))
         title = item["title"] if kind == "task" else item["name"]
         title = discord.utils.escape_markdown(discord.utils.escape_mentions(title[:500]))
         self.add_item(discord.ui.TextDisplay(f"**{title}**\n-# Edit or move this {kind}."))
@@ -77,7 +79,7 @@ class ItemControls(InlineView):
                 if kind == "task":
                     summary += "\nPriority: " + PRIORITIES[fresh["priority"]]
                 await interaction.edit_original_response(
-                    content=None, view=ItemControls(service, fresh, kind)
+                    content=None, view=ItemControls(service, fresh, kind, saved=True)
                 )
             except ValueError as exc:
                 await notice(interaction, str(exc), ephemeral=True)

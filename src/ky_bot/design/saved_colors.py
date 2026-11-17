@@ -79,7 +79,8 @@ class ColorLibrary(discord.ui.View):
     def content(self, notice=""):
         name = discord.utils.escape_markdown(discord.utils.escape_mentions(self.selected or ""))
         return (
-            (
+            (notice + "\n\n" if notice else "")
+            + (
                 "**SERVER SAVED COLORS**\nShared across all menus in this server. "
                 if self.shared
                 else "**SAVED CUSTOM COLORS**\n"
@@ -96,7 +97,6 @@ class ColorLibrary(discord.ui.View):
                 if self.selected
                 else "No saved colors yet. Use Add color to create one.\n"
             )
-            + notice
         )
 
     async def refresh(self, i, notice=""):

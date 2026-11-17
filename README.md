@@ -1007,3 +1007,10 @@ colors unchanged. Shared menu designs still require **Apply design**; posted pan
 usual preview/publish controls. Advice’s main heading controls update all section headings,
 while each section editor changes only its own heading. Button rows can also have an optional
 bold text label above their description, with the button alongside. Hex values accept an optional `#`.
+
+Advice setup has an **Edit panel text** shortcut: its quick editor lists the question panel,
+section headings, and button-row text together with direct Edit buttons. Confessions also has
+a direct **Edit text** action on its channel menu. Successful settings changes show a one-shot
+save confirmation; design and automation drafts identify unsaved changes explicitly. Advice
+button rows and section groups use spacing without visible divider lines, and neither Advice
+entry panel has a divider immediately above its footer image.

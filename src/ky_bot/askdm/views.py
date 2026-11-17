@@ -353,7 +353,7 @@ class Admin(Panel):
                     if values.get("public"):
                         await cog.validate_channels(i.guild, config)
                     await cog.store.configure(guild, revision, **values)
-                await cog.admin(i, parent)
+                await cog.admin(i, parent, notice="Saved.")
             except (ValueError, discord.HTTPException) as error:
                 await cog.admin(i, parent, notice=safe(str(error))[:1000])
 
@@ -427,7 +427,7 @@ class Admin(Panel):
                         await cog.check_channel(channel, logs=key == "log_channel")
                         async with cog.config_lock:
                             await cog.store.configure(guild, revision, **{key: channel.id})
-                        await cog.admin(i, parent)
+                        await cog.admin(i, parent, notice="Saved.")
                     except (ValueError, discord.HTTPException) as error:
                         await cog.admin(i, parent, notice=safe(str(error))[:1000])
 
