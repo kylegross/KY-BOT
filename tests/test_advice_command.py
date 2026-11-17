@@ -74,10 +74,13 @@ class AdviceCommandTests(unittest.IsolatedAsyncioTestCase):
         text_index = next(
             n for n, item in enumerate(items) if isinstance(item, discord.ui.TextDisplay)
         )
-        self.assertIn("\n\nUse the button below or `/advice` command.", items[text_index].content)
-        self.assertIsInstance(items[text_index + 1], discord.ui.ActionRow)
-        self.assertEqual(items[text_index + 1].children[0].action, "ask")
-        self.assertTrue(items[text_index + 1].children[0].item.disabled)
+        self.assertEqual(items[text_index].content, defaults()["panel_text"])
+        self.assertEqual(
+            items[text_index + 1].content, "Use the button below or `/advice` command."
+        )
+        self.assertIsInstance(items[text_index + 2], discord.ui.ActionRow)
+        self.assertEqual(items[text_index + 2].children[0].action, "ask")
+        self.assertTrue(items[text_index + 2].children[0].item.disabled)
         self.assertFalse(any(isinstance(item, discord.ui.Section) for item in items))
         view.to_components()
         view.stop()

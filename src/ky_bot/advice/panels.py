@@ -117,9 +117,9 @@ def submission_panel(channel, config, *, preview=False):
     button.item.disabled = preview
     text = safe(config["panel_text"])
     instruction = config.get("panel_command_text", "Use the button below or `/advice` command.")
-    if instruction.strip():
-        text += "\n\n" + safe(instruction)
     view.panel.add_item(discord.ui.TextDisplay(text))
+    if instruction.strip():
+        view.panel.add_item(discord.ui.TextDisplay(safe(instruction)))
     view.panel.add_item(discord.ui.ActionRow(button))
     view.footer(config, divider=False)
     return view
