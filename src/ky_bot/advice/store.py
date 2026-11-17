@@ -160,10 +160,16 @@ def validate(config):
         if not 1 <= len(section["rows"]) <= 4:
             raise ValueError("Each section needs 1–4 rows.")
         for row in section["rows"]:
-            if not isinstance(row, dict) or set(row) != {"action", "label", "emoji", "text"}:
+            if (
+                not isinstance(row, dict)
+                or not {"action", "label", "emoji", "text"} <= set(row)
+                or set(row) - {"action", "label", "emoji", "text", "heading"}
+            ):
                 raise ValueError("Each row needs action, label, emoji, and text fields.")
             if row["action"] not in {"join", "leave", "give", "ungive", "none"}:
                 raise ValueError("Choose join, leave, give, ungive, or none for row actions.")
+            if not isinstance(row.get("heading", ""), str) or len(row.get("heading", "")) > 80:
+                raise ValueError("Button-row headings can contain up to 80 characters.")
             for key, limit in (("label", 80), ("emoji", 100), ("text", 1000)):
                 if not isinstance(row[key], str) or len(row[key]) > limit:
                     raise ValueError(f"Row {key} must be at most {limit} characters.")
@@ -177,6 +183,22 @@ def validate(config):
                 actions.append(row["action"])
             characters += len(row["text"])
             rows += 1
+    components = (
+        1
+        + 2
+        + 2
+        + bool(result["footer_text"])
+        + len(sections)
+        - 1
+        + sum(2 * bool(section["heading"].strip()) for section in sections)
+        + sum(
+            (3 if row["action"] != "none" else 1) + 2 * bool(row.get("heading", "").strip())
+            for section in sections
+            for row in section["rows"]
+        )
+    )
+    if components > 40:
+        raise ValueError("This panel has too many headings and rows. Remove a heading or text row.")
     if len(actions) != len(set(actions)):
         raise ValueError("Each role action may appear only once.")
     if characters > 2800 or rows > 6:

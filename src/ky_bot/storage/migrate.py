@@ -15,6 +15,8 @@ SETTINGS_TABLES = (
     "welcome_settings",
     "welcome_artwork",
     "embed_designs",
+    "server_custom_colors",
+    "server_color_imports",
     "member_log_settings",
     "member_inviters",
     "command_center_panels",
@@ -49,6 +51,8 @@ def snapshot(path, tables):
         optional = {
             "subtasks",
             "embed_designs",
+            "server_custom_colors",
+            "server_color_imports",
             "member_log_settings",
             "member_inviters",
             "command_center_panels",

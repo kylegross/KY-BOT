@@ -1,6 +1,8 @@
 """Reusable private named-color editor; applying copies a value into one target."""
 
 import asyncio
+import hashlib
+import json
 
 import discord
 
@@ -9,9 +11,9 @@ from ky_bot.errors import report_error, send_private
 from .text_colour import text_colour
 
 
-def validate_colors(value):
-    if not isinstance(value, dict) or len(value) > 25:
-        raise ValueError("Save up to 25 named custom colors in this setup.")
+def validate_colors(value, *, limit=25):
+    if not isinstance(value, dict) or len(value) > limit:
+        raise ValueError(f"Save up to {limit} named custom colors.")
     result = {}
     for name, color in value.items():
         if not isinstance(name, str) or not name.strip() or len(name) > 40:
@@ -54,10 +56,14 @@ class ColorModal(discord.ui.Modal):
 
 
 class ColorLibrary(discord.ui.View):
-    def __init__(self, owner, guild, colors, targets, commit, *, allowed=None, draft=False):
+    def __init__(
+        self, owner, guild, colors, targets, commit, *, allowed=None, draft=False, shared=False
+    ):
         super().__init__(timeout=600)
         self.owner, self.guild = owner, guild
-        self.colors, self.targets = validate_colors(colors), targets
+        self.shared, self.page = shared, 0
+        self.limit = 100 if shared else 25
+        self.colors, self.targets = validate_colors(colors, limit=self.limit), targets
         self.commit, self.allowed = commit, allowed
         self.selected = next(iter(self.colors), None)
         self.target = next(iter(targets))
@@ -73,7 +79,12 @@ class ColorLibrary(discord.ui.View):
     def content(self, notice=""):
         name = discord.utils.escape_markdown(discord.utils.escape_mentions(self.selected or ""))
         return (
-            "**SAVED CUSTOM COLORS**\nName colors, then choose where to apply them. "
+            (
+                "**SERVER SAVED COLORS**\nShared across all menus in this server. "
+                if self.shared
+                else "**SAVED CUSTOM COLORS**\n"
+            )
+            + "Name colors, then choose where to apply them. "
             "Editing a saved color leaves previously applied colors unchanged.\n"
             + (
                 "Changes stay in your design draft until you Apply design.\n"
@@ -95,13 +106,15 @@ class ColorLibrary(discord.ui.View):
     def rebuild(self):
         self.clear_items()
         if self.colors:
+            names = list(self.colors)[self.page * 25 : (self.page + 1) * 25]
             picker = discord.ui.Select(
                 placeholder="Choose a saved custom color",
                 options=[
                     discord.SelectOption(
                         label=name, value=name, description=color, default=name == self.selected
                     )
-                    for name, color in self.colors.items()
+                    for name in names
+                    for color in [self.colors[name]]
                 ],
             )
 
@@ -128,13 +141,31 @@ class ColorLibrary(discord.ui.View):
         target.callback = choose_target
         self.add_item(target)
         for label, action, disabled in (
-            ("Add color", self.add, len(self.colors) >= 25),
+            ("Add color", self.add, len(self.colors) >= self.limit),
             ("Edit saved color", self.edit, self.selected is None),
             ("Apply color", self.apply, self.selected is None),
         ):
             button = discord.ui.Button(label=label, disabled=disabled)
             button.callback = action
             self.add_item(button)
+        if len(self.colors) > 25:
+            for label, callback, disabled in (
+                ("Previous colors", self.previous, self.page == 0),
+                ("More colors", self.next_page, (self.page + 1) * 25 >= len(self.colors)),
+            ):
+                button = discord.ui.Button(label=label, disabled=disabled, row=3)
+                button.callback = callback
+                self.add_item(button)
+
+    async def previous(self, i):
+        await i.response.defer()
+        self.page = max(0, self.page - 1)
+        await self.refresh(i)
+
+    async def next_page(self, i):
+        await i.response.defer()
+        self.page = min((len(self.colors) - 1) // 25, self.page + 1)
+        await self.refresh(i)
 
     async def add(self, i):
         await i.response.send_modal(ColorModal(self))
@@ -152,9 +183,10 @@ class ColorLibrary(discord.ui.View):
             if existing is not None:
                 colors.pop(existing)
             colors[name] = color
-            colors = validate_colors(colors)
+            colors = validate_colors(colors, limit=self.limit)
             await self.commit(i, colors, None, None)
             self.colors, self.selected = colors, name
+            self.page = list(colors).index(name) // 25
             await self.refresh(i, "Color saved. Choose a target and Apply color to use it.")
 
     async def apply(self, i):
@@ -170,9 +202,41 @@ class ColorLibrary(discord.ui.View):
             await report_error(i, error)
 
 
-async def open_library(i, colors, targets, commit, *, allowed=None, draft=False):
+async def open_library(i, colors, targets, commit, *, allowed=None, draft=False, shared=False):
+    repository = getattr(
+        getattr(getattr(i, "client", None), "server_settings", None), "repository", None
+    )
+    if repository is not None:
+        revision, saved = await repository.get_colors(i.guild_id)
+        signature = hashlib.sha256(json.dumps(colors, sort_keys=True).encode()).hexdigest()
+        if colors and not await repository.colors_imported(i.guild_id, signature):
+            imported = dict(saved)
+            for name, color in colors.items():
+                if color in imported.values():
+                    continue
+                candidate, number = name, 2
+                while candidate in imported and imported[candidate] != color:
+                    suffix = f" ({number})"
+                    candidate = name[: 40 - len(suffix)] + suffix
+                    number += 1
+                imported[candidate] = color
+            if imported != saved:
+                revision = await repository.save_colors(i.guild_id, imported, revision)
+            await repository.mark_colors_imported(i.guild_id, signature)
+            saved = imported
+        original_commit = commit
+
+        async def shared_commit(event, updated, target, color):
+            nonlocal revision
+            if target is None:
+                revision = await repository.save_colors(event.guild_id, updated, revision)
+            else:
+                # Apply a copy to this setup; never copy the whole server library into it.
+                await original_commit(event, {}, target, color)
+
+        commit, colors, shared = shared_commit, saved, True
     view = ColorLibrary(
-        i.user.id, i.guild_id, colors, targets, commit, allowed=allowed, draft=draft
+        i.user.id, i.guild_id, colors, targets, commit, allowed=allowed, draft=draft, shared=shared
     )
     if i.response.is_done():
         await i.followup.send(content=view.content(), view=view, ephemeral=True)

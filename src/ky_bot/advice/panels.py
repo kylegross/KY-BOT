@@ -88,6 +88,8 @@ def access_panel(channel, config, *, preview=False):
         style = config | config.get("section_styles", {}).get(str(index), {})
         view.heading(section["heading"], style, section["decorated"])
         for row in section["rows"]:
+            if row.get("heading", "").strip():
+                view.heading(row["heading"], style)
             text = safe(row["text"])
             if row["action"] == "none":
                 view.panel.add_item(discord.ui.TextDisplay(text))

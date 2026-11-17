@@ -24,7 +24,7 @@ LAYOUTS = {
     ),
     "destinations": (("CHANNELS & LOGGING", ("APPROVAL CHANNEL", "AUTHOR LOG CHANNEL")),),
     "style": (
-        ("DESIGN", ("HEADER & FOOTER", "PANEL TEXT & HIGHLIGHT", "SECTION HEADING STYLE")),
+        ("DESIGN", ("HEADER & FOOTER", "PANEL TEXT & HIGHLIGHT", "ALL SECTION HEADINGS")),
         ("MESSAGE", ("ASK CHANNEL PANEL", "ACCESS PANEL TEXT")),
     ),
     "artwork": (
@@ -47,7 +47,7 @@ LAYOUTS = {
             "MESSAGE",
             (
                 "HEADING",
-                "SECTION HEADING STYLE",
+                "ALL SECTION HEADINGS",
                 "DECORATIVE SIDE LINES",
                 "TEXT ROWS",
                 "ADD TEXT ROW",
@@ -56,7 +56,7 @@ LAYOUTS = {
         ("ADMINISTRATION", ("MOVE UP", "MOVE DOWN", "REMOVE")),
     ),
     "row": (
-        ("MESSAGE", ("ROW TEXT & BUTTON", "BUTTON ACTION")),
+        ("MESSAGE", ("ROW HEADING, TEXT & BUTTON", "BUTTON ACTION")),
         ("ADMINISTRATION", ("MOVE UP", "MOVE DOWN", "REMOVE")),
     ),
     "publish": (

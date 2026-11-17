@@ -999,10 +999,11 @@ remain drafts until **Apply design**. Public panels and custom embeds use their
 saved changes when published; saving a color alone does not silently repost them.
 
 
-Server-facing panel editors include **Saved colors** for named custom hex colors. Confessions,
-Custom Embeds, Tickets, and the shared menu design editor (including Ask to DM/FR and checklists)
-keep separate libraries for each setup. Add a name and a hex value, choose a saved color and its
-target, then select **Apply color**. Editing a saved color never recolors existing elements until
-it is explicitly applied. Shared menu designs remain drafts until **Apply design**; use the
-panel’s preview/publish controls to update posted messages. Ask for Advice retains its named
-heading-color selector. Hex values accept an optional `#`.
+Server-facing panel editors include **Saved colors**, one named custom-color library shared by
+all menus in the same server. Add a color once, choose a target in any panel editor, and select
+**Apply color**. Previously saved setup-local colors are imported as their editors are opened;
+conflicting names are preserved with a suffix. Editing a saved color leaves previously applied
+colors unchanged. Shared menu designs still require **Apply design**; posted panels use their
+usual preview/publish controls. Advice’s main heading controls update all section headings,
+while each section editor changes only its own heading. Button rows can also have an optional
+KY BOT heading above their description and button. Hex values accept an optional `#`.

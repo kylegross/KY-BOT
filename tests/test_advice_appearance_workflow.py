@@ -225,38 +225,44 @@ class AppearanceWorkflowTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await store.close()
 
-    async def test_named_heading_colors_are_independent_and_survive_restart(self):
+    async def test_section_colors_stay_independent_and_all_lines_updates_overrides(self):
         self.menu.page = "section"
-        callbacks = []
-        self.menu.picker = lambda panel, item, callback, **kw: callbacks.append((item, callback))
-
-        async def choose(value):
-            panel = discord.ui.Container()
-            callbacks.clear()
-            await self.menu.heading_style_controls(panel)
-            await callbacks[0][1](self.i, [value])
-
-        with patch.object(self.menu, "show", new=AsyncMock()):
-            await choose("custom")
-            modal = self.i.response.send_modal.await_args.args[0]
-            await modal.callback(self.i, {"name": "Emerald", "color": "#18AA77"})
-            self.menu.revision, self.menu.config = await self.store.config(1, 10)
-            self.menu.section = 1
-            await choose("custom")
-            modal = self.i.response.send_modal.await_args.args[0]
-            await modal.callback(self.i, {"name": "Rose", "color": "#EE7799"})
-            self.menu.revision, self.menu.config = await self.store.config(1, 10)
-            await choose("saved:Emerald")
+        self.menu.section = 0
+        with patch("ky_bot.design.saved_colors.open_library", new=AsyncMock()) as launch:
+            await self.menu.open_saved_colors(self.i)
+        first = launch.await_args.args[3]
+        await first(self.i, {}, "text_color", "#18AA77")
+        self.menu.section = 1
+        with patch("ky_bot.design.saved_colors.open_library", new=AsyncMock()) as launch:
+            await self.menu.open_saved_colors(self.i)
+        await launch.await_args.args[3](self.i, {}, "text_color", "#EE7799")
+        await self.menu.apply_heading_style(self.i, {"line_color": "#FF0088"}, section=1)
+        await self.menu.apply_heading_style(self.i, {"line_color": "#18AA77"})
         _, config = await self.store.config(1, 10)
-        self.assertEqual(config["heading_colors"], {"Emerald": "#18AA77", "Rose": "#EE7799"})
         self.assertEqual(config["section_styles"]["0"]["text_color"], "#18AA77")
-        self.assertEqual(config["section_styles"]["1"]["text_color"], "#18AA77")
-        self.assertIsNone(config["text_color"])
+        self.assertEqual(config["section_styles"]["1"]["text_color"], "#EE7799")
+        for style in config["section_styles"].values():
+            self.assertEqual(style["line_color"], "#18AA77")
         reopened = await Store.open(self.path)
         try:
             self.assertEqual((await reopened.config(1, 10))[1], config)
         finally:
             await reopened.close()
+
+    async def test_optional_heading_is_rendered_above_its_button_row(self):
+        from ky_bot.advice.panels import access_panel
+
+        config = self.config
+        config["sections"][0]["rows"][0]["heading"] = "JOIN THE CONVERSATION"
+        self.revision, config = await self.store.configure(1, 10, self.revision, **config)
+        with patch("ky_bot.advice.panels.heading_image", return_value=b"heading") as heading:
+            view = access_panel(10, config, preview=True)
+        self.assertIn("JOIN THE CONVERSATION", [call.args[0] for call in heading.call_args_list])
+        items = view.panel.children
+        button_row = next(n for n, item in enumerate(items) if isinstance(item, discord.ui.Section))
+        self.assertIsInstance(items[button_row - 1], discord.ui.MediaGallery)
+        self.assertLessEqual(view.total_children_count, 40)
+        view.stop()
 
     async def test_section_color_controls_fit_discord_limits(self):
         self.revision, _ = await self.store.configure(

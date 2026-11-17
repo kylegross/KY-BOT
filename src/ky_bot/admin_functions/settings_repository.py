@@ -73,6 +73,51 @@ class SettingsRepository:
             row = await cursor.fetchone()
         return int(row[0]) if row and row[0] is not None else None
 
+    async def colors_imported(self, guild_id, signature):
+        async with self.connection.execute(
+            "SELECT signature FROM server_color_imports WHERE guild_id=? AND signature=?",
+            (str(guild_id), signature),
+        ) as cursor:
+            return await cursor.fetchone() is not None
+
+    async def mark_colors_imported(self, guild_id, signature):
+        await self.connection.execute(
+            "INSERT INTO server_color_imports(guild_id,signature) VALUES (?,?) "
+            "ON CONFLICT(guild_id,signature) DO NOTHING",
+            (str(guild_id), signature),
+        )
+
+    async def get_colors(self, guild_id):
+        async with self.connection.execute(
+            "SELECT revision,colors FROM server_custom_colors WHERE guild_id=?", (str(guild_id),)
+        ) as cursor:
+            row = await cursor.fetchone()
+        return (row[0], json.loads(row[1])) if row else (None, {})
+
+    async def save_colors(self, guild_id, colors, expected):
+        from ky_bot.design.saved_colors import validate_colors
+
+        colors = validate_colors(colors, limit=100)
+        revision = uuid.uuid4().hex
+        if expected is None:
+            sql = (
+                "INSERT INTO server_custom_colors(guild_id,revision,colors) VALUES (?,?,?) "
+                "ON CONFLICT(guild_id) DO NOTHING RETURNING revision"
+            )
+            values = (str(guild_id), revision, json.dumps(colors))
+        else:
+            sql = (
+                "UPDATE server_custom_colors SET revision=?,colors=? "
+                "WHERE guild_id=? AND revision=? RETURNING revision"
+            )
+            values = (revision, json.dumps(colors), str(guild_id), expected)
+        async with self.connection.execute(sql, values) as cursor:
+            if not await cursor.fetchone():
+                raise ValueError(
+                    "Saved colors changed. Reopen Saved colors to load the latest list."
+                )
+        return revision
+
     async def get_designs(self, guild_id):
         async with self.connection.execute(
             "SELECT revision, profiles FROM embed_designs WHERE guild_id = ?", (str(guild_id),)
@@ -276,6 +321,14 @@ async def open_settings(path: Path, *, database_url: str | None = None):
                 "dim INTEGER NOT NULL DEFAULT 35);"
                 "PRAGMA user_version = 3;COMMIT;"
             )
+        await connection.execute(
+            "CREATE TABLE IF NOT EXISTS server_color_imports "
+            "(guild_id TEXT NOT NULL, signature TEXT NOT NULL, PRIMARY KEY(guild_id,signature))"
+        )
+        await connection.execute(
+            "CREATE TABLE IF NOT EXISTS server_custom_colors "
+            "(guild_id TEXT PRIMARY KEY, revision TEXT NOT NULL, colors TEXT NOT NULL)"
+        )
         await connection.execute(
             "CREATE TABLE IF NOT EXISTS embed_designs "
             "(guild_id TEXT PRIMARY KEY, revision TEXT NOT NULL, profiles TEXT NOT NULL)"
