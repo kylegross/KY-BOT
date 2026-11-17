@@ -1190,7 +1190,7 @@ class Admin(discord.ui.LayoutView):
                 fields = [
                     (key, label, row.get(key, ""), limit, required, paragraph)
                     for key, label, limit, required, paragraph in (
-                        ("heading", "Heading above this button row (optional)", 80, False, False),
+                        ("heading", "Bold row label (optional)", 80, False, False),
                         ("text", "Description", 1000, True, True),
                         ("label", "Button label", 80, False, False),
                         ("emoji", "Button emoji (optional)", 100, False, False),

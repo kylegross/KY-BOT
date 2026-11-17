@@ -168,8 +168,13 @@ def validate(config):
                 raise ValueError("Each row needs action, label, emoji, and text fields.")
             if row["action"] not in {"join", "leave", "give", "ungive", "none"}:
                 raise ValueError("Choose join, leave, give, ungive, or none for row actions.")
-            if not isinstance(row.get("heading", ""), str) or len(row.get("heading", "")) > 80:
-                raise ValueError("Button-row headings can contain up to 80 characters.")
+            if (
+                not isinstance(row.get("heading", ""), str)
+                or len(row.get("heading", "")) > 80
+                or "\n" in row.get("heading", "")
+                or "\r" in row.get("heading", "")
+            ):
+                raise ValueError("Button-row headings use one line of up to 80 characters.")
             for key, limit in (("label", 80), ("emoji", 100), ("text", 1000)):
                 if not isinstance(row[key], str) or len(row[key]) > limit:
                     raise ValueError(f"Row {key} must be at most {limit} characters.")
@@ -192,9 +197,7 @@ def validate(config):
         - 1
         + sum(2 * bool(section["heading"].strip()) for section in sections)
         + sum(
-            (3 if row["action"] != "none" else 1) + 2 * bool(row.get("heading", "").strip())
-            for section in sections
-            for row in section["rows"]
+            (3 if row["action"] != "none" else 1) for section in sections for row in section["rows"]
         )
     )
     if components > 40:

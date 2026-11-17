@@ -257,10 +257,12 @@ class AppearanceWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.revision, config = await self.store.configure(1, 10, self.revision, **config)
         with patch("ky_bot.advice.panels.heading_image", return_value=b"heading") as heading:
             view = access_panel(10, config, preview=True)
-        self.assertIn("JOIN THE CONVERSATION", [call.args[0] for call in heading.call_args_list])
-        items = view.panel.children
-        button_row = next(n for n, item in enumerate(items) if isinstance(item, discord.ui.Section))
-        self.assertIsInstance(items[button_row - 1], discord.ui.MediaGallery)
+        self.assertNotIn("JOIN THE CONVERSATION", [call.args[0] for call in heading.call_args_list])
+        button_row = next(
+            item for item in view.panel.children if isinstance(item, discord.ui.Section)
+        )
+        self.assertTrue(button_row.children[0].content.startswith("**JOIN THE CONVERSATION**\n"))
+        self.assertEqual(button_row.accessory.item.label, "Join")
         self.assertLessEqual(view.total_children_count, 40)
         view.stop()
 

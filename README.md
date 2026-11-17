@@ -1006,4 +1006,4 @@ conflicting names are preserved with a suffix. Editing a saved color leaves prev
 colors unchanged. Shared menu designs still require **Apply design**; posted panels use their
 usual preview/publish controls. Advice’s main heading controls update all section headings,
 while each section editor changes only its own heading. Button rows can also have an optional
-KY BOT heading above their description and button. Hex values accept an optional `#`.
+bold text label above their description, with the button alongside. Hex values accept an optional `#`.
