@@ -390,17 +390,17 @@ class Admin(discord.ui.LayoutView):
             for title, text, target in (
                 (
                     "CHANNELS & ROLES",
-                    "1. Choose where members join and which roles the buttons give.",
+                    "Choose where members join and which roles the buttons give.",
                     "roles",
                 ),
                 (
                     "DELIVERY & PRIVACY",
-                    "2. Choose log/approval channels, then turn the options you want on.",
+                    "Choose log/approval channels, then turn the options you want on.",
                     "delivery",
                 ),
                 (
                     "APPEARANCE",
-                    "3. Change the images, text and colors on your panels.",
+                    "Change the images, text and colors on your panels.",
                     "style",
                 ),
                 (
@@ -410,7 +410,7 @@ class Admin(discord.ui.LayoutView):
                 ),
                 (
                     "PREVIEW & PUBLISH",
-                    "4. Check your panels, then post your saved changes to Discord.",
+                    "Check your panels, then post your saved changes to Discord.",
                     "publish",
                 ),
                 ("PENDING APPROVALS", "Review questions and responses privately.", "queue"),
