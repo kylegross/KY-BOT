@@ -30,7 +30,10 @@ GROUPS = {
         ("ADMINISTRATION", ("GENERAL SETTINGS", "MANAGE EMBEDS", "MODERATION", "TICKETS", "LOGS")),
     ),
     "settings:community": (
-        ("COMMUNITY", ("LEVELING", "CONFESSIONS", "ASK FOR ADVICE", "ASK TO DM/FR")),
+        (
+            "COMMUNITY",
+            ("LEVELING", "CONFESSIONS", "ASK FOR ADVICE", "ASK TO DM/FR", "MEDIA REMOVAL"),
+        ),
     ),
     "settings:general": (
         ("AUTOMATION", ("AUTODELETE", "AUTOTHREAD", "AUTOREACT")),

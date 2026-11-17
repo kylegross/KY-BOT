@@ -101,3 +101,10 @@ CREATE TABLE IF NOT EXISTS ticket_archives (id TEXT PRIMARY KEY, guild BIGINT NO
 
 CREATE TABLE IF NOT EXISTS server_custom_colors (guild_id TEXT PRIMARY KEY, revision TEXT NOT NULL, colors TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS server_color_imports (guild_id TEXT NOT NULL, signature TEXT NOT NULL, PRIMARY KEY(guild_id,signature));
+
+-- Member-initiated, media-only cleanup.
+CREATE TABLE IF NOT EXISTS media_removal_settings (guild BIGINT PRIMARY KEY, revision TEXT NOT NULL, config TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS media_removal_jobs (id TEXT PRIMARY KEY, guild BIGINT NOT NULL, owner BIGINT NOT NULL, cutoff BIGINT NOT NULL, state TEXT NOT NULL, created DOUBLE PRECISION NOT NULL, deleted BIGINT NOT NULL DEFAULT 0, scanned BIGINT NOT NULL DEFAULT 0, lease_until DOUBLE PRECISION NOT NULL DEFAULT 0, lease TEXT NOT NULL DEFAULT '');
+CREATE UNIQUE INDEX IF NOT EXISTS media_removal_active ON media_removal_jobs(guild,owner) WHERE state IN ('discovering','running');
+CREATE TABLE IF NOT EXISTS media_removal_channels (job TEXT NOT NULL, channel BIGINT NOT NULL, cursor BIGINT NOT NULL, state TEXT NOT NULL DEFAULT 'pending', PRIMARY KEY(job,channel));
+CREATE TABLE IF NOT EXISTS media_removal_issues (job TEXT NOT NULL, scope TEXT NOT NULL, PRIMARY KEY(job,scope));

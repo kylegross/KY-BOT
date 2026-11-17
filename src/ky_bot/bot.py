@@ -26,6 +26,7 @@ EXTENSIONS = (
     "ky_bot.askdm.command",
     "ky_bot.confessions.command",
     "ky_bot.advice.command",
+    "ky_bot.media_removal.command",
     "ky_bot.moderation.command",
     "ky_bot.custom_embeds.command",
     "ky_bot.stealing.command",

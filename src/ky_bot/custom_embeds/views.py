@@ -350,11 +350,12 @@ class SavedEmbed(Base):
 
 
 class Session:
-    def __init__(self, cog, owner, guild, ident, *, creating=False, parent=None):
+    def __init__(self, cog, owner, guild, ident, *, creating=False, parent=None, return_to=None):
         self.cog, self.owner, self.guild, self.ident = cog, owner, guild, ident
         self.lock = asyncio.Lock()
         self.row = None
         self.creating = creating
+        self.return_to = return_to
         self.parent = parent
         self.page = "main"
         self.style = "bold"
@@ -632,11 +633,12 @@ class Editor(Base):
                 "message once it can access the channel."
             )
         elif page == "main":
-            self.text(
-                "**DESTINATION CHANNEL**\nDefaults to the channel where this draft was created."
-            )
-            self.channel_picker(s, data, revision)
-            self.panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
+            if getattr(s, "return_to", None) is None:
+                self.text(
+                    "**DESTINATION CHANNEL**\nDefaults to the channel where this draft was created."
+                )
+                self.channel_picker(s, data, revision)
+                self.panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
             self.row("**DRAFT NAME**\n" + safe(data["name"]), button("Rename", modal("name")))
             for heading, description, destination in (
                 ("IMAGES", "Optional header and footer images.", "images"),
@@ -657,6 +659,8 @@ class Editor(Base):
                     "publish",
                 ),
             ):
+                if getattr(s, "return_to", None) is not None and destination == "delivery":
+                    continue
                 self.row(f"**{heading}**\n-# {description}", button("Manage", go(destination)))
             self.text(
                 "-# "
@@ -995,10 +999,11 @@ class Editor(Base):
                 "**PUBLISH / UPDATE**\nPost to the selected channel or update the existing copy.",
                 button("Publish", publish),
             )
-            self.row(
-                "**DELETE EMBED**\nRemove the saved embed and its posted message.",
-                button("Delete", delete),
-            )
+            if getattr(s, "return_to", None) is None:
+                self.row(
+                    "**DELETE EMBED**\nRemove the saved embed and its posted message.",
+                    button("Delete", delete),
+                )
         if page != "main" and not row["deleted"]:
             self.row(
                 "**EMBED EDITOR**\n-# Return to editing options.",
@@ -1013,6 +1018,8 @@ class Editor(Base):
             )
 
         async def library(i):
+            if getattr(s, "return_to", None) is not None:
+                return await s.return_to(i)
             await i.response.defer()
             await editor_display(
                 i,
@@ -1024,8 +1031,12 @@ class Editor(Base):
 
         if page == "main":
             self.row(
-                "**SAVED EMBEDS**\n-# Your drafts are saved automatically.",
-                button("All embeds", library),
+                "**MEDIA REMOVAL SETUP**\nReturn to the feature settings."
+                if getattr(s, "return_to", None) is not None
+                else "**SAVED EMBEDS**\n-# Your drafts are saved automatically.",
+                button(
+                    "Back" if getattr(s, "return_to", None) is not None else "All embeds", library
+                ),
             )
         self.finish()
 

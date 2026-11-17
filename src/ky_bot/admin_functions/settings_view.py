@@ -231,6 +231,11 @@ class SettingsView(discord.ui.LayoutView):
                 ("LEVELING", "XP, rewards and member rankings.", "Leveling"),
                 ("CONFESSIONS", "Anonymous posts, replies, approvals and styling.", "Confessions"),
                 (
+                    "MEDIA REMOVAL",
+                    "Member-requested removal of their own uploaded images and videos.",
+                    "MediaRemoval",
+                ),
+                (
                     "ASK FOR ADVICE",
                     "Anonymous questions, advice roles and response approvals.",
                     "Advice",

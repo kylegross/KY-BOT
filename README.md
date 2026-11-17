@@ -1014,3 +1014,35 @@ a direct **Edit text** action on its channel menu. Successful settings changes s
 save confirmation; design and automation drafts identify unsaved changes explicitly. Advice
 button rows and section groups use spacing without visible divider lines, and neither Advice
 entry panel has a divider immediately above its footer image.
+
+
+### Member media removal
+
+Command Center → Community → Media Removal is opt-in. No panel is posted on startup and no
+cleanup is enabled until a panel channel is selected. Preview the customizable panel, then
+Publish it. The inline button label, description, bold label and position are editable. The
+appearance editor provides the same sections, header/footer uploads, metallic lettering,
+text/line colors and server-wide saved colors as Custom Embeds. Initial copy is a placeholder.
+
+Members can request removal only of **their own uploaded image/video posts across the server**.
+They receive a private permanent-deletion confirmation first. Captions and any other content
+attached to those matching posts are removed with the message. Text-only messages, GIF-only
+posts, audio-only posts, stickers, links and other file-only posts are kept. Staff-wide deletion
+of someone else’s content and VICE’s broader text/all-content modes are not exposed here.
+
+Cleanup scans accessible channel history and active/archived public and accessible private
+threads, with a cutoff fixed at confirmation. It deletes individually, including old messages,
+and resumes from persisted page cursors after restart. Concurrent clicks reuse an active job;
+worker leases prevent simultaneous workers scanning the same job. Disabling the feature or
+moving/clearing its panel channel pauses active jobs. An already in-flight Discord request may
+finish. The progress view has a private Refresh action; reopening the panel shows active status
+or the last result. No media bytes, URLs, captions or message text are stored by this feature.
+
+Missing permissions, inaccessible private threads, and undeletable posts produce a **partial**
+result. Thread/forum starter posts are retained when deleting them could remove other members’
+replies; this is reported as an incomplete check. This feature requires KY BOT to have View
+Channel, Read Message History and Manage Messages in channels being scanned. Standard panel
+publishing also requires Send Messages and Attach Files. SQLite and PostgreSQL use the same
+durable job schema. No VICE channel IDs, role IDs, panel wording, or staff-only commands are
+activated by importing this feature. Activity-log deletion receipts suppress internal cleanup
+noise using the existing logging integration.
