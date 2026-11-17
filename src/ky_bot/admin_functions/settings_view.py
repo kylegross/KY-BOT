@@ -473,7 +473,7 @@ class SettingsView(discord.ui.LayoutView):
             controls.add_item(self.button("Close", self.close_menu))
         else:
             controls.add_item(self.navigation("Home", "overview"))
-        if section != "overview":
+        if section not in {"overview", "community"}:
             panel.add_item(
                 discord.ui.TextDisplay(
                     "-# Admin controls · Saved automatically · Returns Home after 10 minutes idle"
