@@ -11,6 +11,13 @@ from ky_bot.views.media import NoAltMediaGalleryItem
 from .metallic import parse_palette, resolved_palette
 
 
+def palette_defaults(config, part):
+    current = config.get(part + "_palette")
+    if current is None and part == "footer":
+        current = config.get("header_palette")
+    return dict(current) if current else None
+
+
 class PaletteModal(discord.ui.Modal):
     def __init__(
         self,

@@ -155,7 +155,7 @@ class Admin(discord.ui.LayoutView):
         return "KY BOT artwork · " + COLOR_NAMES[finish]
 
     async def open_palette(self, i, kind):
-        from ky_bot.design.palette_editor import PaletteModal
+        from ky_bot.design.palette_editor import PaletteModal, palette_defaults
 
         await self.allowed(i)
         # The preview is private. Its callbacks must not be authorized as shared-panel clicks.
@@ -185,7 +185,7 @@ class Admin(discord.ui.LayoutView):
 
         await i.response.send_modal(
             PaletteModal(
-                self.config.get(kind + "_palette"),
+                palette_defaults(self.config, kind),
                 render,
                 commit,
                 allowed,
@@ -299,8 +299,7 @@ class Admin(discord.ui.LayoutView):
         if self.channel:
             self.revision, self.config = await self.cog.store.config(self.guild, self.channel)
         self.clear_items()
-        appearance_page = page in {"style", "artwork", "header_artwork", "footer_artwork"}
-        menu_config = self.config | {"footer_text": ""} if appearance_page else defaults()
+        menu_config = defaults()
         view = Panel(menu_config)
         panel = view.panel
         if notice:
@@ -633,7 +632,7 @@ class Admin(discord.ui.LayoutView):
             panel.add_item(
                 discord.ui.TextDisplay(
                     f"Editing the **{kind} image** for <#{self.channel}>. "
-                    "Saved changes appear above/below. Publish them when you're ready."
+                    "Use Preview to see your saved changes. Publish when you're ready."
                 )
             )
             panel.add_item(discord.ui.TextDisplay("**IMAGE SOURCE**\n" + self.image_status(kind)))

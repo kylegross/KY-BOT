@@ -44,8 +44,8 @@ heading colors. **Footer Image Text** adds text inside the bottom image; the opt
 small footer line below the message is a separate setting.
 
 Choose **Custom colors…**, preview the result, and select **Save header colors** or
-**Save footer colors** to keep the choice. The editor shows the saved images and
-current color. Saving or changing one image does not reset the other image. Use
+**Save footer colors** to keep the choice. The editor lists the saved color choice. Use Preview to see the actual images;
+the Command Center editor keeps its standard styling. Saving or changing one image does not reset the other image. Use
 **Publish changes** when ready to update the panels already posted in Discord.
 
 Text added by KY BOT keeps its metallic highlights on both standard artwork and

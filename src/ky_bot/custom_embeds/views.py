@@ -815,7 +815,7 @@ class Editor(Base):
                 async def custom_colors(i, key=key):
                     import base64
 
-                    from ky_bot.design.palette_editor import PaletteModal
+                    from ky_bot.design.palette_editor import PaletteModal, palette_defaults
 
                     from .artwork import custom_image
 
@@ -840,7 +840,7 @@ class Editor(Base):
                         await s.save(i, revision, **changes)
 
                     await i.response.send_modal(
-                        PaletteModal(data.get(key + "_palette"), render, commit, s.allowed)
+                        PaletteModal(palette_defaults(data, key), render, commit, s.allowed)
                     )
 
                 self.row(

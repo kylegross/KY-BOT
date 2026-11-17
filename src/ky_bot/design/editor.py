@@ -664,7 +664,7 @@ class Editor(discord.ui.LayoutView):
 
                     async def custom(i, part=part):
                         from .menu_design import render_menu
-                        from .palette_editor import PaletteModal
+                        from .palette_editor import PaletteModal, palette_defaults
 
                         generation = self.generation
                         if not await s.allowed(i, generation):
@@ -690,7 +690,7 @@ class Editor(discord.ui.LayoutView):
 
                         await i.response.send_modal(
                             PaletteModal(
-                                profile.get(part + "_palette"),
+                                palette_defaults(profile, part),
                                 render,
                                 commit,
                                 allowed,

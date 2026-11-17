@@ -708,7 +708,7 @@ class Admin(discord.ui.LayoutView):
                 for part in ("header", "footer"):
 
                     async def custom(event, part=part):
-                        from ky_bot.design.palette_editor import PaletteModal
+                        from ky_bot.design.palette_editor import PaletteModal, palette_defaults
 
                         await self.allowed(event)
                         private = Admin(self.cog, self.owner, self.guild)
@@ -746,7 +746,7 @@ class Admin(discord.ui.LayoutView):
                             )
 
                         await event.response.send_modal(
-                            PaletteModal(config.get(part + "_palette"), render, commit, allowed)
+                            PaletteModal(palette_defaults(config, part), render, commit, allowed)
                         )
 
                     control = discord.ui.Button(label="Custom colors")

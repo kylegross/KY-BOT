@@ -122,24 +122,30 @@ class AppearanceWorkflowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(config["footer"], footer)
         self.assertEqual(config["footer_palette"]["base"], "#22CC88")
 
-    async def test_saved_header_colors_render_in_the_editor_instead_of_default_silver(self):
+    async def test_editor_stays_neutral_and_preview_uses_saved_colors(self):
         self.revision, _ = await self.store.configure(
             1,
             10,
             self.revision,
             header_palette={"base": "#7B2CBF"},
+            color="22AA66",
         )
         with (
             patch("ky_bot.advice.menus.display_menu", new=AsyncMock()),
             patch("ky_bot.advice.panels.standard_artwork", return_value=b"art") as render,
         ):
             await self.menu.show(self.i, "header_artwork")
-        self.assertTrue(
-            any(
-                call.args[0] == "header" and call.args[5][0] == "#7B2CBF"
-                for call in render.call_args_list
+            self.assertTrue(all(call.args[5] is None for call in render.call_args_list))
+            self.assertEqual(self.menu.children[0].accent_colour, 0xD6E2F3)
+            render.reset_mock()
+            preview = SimpleNamespace(followup=SimpleNamespace(send=AsyncMock()))
+            await self.menu.preview(preview, True)
+            self.assertTrue(
+                any(
+                    call.args[0] == "header" and call.args[5] and call.args[5][0] == "#7B2CBF"
+                    for call in render.call_args_list
+                )
             )
-        )
 
     async def test_title_color_uses_artwork_instead_of_unrelated_panel_heading_color(self):
         config = self.config | {"text_color": "#00FF00", "header_artwork_finish": "gold"}

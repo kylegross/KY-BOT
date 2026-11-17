@@ -1461,7 +1461,7 @@ class Admin(Panel):
             self.picker(select_finish, choose_finish)
 
         async def custom_colors(i):
-            from ky_bot.design.palette_editor import PaletteModal
+            from ky_bot.design.palette_editor import PaletteModal, palette_defaults
 
             from .artwork import public_files
 
@@ -1484,7 +1484,7 @@ class Admin(Panel):
                 await self.set_panel_art(i, {kind + "_palette": palette, kind + "_mode": "ky"})
 
             await i.response.send_modal(
-                PaletteModal(item.get(kind + "_palette"), render, commit, self.interaction_check)
+                PaletteModal(palette_defaults(item, kind), render, commit, self.interaction_check)
             )
 
         self.row(
