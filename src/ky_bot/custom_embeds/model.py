@@ -63,6 +63,7 @@ def defaults():
         sticky_every=0,
         text_color=None,
         line_color=None,
+        saved_colors={},
         text_finish="dark_silver",
         sections=[],
     )
@@ -129,6 +130,9 @@ def validate(data, *, publish=False):
     data["footer_palette"] = parse_palette(data.get("footer_palette"))
     data["text_color"] = text_colour(data["text_color"])
     data["line_color"] = text_colour(data["line_color"])
+    from ky_bot.design.saved_colors import validate_colors
+
+    data["saved_colors"] = validate_colors(data["saved_colors"])
     data["header_text_color"] = text_colour(data["header_text_color"])
     data["footer_text_color"] = text_colour(data["footer_text_color"])
     if data["footer_finish"] not in FINISHES:

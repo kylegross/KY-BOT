@@ -380,6 +380,36 @@ class Session:
             i, self.page, "Draft saved. Publish when you’re ready to update the channel."
         )
 
+    async def open_saved_colors(self, i):
+        from ky_bot.design.saved_colors import open_library
+
+        revision = self.row["revision"]
+
+        async def commit(event, colors, target, color):
+            nonlocal revision
+            changes = {"saved_colors": colors}
+            if target:
+                changes[target] = color.removeprefix("#") if target == "color" else color
+            async with self.lock:
+                async with self.cog.lock(self.ident):
+                    revision = await self.cog.store.save(
+                        self.guild, self.ident, revision, **changes
+                    )
+                self.row = await self.cog.store.get(self.guild, self.ident)
+
+        await open_library(
+            i,
+            self.row["draft"].get("saved_colors", {}),
+            {
+                "text_color": "Decorative text",
+                "line_color": "Heading lines",
+                "header_text_color": "Header image text",
+                "footer_text_color": "Footer image text",
+                "color": "Message highlight",
+            },
+            commit,
+        )
+
     async def show(self, i, page="main", notice=None):
         self.row = await self.cog.store.get(self.guild, self.ident)
         self.row["draft"] = defaults() | self.row["draft"]
@@ -722,8 +752,8 @@ class Editor(Base):
             finish.callback = choose_finish
             self.panel.add_item(discord.ui.ActionRow(finish))
             self.row(
-                "**TEXT & LINE COLORS**\n" + (data["text_color"] or "Using the selected finish."),
-                button("Edit colors", modal("text_color")),
+                "**SAVED CUSTOM COLORS**\nName and reuse text, line and highlight colors.",
+                button("Saved colors", s.open_saved_colors),
             )
             self.row(
                 "**HIGHLIGHT COLOR**\nSet the accent beside the message.",

@@ -283,6 +283,8 @@ class Admin(discord.ui.LayoutView):
             "artwork_finish",
             "text_finish",
             "text_color",
+            "line_color",
+            "saved_colors",
             "color",
             "title",
             "panel_title",
@@ -312,6 +314,36 @@ class Admin(discord.ui.LayoutView):
                     raise ValueError(f"{label}: {error}") from None
         self.revision, self.config = await self.cog.store.configure(
             self.guild, self.channel, revision, **changes
+        )
+
+    async def open_saved_colors(self, i):
+        from ky_bot.design.saved_colors import open_library
+
+        revision = self.revision
+        channel = self.channel
+
+        async def commit(event, colors, target, color):
+            nonlocal revision
+            changes = {"saved_colors": colors}
+            if target:
+                changes[target] = color.removeprefix("#") if target == "color" else color
+            revision, config = await self.cog.store.configure(
+                self.guild, channel, revision, **changes
+            )
+            if self.channel == channel:
+                self.revision, self.config = revision, config
+
+        await open_library(
+            i,
+            self.config.get("saved_colors", {}),
+            {
+                "text_color": "Section heading text",
+                "line_color": "Heading lines",
+                "header_text_color": "Header image text",
+                "footer_text_color": "Footer image text",
+                "color": "Message highlight",
+            },
+            commit,
         )
 
     def button(self, label, action):
@@ -813,6 +845,12 @@ class Admin(discord.ui.LayoutView):
                     + (config["line_color"] or "Follow text"),
                     "Edit colors",
                     ("lettercolor",),
+                )
+                row(
+                    "SAVED CUSTOM COLORS",
+                    "Name, edit and reuse colors in this channel setup.",
+                    "Saved colors",
+                    self.open_saved_colors,
                 )
                 row(
                     "CONFESSION & FOOTER TEXT",

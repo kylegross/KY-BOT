@@ -64,6 +64,7 @@ def defaults():
         text_finish="silver_neon",
         text_color=None,
         line_color=None,
+        saved_colors={},
         logging=False,
         log_channel=0,
         approval=False,
@@ -134,6 +135,9 @@ def validate(config):
             raise ValueError("Choose one of the four standard finishes.")
     result["text_color"] = text_colour(result["text_color"])
     result["line_color"] = text_colour(result["line_color"])
+    from ky_bot.design.saved_colors import validate_colors
+
+    result["saved_colors"] = validate_colors(result["saved_colors"])
     for key in ("header_text_color", "footer_text_color"):
         result[key] = text_colour(result[key])
     for key, limit in (

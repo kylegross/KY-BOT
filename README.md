@@ -997,3 +997,12 @@ picture cannot be recolored by these controls.
 Color previews do not save until their save button is selected. Shared menu designs
 remain drafts until **Apply design**. Public panels and custom embeds use their
 saved changes when published; saving a color alone does not silently repost them.
+
+
+Server-facing panel editors include **Saved colors** for named custom hex colors. Confessions,
+Custom Embeds, Tickets, and the shared menu design editor (including Ask to DM/FR and checklists)
+keep separate libraries for each setup. Add a name and a hex value, choose a saved color and its
+target, then select **Apply color**. Editing a saved color never recolors existing elements until
+it is explicitly applied. Shared menu designs remain drafts until **Apply design**; use the
+panel’s preview/publish controls to update posted messages. Ask for Advice retains its named
+heading-color selector. Hex values accept an optional `#`.

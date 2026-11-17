@@ -663,6 +663,12 @@ class Admin(Panel):
                 "Edit color",
                 self.edit_type_color,
             )
+            self.row(
+                "SAVED CUSTOM COLORS",
+                "Name, save and reuse topic colors.",
+                "Saved colors",
+                lambda i: self.open_saved_colors(i, topic=True),
+            )
         elif page in {"defaults", "type_workflow"}:
             if page == "defaults":
                 self.row(
@@ -1080,6 +1086,51 @@ class Admin(Panel):
             data["defaults"][key] = value
         await self.save(i, data)
 
+    async def open_saved_colors(self, i, *, position=None, topic=False):
+        from ky_bot.design.saved_colors import open_library
+
+        revision = self.revision
+        snapshot = copy.deepcopy(self.config)
+        selected, offset = self.selected, self.offset
+        table = "types" if topic else "panels"
+        targets = {"heading_color": "Topic heading text", "heading_line_color": "Heading lines"}
+        if not topic:
+            targets = {
+                "header_text_color": "Header image text",
+                "footer_text_color": "Footer image text",
+                "color": "Message highlight",
+            }
+            if position:
+                targets.update(section_color="This section text", section_line="This section lines")
+
+        async def commit(event, colors, target, color):
+            nonlocal revision, snapshot
+            data = copy.deepcopy(snapshot)
+            item = data[table][selected]
+            item["saved_colors"] = dict(colors)
+            if target in {"section_color", "section_line"}:
+                field = "color" if target == "section_color" else "line_color"
+                value = color.removeprefix("#") if field == "color" else color
+                if offset:
+                    item[position + "_sections"][offset - 1][field] = value
+                else:
+                    item[position + "_" + field] = value
+            elif target:
+                item[target] = (
+                    color.removeprefix("#") if target in {"color", "heading_color"} else color
+                )
+            stored = data
+            if self.opening:
+                stored = copy.deepcopy(self.original_config)
+                stored["panels"][selected]["opening_panel"] = data["panels"][selected]
+            revision = await self.cog.store.configure(self.parent.guild_id, revision, stored)
+            snapshot = data
+            self.revision, self.config = revision, data
+            if self.opening:
+                self.original_config = stored
+
+        await open_library(i, snapshot[table][selected].get("saved_colors", {}), targets, commit)
+
     async def set_panel_art(self, i, changes):
         data = copy.deepcopy(self.config)
         data["panels"][self.selected].update(changes)
@@ -1240,6 +1291,12 @@ class Admin(Panel):
                 )
 
             self.row("TEXT COLOR", block.get("color") or "Follow finish", "Edit color", color)
+            self.row(
+                "SAVED CUSTOM COLORS",
+                "Name, save and reuse this panel’s colors.",
+                "Saved colors",
+                lambda i: self.open_saved_colors(i, position=position),
+            )
             return
         self.text(
             "**"
@@ -1355,6 +1412,12 @@ class Admin(Panel):
         from ky_bot.design.menu_design import FINISHES
 
         item = self.config["panels"][self.selected]
+        self.row(
+            "SAVED CUSTOM COLORS",
+            "Name and reuse colors for this panel’s text and lines.",
+            "Saved colors",
+            self.open_saved_colors,
+        )
         if kind == "header":
             self.row(
                 "HEADER IMAGE TEXT",

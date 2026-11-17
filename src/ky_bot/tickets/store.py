@@ -82,6 +82,7 @@ def defaults():
 
 def new_panel(name, channel=0):
     return dict(
+        saved_colors={},
         name=name,
         channel=channel,
         published_channel=0,
@@ -140,6 +141,7 @@ def new_type(name):
         heading_finish=None,
         heading_color=None,
         heading_line_color=None,
+        saved_colors={},
     )
 
 
@@ -161,6 +163,9 @@ def effective(config, type_id, panel_id=None):
 def validate(config):
     from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+    from ky_bot.design.saved_colors import validate_colors
+    from ky_bot.design.text_colour import text_colour
+
     from .presentation import BODY_STYLES, HEADING_STYLES, PANEL_TEXT_STYLES, panel_text
 
     if len(config["types"]) > 100 or len(config["panels"]) > 100:
@@ -173,8 +178,7 @@ def validate(config):
 
         parse_palette(panel.get("header_palette"))
         parse_palette(panel.get("footer_palette"))
-        from ky_bot.design.text_colour import text_colour
-
+        panel["saved_colors"] = validate_colors(panel.get("saved_colors", {}))
         for key in ("header_text_color", "footer_text_color"):
             panel[key] = text_colour(panel.get(key))
         for position, limit in (("before", 1500), ("after", 1000)):
@@ -278,6 +282,7 @@ def validate(config):
         }:
             raise ValueError("Choose a supported heading finish.")
         kind["heading_line_color"] = text_colour(kind.get("heading_line_color"))
+        kind["saved_colors"] = validate_colors(kind.get("saved_colors", {}))
         color = kind.get("heading_color")
         if color is not None:
             color = text_colour(color).removeprefix("#")

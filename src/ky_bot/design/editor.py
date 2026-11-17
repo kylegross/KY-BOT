@@ -17,7 +17,7 @@ from ky_bot.design.menu_design import (
     normalized_upload,
     profile_for,
 )
-from ky_bot.errors import report_error
+from ky_bot.errors import report_error, send_private
 from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import display_menu, menu_parent
 from ky_bot.views.menu_strips import add_strip, category_files
@@ -136,6 +136,42 @@ class DesignSession:
     def change(self, **values):
         for key in self.selected:
             self.drafts[key].update(values)
+
+    async def open_saved_colors(self, i):
+        from ky_bot.design.saved_colors import open_library
+
+        if len(self.selected) != 1:
+            raise ValueError("Select one menu to manage its saved custom colors.")
+        key = self.selected[0]
+        generation = self.generation
+
+        async def allowed(event):
+            if self.generation != generation or self.selected != [key]:
+                await send_private(event, "The design editor changed. Reopen saved colors.")
+                return False
+            return True
+
+        async def commit(event, colors, target, color):
+            async with self.lock:
+                if not await allowed(event):
+                    raise ValueError("The design editor changed. Reopen saved colors.")
+                self.drafts[key]["saved_colors"] = dict(colors)
+                if target:
+                    self.drafts[key][target] = color
+
+        await open_library(
+            i,
+            self.drafts[key].get("saved_colors", {}),
+            {
+                "text_color": "Section heading text",
+                "line_color": "Heading lines",
+                "header_text_color": "Header image text",
+                "footer_text_color": "Footer image text",
+            },
+            commit,
+            allowed=allowed,
+            draft=True,
+        )
 
     async def show(self, interaction, page="edit", notice=None):
         self.generation += 1
@@ -792,6 +828,13 @@ class Editor(discord.ui.LayoutView):
                     disabled=not active,
                 )
                 row(
+                    "SAVED CUSTOM COLORS",
+                    "Name, edit and reuse colors for one selected menu.",
+                    "Saved colors",
+                    s.open_saved_colors,
+                    disabled=not active,
+                )
+                row(
                     "FOOTER BACKGROUND",
                     "Replace the background image.",
                     "Upload",
@@ -822,7 +865,8 @@ class Editor(discord.ui.LayoutView):
 
             async def reset(i):
                 for key in s.selected:
-                    s.drafts[key] = default_profile(key)
+                    colors = dict(s.drafts[key].get("saved_colors", {}))
+                    s.drafts[key] = default_profile(key) | {"saved_colors": colors}
                 await s.show(
                     i, notice="Default artwork restored in this draft. Preview to approve."
                 )

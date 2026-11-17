@@ -38,6 +38,7 @@ def default_profile(key):
         dim=35,
         text_color=None,
         line_color=None,
+        saved_colors={},
         header_palette=None,
         footer_palette=None,
         header_text_color=None,
