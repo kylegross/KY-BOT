@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw, ImageOps
 from ky_bot.confessions.appearance import configured_artwork, standard_artwork
 from ky_bot.confessions.headings import lettering, title_image
 from ky_bot.design.collection import COLOURS
-from ky_bot.design.footers import text_ink
+from ky_bot.design.image_text import metallic_ink
 from ky_bot.views.media import NoAltMediaGalleryItem
 
 
@@ -22,11 +22,13 @@ def artwork_bytes(config, kind):
 
 def heading_image(text, config, decorated=False):
     if not decorated:
-        return title_image(text, config["text_finish"], config["text_color"])
+        return title_image(text, config["text_finish"], config["text_color"], shimmer=True)
     mask = ImageOps.contain(lettering(text), (760, 32), Image.Resampling.LANCZOS)
     image = Image.new("RGBA", (1120, mask.height + 32))
     left = (1120 - mask.width) // 2
-    image.alpha_composite(text_ink(mask, config["text_finish"], config["text_color"]), (left, 16))
+    image.alpha_composite(
+        metallic_ink(mask, config["text_finish"], config["text_color"]), (left, 16)
+    )
     color = config["text_color"] or COLOURS[config["text_finish"]]
     pen = ImageDraw.Draw(image)
     middle = image.height // 2

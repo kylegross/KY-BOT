@@ -256,9 +256,15 @@ def centered_overlay(
     if style not in STYLES or not 60 <= icon_scale <= 120:
         raise FooterError("Choose a finish and an icon size from 60 to 120 percent.")
     result = rectangular_frame(style, size) if framed else Image.new("RGBA", size)
-    from .metallic import tint
+    from .metallic import active_palette, tint
 
-    icon = tint(asset(f"{style}_icon.png").convert("RGBA"))
+    icon = asset(f"{style}_icon.png").convert("RGBA")
+    if active_palette() is not None:
+        # The dark-silver source puts most opaque details below the palette's base stop.
+        # Lift its mids before recoloring; preserve the original silhouette and alpha.
+        light = ImageOps.grayscale(icon).point(lambda value: round(255 * (value / 255) ** 0.4))
+        icon = Image.merge("RGBA", (light, light, light, icon.getchannel("A")))
+    icon = tint(icon)
     icon = icon.crop(icon.getchannel("A").getbbox())
     limit = round(size[1] * 0.58 * icon_scale / 100)
     icon = ImageOps.contain(icon, (limit, limit), Image.Resampling.LANCZOS)

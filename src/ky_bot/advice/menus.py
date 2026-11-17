@@ -535,48 +535,7 @@ class Admin(discord.ui.LayoutView):
                 f"Accent: #{self.config['color']}",
                 self.button("Edit", style, modal=True),
             )
-            panel.add_item(
-                discord.ui.TextDisplay(
-                    "**PANEL HEADING COLORS**\nColor of headings inside the panels. "
-                    "The header image title has its own color setting."
-                )
-            )
-
-            async def finish(click, values):
-                if values[0] == "custom":
-                    return await self.edit_values(
-                        click,
-                        "Panel heading color",
-                        (("text_color", "Hex color (for example #39DCCB)", 7, True, False),),
-                    )
-                await click.response.defer()
-                await self.save(click, self.revision, text_finish=values[0], text_color=None)
-                await self.show(click, "style", "Panel heading color saved.")
-
-            self.picker(
-                panel,
-                discord.ui.Select(
-                    placeholder="Choose panel heading colors",
-                    options=[
-                        *[
-                            discord.SelectOption(
-                                label=label,
-                                value=key,
-                                default=key == self.config["text_finish"]
-                                and not self.config["text_color"],
-                            )
-                            for key, label in COLOR_NAMES.items()
-                        ],
-                        discord.SelectOption(
-                            label="Custom color…",
-                            value="custom",
-                            default=bool(self.config["text_color"]),
-                        ),
-                    ],
-                ),
-                finish,
-                modal=True,
-            )
+            await self.heading_style_controls(panel)
 
             async def text(click):
                 await self.edit_values(
@@ -927,6 +886,51 @@ class Admin(discord.ui.LayoutView):
             for file in files:
                 file.close()
 
+    async def heading_style_controls(self, panel):
+        panel.add_item(
+            discord.ui.TextDisplay(
+                "**SECTION HEADING STYLE**\n"
+                "KY BOT shimmer lettering for headings inside the posted panels. "
+                "Applies to all section headings; banner and footer images have separate settings."
+            )
+        )
+
+        async def finish(click, values):
+            if values[0] == "custom":
+                return await self.edit_values(
+                    click,
+                    "Section heading color",
+                    (("text_color", "Hex color (for example #39DCCB)", 7, True, False),),
+                )
+            await click.response.defer()
+            await self.save(click, self.revision, text_finish=values[0], text_color=None)
+            await self.show(click, self.page, "Section heading style saved.")
+
+        self.picker(
+            panel,
+            discord.ui.Select(
+                placeholder="Choose a shimmer preset or custom color",
+                options=[
+                    *[
+                        discord.SelectOption(
+                            label=label,
+                            value=key,
+                            default=key == self.config["text_finish"]
+                            and not self.config["text_color"],
+                        )
+                        for key, label in COLOR_NAMES.items()
+                    ],
+                    discord.SelectOption(
+                        label="Custom color…",
+                        value="custom",
+                        default=bool(self.config["text_color"]),
+                    ),
+                ],
+            ),
+            finish,
+            modal=True,
+        )
+
     async def section_page(self, i, panel, page):
         sections = self.config["sections"]
         self.section = min(self.section, len(sections) - 1)
@@ -1008,6 +1012,8 @@ class Admin(discord.ui.LayoutView):
                 section["heading"] or "Hidden",
                 self.button("Edit", heading, modal=True),
             )
+
+            await self.heading_style_controls(panel)
 
             async def decoration(click):
                 values = copy.deepcopy(sections)

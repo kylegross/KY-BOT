@@ -61,8 +61,12 @@ def lettering(text):
 
 
 @lru_cache(maxsize=128)
-def title_image(title, finish="silver_neon", text_color=None):
+def title_image(title, finish="silver_neon", text_color=None, *, shimmer=False):
     def paint(mask):
+        if shimmer:
+            from ky_bot.design.image_text import metallic_ink
+
+            return metallic_ink(mask, finish, text_color)
         return text_ink(mask, finish, text_color)
 
     if title == PROMPT:
