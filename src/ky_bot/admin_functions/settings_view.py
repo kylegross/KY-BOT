@@ -11,7 +11,7 @@ from ky_bot.errors import report_error, send_private
 from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import defer_menu, menu_parent
 from ky_bot.views.menu_strips import group_sections, strip_files
-from ky_bot.views.sections import section_dividers
+from ky_bot.views.sections import navigation_item, section_dividers
 
 HEADER_URL = "attachment://ky_settings_header.png"
 
@@ -491,6 +491,11 @@ class SettingsView(discord.ui.LayoutView):
                 if panel._total_count <= 40:
                     break
                 if isinstance(child, discord.ui.Separator):
+                    index = list(panel.children).index(child)
+                    if index + 1 < len(panel.children) and navigation_item(
+                        panel.children[index + 1]
+                    ):
+                        continue
                     panel.remove_item(child)
         self.add_item(panel)
 

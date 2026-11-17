@@ -149,3 +149,41 @@ class NavigationLayoutTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(panel._total_count, count)
         self.assertEqual(first.content, "**FIRST ROLE**\nChoose role one.")
         self.assertEqual(second.content, "-# \u200b\n**SECOND ROLE**\nChoose role two.")
+
+    async def test_refresh_only_and_return_labels_have_one_visible_footer_rule(self):
+        for label in ("Refresh", "Home", "Return to home", "Main menu", "Back", "Back to editing"):
+            for spacer in (False, True):
+                panel = discord.ui.Container()
+                panel.add_item(discord.ui.TextDisplay("Menu settings."))
+                if spacer:
+                    panel.add_item(discord.ui.Separator(visible=False))
+                panel.add_item(discord.ui.ActionRow(discord.ui.Button(label=label)))
+                section_dividers(panel, navigation_on_right=True)
+                section_dividers(panel, navigation_on_right=True)
+                dividers = [
+                    item for item in panel.children if isinstance(item, discord.ui.Separator)
+                ]
+                self.assertEqual(len(dividers), 1, label)
+                self.assertTrue(dividers[0].visible, label)
+                self.assertEqual(dividers[0].spacing, discord.SeparatorSpacing.small)
+
+    async def test_mixed_footer_controls_share_one_divider(self):
+        panel = discord.ui.Container()
+        panel.add_item(discord.ui.TextDisplay("Menu settings."))
+        panel.add_item(
+            discord.ui.ActionRow(
+                discord.ui.Button(label="Back"), discord.ui.Button(label="Refresh")
+            )
+        )
+        section_dividers(panel, navigation_on_right=True)
+        self.assertEqual(sum(isinstance(item, discord.ui.Separator) for item in panel.children), 1)
+
+    async def test_refresh_feature_row_is_not_moved_into_footer_navigation(self):
+        from ky_bot.views.sections import navigation_item
+
+        item = discord.ui.Section(
+            "**SAVED EMBEDS**\nReload the saved embed list.",
+            accessory=discord.ui.Button(label="Refresh"),
+        )
+        self.assertFalse(navigation_item(item))
+        self.assertTrue(navigation_item(discord.ui.ActionRow(discord.ui.Button(label="Refresh"))))

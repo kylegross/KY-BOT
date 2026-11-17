@@ -6,6 +6,12 @@ LEFT_NAVIGATION = {"back", "close", "close menu", "all guides", "back to editing
 
 NAVIGATION_LABELS = LEFT_NAVIGATION | {
     "home",
+    "refresh",
+    "return home",
+    "return to home",
+    "return to main menu",
+    "main menu",
+    "return to editing",
     "all embeds",
     "back to logs",
     "back to welcome",
@@ -16,6 +22,16 @@ NAVIGATION_LABELS = LEFT_NAVIGATION | {
 
 def navigation_item(item):
     if isinstance(item, discord.ui.Section):
+        # A Refresh accessory on a feature row (e.g. Saved Embeds) reloads that
+        # feature; it is not part of the bottom navigation group.
+        if (
+            isinstance(item.accessory, discord.ui.Button)
+            and (item.accessory.label or "").casefold() == "refresh"
+            and item.children
+            and item.children[0].content.split("\n", 1)[0].strip("* ").casefold()
+            not in {"refresh", "refresh menu", "reload settings"}
+        ):
+            return False
         buttons = [item.accessory]
     elif isinstance(item, discord.ui.ActionRow):
         buttons = item.children
@@ -168,6 +184,18 @@ def section_dividers(panel: discord.ui.Container, *, navigation_on_right: bool =
             gap = "\n-# \u200b"
             if not text.content.endswith(gap):
                 text.content += gap
+        if navigation_item(child) and isinstance(previous, discord.ui.Separator):
+            # A spacer does not visually separate the footer controls. Reuse it as a rule.
+            previous.visible = True
+            previous.spacing = discord.SeparatorSpacing.small
+        if (
+            navigation_item(child)
+            and isinstance(previous, discord.ui.TextDisplay)
+            and len(panel.children) >= 2
+            and isinstance(panel.children[-2], discord.ui.Separator)
+        ):
+            panel.children[-2].visible = True
+            panel.children[-2].spacing = discord.SeparatorSpacing.small
         if adjacent_sections or footer_boundary:
             panel.add_item(
                 discord.ui.Separator(
