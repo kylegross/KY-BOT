@@ -63,6 +63,7 @@ def defaults():
         header_title_on_upload=False,
         text_finish="silver_neon",
         text_color=None,
+        line_color=None,
         logging=False,
         log_channel=0,
         approval=False,
@@ -122,6 +123,7 @@ def validate(config):
         (result["approval"] or result["reports"]) and not result["queue_channel"]
     ):
         raise ValueError("Choose the private log/review destination before enabling this option.")
+    result["color"] = str(result["color"]).strip().removeprefix("#")
     if len(result["color"]) != 6 or any(c not in "0123456789abcdefABCDEF" for c in result["color"]):
         raise ValueError("Use a six-digit hex color, for example D6E2F3.")
     from ky_bot.design.menu_design import FINISHES
@@ -131,6 +133,7 @@ def validate(config):
         if result[key] not in FINISHES:
             raise ValueError("Choose one of the four standard finishes.")
     result["text_color"] = text_colour(result["text_color"])
+    result["line_color"] = text_colour(result["line_color"])
     for key in ("header_text_color", "footer_text_color"):
         result[key] = text_colour(result[key])
     for key, limit in (

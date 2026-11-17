@@ -1105,6 +1105,7 @@ class Admin(Panel):
                 "body_style": "_style",
                 "finish": "_finish",
                 "color": "_color",
+                "line_color": "_line_color",
             }
             item.update({position + keys[key]: value for key, value in changes.items()})
         await self.save(i, data)
@@ -1208,7 +1209,12 @@ class Admin(Panel):
             async def color(i):
                 async def commit(i, values):
                     await self.set_text_section(
-                        i, position, {"color": values["color"].lstrip("#") or None}
+                        i,
+                        position,
+                        {
+                            "color": values["color"].lstrip("#") or None,
+                            "line_color": values["line_color"] or None,
+                        },
                     )
 
                 await i.response.send_modal(
@@ -1221,7 +1227,13 @@ class Admin(Panel):
                                 "Hex color (blank follows finish)",
                                 block.get("color") or "",
                                 7,
-                            )
+                            ),
+                            (
+                                "line_color",
+                                "Line hex (blank follows text)",
+                                block.get("line_color") or "",
+                                7,
+                            ),
                         ],
                         commit,
                     )
@@ -1821,7 +1833,13 @@ class Admin(Panel):
 
     async def edit_type_color(self, i):
         async def commit(i, values):
-            await self.set_type_art(i, {"heading_color": values["color"].lstrip("#") or None})
+            await self.set_type_art(
+                i,
+                {
+                    "heading_color": values["color"].lstrip("#") or None,
+                    "heading_line_color": values["line_color"] or None,
+                },
+            )
 
         await i.response.send_modal(
             Edit(
@@ -1833,7 +1851,13 @@ class Admin(Panel):
                         "Hex color (blank follows finish)",
                         self.config["types"][self.selected].get("heading_color") or "",
                         7,
-                    )
+                    ),
+                    (
+                        "line_color",
+                        "Line hex (blank follows text)",
+                        self.config["types"][self.selected].get("heading_line_color") or "",
+                        7,
+                    ),
                 ],
                 commit,
             )

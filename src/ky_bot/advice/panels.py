@@ -22,14 +22,20 @@ def artwork_bytes(config, kind):
 
 def heading_image(text, config, decorated=False):
     if not decorated:
-        return title_image(text, config["text_finish"], config["text_color"], shimmer=True)
+        return title_image(
+            text,
+            config["text_finish"],
+            config["text_color"],
+            shimmer=True,
+            line_color=config.get("line_color"),
+        )
     mask = ImageOps.contain(lettering(text), (760, 32), Image.Resampling.LANCZOS)
     image = Image.new("RGBA", (1120, mask.height + 32))
     left = (1120 - mask.width) // 2
     image.alpha_composite(
         metallic_ink(mask, config["text_finish"], config["text_color"]), (left, 16)
     )
-    color = config["text_color"] or COLOURS[config["text_finish"]]
+    color = config.get("line_color") or config["text_color"] or COLOURS[config["text_finish"]]
     pen = ImageDraw.Draw(image)
     middle = image.height // 2
     pen.line((2, middle, left - 18, middle), fill=color, width=2)
@@ -60,11 +66,12 @@ class Panel(discord.ui.LayoutView):
                 f"advice_heading_{len(self.files)}.png", heading_image(text, config, decorated)
             )
 
-    def footer(self, config):
+    def footer(self, config, *, divider=True):
         if config["footer_text"] and config["footer_text"] != "KY BOT · Ask for Advice":
             self.panel.add_item(discord.ui.TextDisplay("-# " + safe(config["footer_text"])))
         data = artwork_bytes(config, "footer")
-        self.panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
+        if divider:
+            self.panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.small))
         self.image("advice_footer.png", data)
 
     def uploads(self):
@@ -78,7 +85,8 @@ def access_panel(channel, config, *, preview=False):
     for index, section in enumerate(config["sections"]):
         if index:
             view.panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
-        view.heading(section["heading"], config, section["decorated"])
+        style = config | config.get("section_styles", {}).get(str(index), {})
+        view.heading(section["heading"], style, section["decorated"])
         for row in section["rows"]:
             text = safe(row["text"])
             if row["action"] == "none":
@@ -87,7 +95,7 @@ def access_panel(channel, config, *, preview=False):
                 button = Action(channel, row["action"], label=row["label"], emoji=row["emoji"])
                 button.item.disabled = preview
                 view.panel.add_item(discord.ui.Section(text, accessory=button))
-    view.footer(config)
+    view.footer(config, divider=False)
     return view
 
 

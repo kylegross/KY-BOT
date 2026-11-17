@@ -62,6 +62,7 @@ def defaults():
         channel=0,
         sticky_every=0,
         text_color=None,
+        line_color=None,
         text_finish="dark_silver",
         sections=[],
     )
@@ -127,6 +128,7 @@ def validate(data, *, publish=False):
     data["header_palette"] = parse_palette(data.get("header_palette"))
     data["footer_palette"] = parse_palette(data.get("footer_palette"))
     data["text_color"] = text_colour(data["text_color"])
+    data["line_color"] = text_colour(data["line_color"])
     data["header_text_color"] = text_colour(data["header_text_color"])
     data["footer_text_color"] = text_colour(data["footer_text_color"])
     if data["footer_finish"] not in FINISHES:
@@ -251,7 +253,9 @@ def render(data):
             def decorative(text, name):
                 from ky_bot.checklists.artwork import title_image
 
-                image = title_image(text, data["text_finish"], data["text_color"])
+                image = title_image(
+                    text, data["text_finish"], data["text_color"], line_color=data["line_color"]
+                )
                 attachments.append(discord.File(io.BytesIO(image), filename=name, description=""))
                 panel.add_item(
                     discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://" + name))

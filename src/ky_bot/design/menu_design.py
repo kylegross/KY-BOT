@@ -37,6 +37,7 @@ def default_profile(key):
         footer_icon=None,
         dim=35,
         text_color=None,
+        line_color=None,
         header_palette=None,
         footer_palette=None,
         header_text_color=None,
@@ -69,7 +70,7 @@ def automation_files(key, profile, names):
     from ky_bot.views.menu_strips import strip_files
 
     return menu_files(profile, profile["title"], key.upper() + " SETTINGS", names) + strip_files(
-        "automation", profile["style"], profile.get("text_color")
+        "automation", profile["style"], profile.get("text_color"), profile.get("line_color")
     )
 
 
@@ -135,7 +136,9 @@ def menu_files(profile, title, heading, names):
     from ky_bot.views.menu_strips import category_files
 
     header, footer = render_menu(profile, title)
-    category = category_files([heading], profile["style"], profile.get("text_color"))[0]
+    category = category_files(
+        [heading], profile["style"], profile.get("text_color"), profile.get("line_color")
+    )[0]
     try:
         category_data = category.fp.read()
     finally:

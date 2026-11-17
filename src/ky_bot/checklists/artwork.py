@@ -21,7 +21,7 @@ def png(image):
     return stream.getvalue()
 
 
-def title_image(title, style, text_color=None):
+def title_image(title, style, text_color=None, line_color=None):
     from ky_bot.design.typography import TypographyError, UnsupportedCharacterError
 
     text = title.upper()
@@ -39,7 +39,7 @@ def title_image(title, style, text_color=None):
     ink = text_ink(mask, style, text_color)
     label = Image.new("RGBA", (1120, mask.height + 32))
     label.alpha_composite(ink, (SECTION_HEADING_LEFT, 16))
-    section_rule(label, SECTION_HEADING_LEFT + mask.width, style, text_color)
+    section_rule(label, SECTION_HEADING_LEFT + mask.width, style, line_color or text_color)
     return png(label)
 
 
@@ -84,9 +84,13 @@ def board_artwork(board, categories, tasks=None):
         entries, _, _ = page_entries(board, tasks, categories)
         visible_names = {name or "Uncategorized" for name, _, _ in entries}
     if visible_names is None or "Uncategorized" in visible_names:
-        result["category_none.png"] = title_image("UNCATEGORIZED", style, text_color)
+        result["category_none.png"] = title_image(
+            "UNCATEGORIZED", style, text_color, board.get("_menu_profile", {}).get("line_color")
+        )
     for category in categories:
         if visible_names is not None and category["name"] not in visible_names:
             continue
-        result[f"category_{category['id']}.png"] = title_image(category["name"], style, text_color)
+        result[f"category_{category['id']}.png"] = title_image(
+            category["name"], style, text_color, board.get("_menu_profile", {}).get("line_color")
+        )
     return result

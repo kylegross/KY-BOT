@@ -30,6 +30,8 @@ def defaults():
         header_text_finish=None,
         header_artwork_finish=None,
         footer_artwork_finish=None,
+        heading_colors={},
+        section_styles={},
         sections=[
             dict(
                 heading="ASK FOR ADVICE",
@@ -118,6 +120,32 @@ def validate(config):
         result[k] for k in ("access_channel", "access_role", "advice_role")
     ):
         raise ValueError("Choose both channels and both roles before enabling advice.")
+    colors = result["heading_colors"]
+    if not isinstance(colors, dict) or len(colors) > 20:
+        raise ValueError("Save up to 20 named heading colors per ask channel.")
+    for name, color in colors.items():
+        if not isinstance(name, str) or not name.strip() or len(name) > 40:
+            raise ValueError("Color names need 1–40 characters.")
+        colors[name] = text_colour(color)
+        if colors[name] is None:
+            raise ValueError("Enter a hex color for each saved color.")
+    styles = result["section_styles"]
+    if not isinstance(styles, dict):
+        raise ValueError("Choose a valid section style.")
+    for key, style in styles.items():
+        if key not in {str(n) for n in range(len(result["sections"]))}:
+            raise ValueError("Choose an existing section.")
+        if (
+            not isinstance(style, dict)
+            or not {"text_finish", "text_color"} <= set(style)
+            or set(style) - {"text_finish", "text_color", "line_color"}
+        ):
+            raise ValueError("Choose a valid section style.")
+        if style["text_finish"] not in FINISHES:
+            raise ValueError("Choose a supported heading finish.")
+        style["text_color"] = text_colour(style["text_color"])
+        if "line_color" in style:
+            style["line_color"] = text_colour(style["line_color"])
     sections = result["sections"]
     if not isinstance(sections, list) or not 1 <= len(sections) <= 4:
         raise ValueError("Use 1–4 panel sections.")

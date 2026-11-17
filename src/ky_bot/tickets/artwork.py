@@ -126,6 +126,7 @@ def public_files(panel, config=None, token=None, page=0):
                         heading(kind),
                         kind.get("heading_finish") or panel.get("header_finish", "dark_silver"),
                         kind.get("heading_color"),
+                        kind.get("heading_line_color"),
                     )
                     result.append(discord.File(io.BytesIO(data), filename=heading_file(key)))
         from .sections import blocks, image_file
@@ -141,6 +142,7 @@ def public_files(panel, config=None, token=None, page=0):
                             text,
                             block.get("finish") or panel.get("header_finish", "dark_silver"),
                             block.get("color"),
+                            block.get("line_color"),
                         )
                         result.append(
                             discord.File(

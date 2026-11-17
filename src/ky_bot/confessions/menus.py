@@ -91,9 +91,12 @@ class Edit(discord.ui.Modal):
                 ("footer_image_text", "Footer image text (blank removes)", 80),
                 ("footer_text_color", "Metallic text hex (blank uses artwork)", 7),
             ),
-            "lettercolor": (("text_color", "Hex color (blank uses preset)", 7),),
+            "lettercolor": (
+                ("text_color", "Text hex (blank uses preset)", 7),
+                ("line_color", "Line hex (blank follows text)", 7),
+            ),
             "style": (
-                ("color", "Embed color (hex, e.g. D6E2F3)", 6),
+                ("color", "Embed color (hex, e.g. #D6E2F3)", 7),
                 ("title", "Confession heading", 80),
                 ("footer_text", "Small footer line below the message", 200),
             ),
@@ -119,6 +122,7 @@ class Edit(discord.ui.Modal):
                     "footer_text",
                     "panel_text",
                     "text_color",
+                    "line_color",
                     "header_text_color",
                     "footer_image_text",
                     "footer_text_color",
@@ -669,7 +673,7 @@ class Admin(discord.ui.LayoutView):
                 )
                 row(
                     "PANEL HEADING COLORS",
-                    "Choose preset colors or a custom hex color for the panel headings.",
+                    "Choose heading text colors and a separate color for the lines.",
                     "Manage",
                     self.go("lettering"),
                 )
@@ -802,9 +806,12 @@ class Admin(discord.ui.LayoutView):
                     )
             else:
                 row(
-                    "CUSTOM TEXT COLOR",
-                    config["text_color"] or "Following the selected lettering finish.",
-                    "Edit color",
+                    "TEXT & LINE COLORS",
+                    "Text: "
+                    + (config["text_color"] or "Selected finish")
+                    + " · Lines: "
+                    + (config["line_color"] or "Follow text"),
+                    "Edit colors",
                     ("lettercolor",),
                 )
                 row(

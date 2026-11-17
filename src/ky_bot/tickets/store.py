@@ -139,6 +139,7 @@ def new_type(name):
         description_style="subtext",
         heading_finish=None,
         heading_color=None,
+        heading_line_color=None,
     )
 
 
@@ -194,7 +195,11 @@ def validate(config):
                 "red_iridescent",
             }:
                 raise ValueError("Choose a supported panel text finish.")
+            panel[position + "_line_color"] = text_colour(panel.get(position + "_line_color"))
             color = panel.get(position + "_color")
+            if color is not None:
+                color = text_colour(color).removeprefix("#")
+                panel[position + "_color"] = color
             if color is not None:
                 try:
                     if len(color) != 6:
@@ -238,6 +243,7 @@ def validate(config):
             raise ValueError(
                 "Keep the panel title under 120 and description under 1500 characters."
             )
+        panel["color"] = str(panel["color"]).strip().removeprefix("#")
         try:
             if len(panel["color"]) != 6:
                 raise ValueError
@@ -271,7 +277,11 @@ def validate(config):
             "red_iridescent",
         }:
             raise ValueError("Choose a supported heading finish.")
+        kind["heading_line_color"] = text_colour(kind.get("heading_line_color"))
         color = kind.get("heading_color")
+        if color is not None:
+            color = text_colour(color).removeprefix("#")
+            kind["heading_color"] = color
         if color is not None:
             try:
                 if len(color) != 6:

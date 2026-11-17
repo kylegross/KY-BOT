@@ -418,6 +418,15 @@ class AppearanceModal(discord.ui.Modal):
                         7,
                     ),
                 ]
+            if formatting:
+                specs.append(
+                    (
+                        "line_color",
+                        "Heading line hex (blank follows text)",
+                        profile.get("line_color") or "",
+                        7,
+                    )
+                )
             for key, label, value, limit in specs:
                 field = discord.ui.TextInput(
                     label=label, default=value, required=key in ("height", "dim"), max_length=limit
@@ -457,11 +466,21 @@ class AppearanceModal(discord.ui.Modal):
                     raise ValueError("Use single-line text.")
                 if any(
                     key in values
-                    for key in ("text_color", "header_text_color", "footer_text_color")
+                    for key in (
+                        "text_color",
+                        "header_text_color",
+                        "footer_text_color",
+                        "line_color",
+                    )
                 ):
                     from ky_bot.design.text_colour import text_colour
 
-                    for key in ("text_color", "header_text_color", "footer_text_color"):
+                    for key in (
+                        "text_color",
+                        "header_text_color",
+                        "footer_text_color",
+                        "line_color",
+                    ):
                         if key in values:
                             values[key] = text_colour(values[key])
                 if "title" in values:
@@ -766,7 +785,7 @@ class Editor(discord.ui.LayoutView):
             if not welcome:
                 row(
                     "TEXT COLORS",
-                    "Set a default text color, then optional separate header/footer colors. "
+                    "Set text colors and a separate heading-line color. "
                     "Image text keeps its metallic shine on your uploaded backgrounds.",
                     "Edit colors",
                     (None, "formatting"),

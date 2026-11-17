@@ -224,3 +224,48 @@ class AppearanceWorkflowTests(unittest.IsolatedAsyncioTestCase):
             menu.stop()
         finally:
             await store.close()
+
+    async def test_named_heading_colors_are_independent_and_survive_restart(self):
+        self.menu.page = "section"
+        callbacks = []
+        self.menu.picker = lambda panel, item, callback, **kw: callbacks.append((item, callback))
+
+        async def choose(value):
+            panel = discord.ui.Container()
+            callbacks.clear()
+            await self.menu.heading_style_controls(panel)
+            await callbacks[0][1](self.i, [value])
+
+        with patch.object(self.menu, "show", new=AsyncMock()):
+            await choose("custom")
+            modal = self.i.response.send_modal.await_args.args[0]
+            await modal.callback(self.i, {"name": "Emerald", "color": "#18AA77"})
+            self.menu.revision, self.menu.config = await self.store.config(1, 10)
+            self.menu.section = 1
+            await choose("custom")
+            modal = self.i.response.send_modal.await_args.args[0]
+            await modal.callback(self.i, {"name": "Rose", "color": "#EE7799"})
+            self.menu.revision, self.menu.config = await self.store.config(1, 10)
+            await choose("saved:Emerald")
+        _, config = await self.store.config(1, 10)
+        self.assertEqual(config["heading_colors"], {"Emerald": "#18AA77", "Rose": "#EE7799"})
+        self.assertEqual(config["section_styles"]["0"]["text_color"], "#18AA77")
+        self.assertEqual(config["section_styles"]["1"]["text_color"], "#18AA77")
+        self.assertIsNone(config["text_color"])
+        reopened = await Store.open(self.path)
+        try:
+            self.assertEqual((await reopened.config(1, 10))[1], config)
+        finally:
+            await reopened.close()
+
+    async def test_section_color_controls_fit_discord_limits(self):
+        self.revision, _ = await self.store.configure(
+            1,
+            10,
+            self.revision,
+            heading_colors={"Green": "#18AA77"},
+            section_styles={"0": {"text_finish": "silver_neon", "text_color": "#18AA77"}},
+        )
+        with patch("ky_bot.advice.menus.display_menu", new=AsyncMock()):
+            await self.menu.show(self.i, "section")
+            self.assertLessEqual(self.menu.total_children_count, 40)

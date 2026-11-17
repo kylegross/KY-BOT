@@ -148,11 +148,13 @@ def filename(title):
     return "ky_strip_" + re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_") + ".png"
 
 
-def strip_files(menu, style="dark_silver", text_color=None):
-    return category_files((title for title, _ in GROUPS.get(menu, ())), style, text_color)
+def strip_files(menu, style="dark_silver", text_color=None, line_color=None):
+    return category_files(
+        (title for title, _ in GROUPS.get(menu, ())), style, text_color, line_color
+    )
 
 
-def category_files(titles, style="dark_silver", text_color=None):
+def category_files(titles, style="dark_silver", text_color=None, line_color=None):
     if style not in {"dark_silver", "gold", "silver_neon", "red_iridescent"}:
         raise ValueError("Choose a supported menu finish.")
     result = []
@@ -179,6 +181,23 @@ def category_files(titles, style="dark_silver", text_color=None):
                 from ky_bot.design.footers import text_ink
 
                 image = text_ink(image.getchannel("A"), style, text_color)
+            if line_color:
+                from PIL import ImageColor
+
+                # Rules are long uninterrupted alpha runs; lettering remains unchanged.
+                alpha = image.getchannel("A")
+                rgb = ImageColor.getrgb(line_color)
+                for y in range(image.height):
+                    start = None
+                    for x in range(image.width + 1):
+                        visible = x < image.width and alpha.getpixel((x, y)) > 0
+                        if visible and start is None:
+                            start = x
+                        if not visible and start is not None:
+                            if x - start >= 80:
+                                for column in range(start, x):
+                                    image.putpixel((column, y), (*rgb, alpha.getpixel((column, y))))
+                            start = None
             stream = io.BytesIO()
             image.save(stream, format="PNG")
             data = stream.getvalue()

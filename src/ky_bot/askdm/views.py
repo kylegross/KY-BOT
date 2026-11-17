@@ -503,4 +503,5 @@ def uploads(profile=None, view=None):
         getattr(view, "category_menu", "askdm"),
         (profile or {}).get("style", "dark_silver"),
         (profile or {}).get("text_color"),
+        (profile or {}).get("line_color"),
     )

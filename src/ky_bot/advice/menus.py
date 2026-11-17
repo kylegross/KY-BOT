@@ -260,7 +260,7 @@ class Admin(discord.ui.LayoutView):
             for key in ("sticky_count", "cooldown", "max_length"):
                 if key in values:
                     values[key] = int(values[key])
-            for key in ("color", "text_color", "header_text_color"):
+            for key in ("color", "text_color", "line_color", "header_text_color"):
                 if key in values:
                     values[key] = values[key].lstrip("#") or None
             if "header_text_color" in values:
@@ -521,7 +521,7 @@ class Admin(discord.ui.LayoutView):
                     click,
                     "Panel appearance",
                     (
-                        ("color", "Side highlight hex color", 6, True, False),
+                        ("color", "Side highlight hex color", 7, True, False),
                         ("text_color", "Panel heading hex color (blank = preset)", 7, False, False),
                         ("footer_text", "Small footer line below the message", 200, False, False),
                         ("title", "Published question heading", 80, True, False),
@@ -559,6 +559,12 @@ class Admin(discord.ui.LayoutView):
                 "ACCESS PANEL TEXT",
                 "Headings, descriptions, button labels and emojis.",
                 self.navigate("sections", "Edit sections"),
+            )
+            self.setting(
+                panel,
+                "PREVIEW PANELS",
+                "See your saved design privately.",
+                self.button("Preview", lambda click: self.preview(click, True)),
             )
         elif page == "artwork":
             panel.add_item(
@@ -887,49 +893,142 @@ class Admin(discord.ui.LayoutView):
                 file.close()
 
     async def heading_style_controls(self, panel):
+        from ky_bot.design.text_colour import text_colour
+
+        section_index = str(self.section) if self.page == "section" else None
+        current = self.config | self.config["section_styles"].get(section_index, {})
         panel.add_item(
             discord.ui.TextDisplay(
                 "**SECTION HEADING STYLE**\n"
-                "KY BOT shimmer lettering for headings inside the posted panels. "
-                "Applies to all section headings; banner and footer images have separate settings."
+                + (
+                    "Changes only this section heading. "
+                    if section_index is not None
+                    else "Default style for headings without their own style. "
+                )
+                + "Save named colors here, then choose them from the list."
             )
         )
 
-        async def finish(click, values):
-            if values[0] == "custom":
-                return await self.edit_values(
-                    click,
-                    "Section heading color",
-                    (("text_color", "Hex color (for example #39DCCB)", 7, True, False),),
-                )
-            await click.response.defer()
-            await self.save(click, self.revision, text_finish=values[0], text_color=None)
-            await self.show(click, self.page, "Section heading style saved.")
+        async def apply(click, color, finish=None, **extra):
+            style = {"text_color": color, "text_finish": finish or current["text_finish"]}
+            if "line_color" in extra:
+                style["line_color"] = extra.pop("line_color")
+            elif section_index is not None and "line_color" in current:
+                style["line_color"] = current["line_color"]
+            if section_index is None:
+                extra.update(style)
+            else:
+                styles = copy.deepcopy(self.config["section_styles"])
+                styles[section_index] = style
+                extra["section_styles"] = styles
+            await self.save(click, self.revision, **extra)
+            await self.show(
+                click, self.page, "Heading color saved. Preview and publish when ready."
+            )
 
+        async def edit_lines(click):
+            async def save_lines(event, values):
+                await apply(
+                    event, current["text_color"], line_color=text_colour(values["line_color"])
+                )
+
+            await click.response.send_modal(
+                Edit(
+                    self,
+                    "Heading line color",
+                    [
+                        (
+                            "line_color",
+                            "Line hex (blank follows text)",
+                            current.get("line_color"),
+                            7,
+                            False,
+                            False,
+                        )
+                    ],
+                    save_lines,
+                )
+            )
+
+        panel.add_item(discord.ui.ActionRow(self.button("Line color", edit_lines, modal=True)))
+
+        async def editor(click, existing=None):
+            fields = [
+                ("name", "Color name", existing or "", 40, True, False),
+                (
+                    "color",
+                    "Hex color (for example #39DCCB)",
+                    self.config["heading_colors"].get(existing, current["text_color"]),
+                    7,
+                    True,
+                    False,
+                ),
+            ]
+
+            async def save(edit, values):
+                name = values["name"].strip()
+                colors = dict(self.config["heading_colors"])
+                if name in colors and name != existing:
+                    raise ValueError("That name is already saved. Choose a different name.")
+                color = text_colour(values["color"])
+                if not color:
+                    raise ValueError("Enter a six-digit hex color.")
+                if existing and name != existing:
+                    colors.pop(existing)
+                colors[name] = color
+                # Other headings keep their own saved color, even when this preset is edited.
+                await apply(edit, color, heading_colors=colors)
+
+            await click.response.send_modal(Edit(self, "Save heading color", fields, save))
+
+        async def finish(click, values):
+            value = values[0]
+            if value == "custom":
+                return await editor(click)
+            await click.response.defer()
+            if value.startswith("saved:"):
+                await apply(click, self.config["heading_colors"][value[6:]])
+            else:
+                await apply(click, None, value)
+
+        colors = self.config["heading_colors"]
+        selected = next(
+            (name for name, color in colors.items() if color == current["text_color"]), None
+        )
+        options = [
+            discord.SelectOption(
+                label=label,
+                value=key,
+                default=key == current["text_finish"] and not current["text_color"],
+            )
+            for key, label in COLOR_NAMES.items()
+        ]
+        options += [
+            discord.SelectOption(
+                label=name, value="saved:" + name, description=color, default=name == selected
+            )
+            for name, color in colors.items()
+        ]
+        options.append(discord.SelectOption(label="Custom color…", value="custom"))
         self.picker(
             panel,
             discord.ui.Select(
-                placeholder="Choose a shimmer preset or custom color",
-                options=[
-                    *[
-                        discord.SelectOption(
-                            label=label,
-                            value=key,
-                            default=key == self.config["text_finish"]
-                            and not self.config["text_color"],
-                        )
-                        for key, label in COLOR_NAMES.items()
-                    ],
-                    discord.SelectOption(
-                        label="Custom color…",
-                        value="custom",
-                        default=bool(self.config["text_color"]),
-                    ),
-                ],
+                placeholder="Choose a saved color or add a custom color", options=options
             ),
             finish,
             modal=True,
         )
+        if selected:
+
+            async def edit_saved(click):
+                await editor(click, selected)
+
+            self.setting(
+                panel,
+                "EDIT SAVED COLOR",
+                selected,
+                self.button("Edit color", edit_saved, modal=True),
+            )
 
     async def section_page(self, i, panel, page):
         sections = self.config["sections"]
@@ -938,10 +1037,25 @@ class Admin(discord.ui.LayoutView):
         self.row = min(self.row, len(section["rows"]) - 1)
 
         async def store(click, values, target=page):
-            await self.save(click, self.revision, sections=values)
+            styles = self.config["section_styles"]
+            original = self.config["sections"]
+            remapped = {}
+            for index, section in enumerate(values):
+                old = next((n for n, item in enumerate(original) if item is section), None)
+                if old is None:
+                    old = next((n for n, item in enumerate(original) if item == section), index)
+                if str(old) in styles:
+                    remapped[str(index)] = styles[str(old)]
+            await self.save(click, self.revision, sections=values, section_styles=remapped)
             await self.show(click, target)
 
         if page == "sections":
+            self.setting(
+                panel,
+                "PREVIEW PANELS",
+                "See your saved section styles privately.",
+                self.button("Preview", lambda click: self.preview(click, True)),
+            )
             panel.add_item(discord.ui.TextDisplay("**PANEL SECTIONS**"))
 
             async def select(click, values):

@@ -484,7 +484,14 @@ class EditModal(discord.ui.Modal):
                     draft.get("text_color") or "",
                     7,
                     False,
-                )
+                ),
+                (
+                    "line_color",
+                    "Line hex (blank follows text)",
+                    draft.get("line_color") or "",
+                    7,
+                    False,
+                ),
             ],
             "section_add": [
                 ("heading", "Decorative section heading", "", 80, True),
@@ -715,8 +722,8 @@ class Editor(Base):
             finish.callback = choose_finish
             self.panel.add_item(discord.ui.ActionRow(finish))
             self.row(
-                "**CUSTOM TEXT COLOR**\n" + (data["text_color"] or "Using the selected finish."),
-                button("Custom color", modal("text_color")),
+                "**TEXT & LINE COLORS**\n" + (data["text_color"] or "Using the selected finish."),
+                button("Edit colors", modal("text_color")),
             )
             self.row(
                 "**HIGHLIGHT COLOR**\nSet the accent beside the message.",

@@ -16,6 +16,7 @@ def new_section():
         divider=True,
         finish=None,
         color=None,
+        line_color=None,
     )
 
 
@@ -31,6 +32,7 @@ def blocks(panel, position):
         divider=False,
         finish=panel.get(position + "_finish"),
         color=panel.get(position + "_color"),
+        line_color=panel.get(position + "_line_color"),
     )
     return [main] + panel.get(position + "_sections", [])
 
@@ -85,7 +87,13 @@ def validate_sections(panel):
                 "red_iridescent",
             }:
                 raise ValueError("Choose a supported section finish.")
+            from ky_bot.design.text_colour import text_colour
+
+            text_colour(block.get("line_color"))
             color = block.get("color")
+            if color is not None:
+                color = text_colour(color).removeprefix("#")
+                block["color"] = color
             if color is not None and not re.fullmatch(r"[0-9a-fA-F]{6}", color):
                 raise ValueError("Use a six-digit section color.")
             if not isinstance(block.get("divider", False), bool):

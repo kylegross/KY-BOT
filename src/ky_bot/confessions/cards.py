@@ -71,7 +71,10 @@ class Card(discord.ui.LayoutView):
             discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://confession_header.png"))
         )
         self.title_art = title_image(
-            title, config.get("text_finish", "silver_neon"), config.get("text_color")
+            title,
+            config.get("text_finish", "silver_neon"),
+            config.get("text_color"),
+            line_color=config.get("line_color"),
         )
         panel.add_item(
             discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://confession_title.png"))

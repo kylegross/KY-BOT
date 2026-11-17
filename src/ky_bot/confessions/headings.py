@@ -61,7 +61,7 @@ def lettering(text):
 
 
 @lru_cache(maxsize=128)
-def title_image(title, finish="silver_neon", text_color=None, *, shimmer=False):
+def title_image(title, finish="silver_neon", text_color=None, *, shimmer=False, line_color=None):
     def paint(mask):
         if shimmer:
             from ky_bot.design.image_text import metallic_ink
@@ -78,7 +78,9 @@ def title_image(title, finish="silver_neon", text_color=None, *, shimmer=False):
         image.alpha_composite(paint(mask), (left, 16))
         middle = 16 + mask.height // 2
         pen = ImageDraw.Draw(image)
-        rule_color = text_color or ("#BFCAD9" if finish == "silver_neon" else COLOURS[finish])
+        rule_color = (
+            line_color or text_color or ("#BFCAD9" if finish == "silver_neon" else COLOURS[finish])
+        )
         if left > 24:
             pen.line((2, middle, left - 18, middle), fill=rule_color, width=2)
             pen.line((left + mask.width + 18, middle, 1118, middle), fill=rule_color, width=2)
@@ -111,7 +113,7 @@ def title_image(title, finish="silver_neon", text_color=None, *, shimmer=False):
     mask = ImageOps.contain(mask, (960, line_height), Image.Resampling.LANCZOS)
     image = Image.new("RGBA", (1120, mask.height + 32))
     image.alpha_composite(paint(mask), (SECTION_HEADING_LEFT, 16))
-    section_rule(image, SECTION_HEADING_LEFT + mask.width, finish, text_color)
+    section_rule(image, SECTION_HEADING_LEFT + mask.width, finish, line_color or text_color)
     stream = io.BytesIO()
     image.save(stream, format="PNG")
     return stream.getvalue()
