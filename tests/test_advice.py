@@ -172,7 +172,7 @@ class AdviceTests(unittest.IsolatedAsyncioTestCase):
         separators = [
             item for item in view.panel.children if isinstance(item, discord.ui.Separator)
         ]
-        self.assertEqual(separators[0].spacing, discord.SeparatorSpacing.large)
+        self.assertEqual(separators[0].spacing, discord.SeparatorSpacing.small)
         self.assertLessEqual(view.total_children_count, 40)
         view.to_components()
         preview = access_panel(10, self.config, preview=True)

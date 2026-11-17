@@ -223,6 +223,11 @@ class Admin(discord.ui.LayoutView):
             discord.ui.TextDisplay(
                 f"**{title}**\n"
                 + (f"<#{self.config[key]}>" if self.config[key] else "Not selected")
+                + (
+                    "\nPrivate staff channel for reviewing questions and replies before posting."
+                    if key == "queue_channel"
+                    else "\nPrivate staff channel for submission records and author identities."
+                )
             )
         )
 
@@ -397,8 +402,13 @@ class Admin(discord.ui.LayoutView):
                     "roles",
                 ),
                 (
-                    "DELIVERY & PRIVACY",
-                    "Choose log/approval channels, then turn the options you want on.",
+                    "LOGS & APPROVALS",
+                    "Choose log and approval channels. Approve questions and replies separately.",
+                    "destinations",
+                ),
+                (
+                    "NOTIFICATIONS & DELIVERY",
+                    "Role notifications, panel reposting, cooldowns and message limits.",
                     "delivery",
                 ),
                 (
@@ -482,12 +492,7 @@ class Admin(discord.ui.LayoutView):
                 )
             )
         elif page == "delivery":
-            self.destination_picker(panel, "queue_channel", "APPROVAL CHANNEL", "delivery")
-            self.destination_picker(panel, "log_channel", "AUTHOR LOG CHANNEL", "delivery")
             for key, title in (
-                ("approval", "QUESTION APPROVAL"),
-                ("response_approval", "ADVICE RESPONSE APPROVAL"),
-                ("logging", "AUTHOR LOGGING"),
                 ("notifications", "NEW QUESTION ROLE NOTIFICATIONS"),
                 ("sticky", "REPOST SUBMISSION PANEL"),
             ):
@@ -512,11 +517,11 @@ class Admin(discord.ui.LayoutView):
                 self.button("Edit", limits, modal=True),
             )
         elif page == "destinations":
-            for key, title in (
-                ("queue_channel", "APPROVAL CHANNEL"),
-                ("log_channel", "AUTHOR LOG CHANNEL"),
-            ):
-                self.destination_picker(panel, key, title, "destinations")
+            self.destination_picker(panel, "queue_channel", "APPROVAL CHANNEL", "destinations")
+            self.toggle(panel, "approval", "QUESTION APPROVAL")
+            self.toggle(panel, "response_approval", "ADVICE RESPONSE APPROVAL")
+            self.destination_picker(panel, "log_channel", "LOG CHANNEL", "destinations")
+            self.toggle(panel, "logging", "AUTHOR LOGGING")
         elif page == "style":
             self.setting(
                 panel,
@@ -866,7 +871,7 @@ class Admin(discord.ui.LayoutView):
         if page != "channels":
             previous = {
                 "main": "channels",
-                "destinations": "delivery",
+                "destinations": "main",
                 "artwork": "style",
                 "header_artwork": "artwork",
                 "footer_artwork": "artwork",

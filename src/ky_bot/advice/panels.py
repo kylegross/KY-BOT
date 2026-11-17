@@ -85,16 +85,15 @@ def access_panel(channel, config, *, preview=False):
     for index, section in enumerate(config["sections"]):
         if index:
             view.panel.add_item(
-                discord.ui.Separator(visible=False, spacing=discord.SeparatorSpacing.large)
+                discord.ui.Separator(visible=False, spacing=discord.SeparatorSpacing.small)
             )
         style = config | config.get("section_styles", {}).get(str(index), {})
         view.heading(section["heading"], style, section["decorated"])
         for row_index, row in enumerate(section["rows"]):
-            if row_index:
-                view.panel.add_item(
-                    discord.ui.Separator(visible=False, spacing=discord.SeparatorSpacing.large)
-                )
             text = safe(row["text"])
+            if row_index < len(section["rows"]) - 1:
+                # Use the same compact blank line as Command Center control rows.
+                text += "\n-# \u200b"
             heading = row.get("heading", "").strip()
             if heading:
                 label = discord.utils.escape_markdown(safe(heading))

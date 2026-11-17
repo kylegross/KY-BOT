@@ -196,7 +196,6 @@ def validate(config):
         + len(sections)
         - 1
         + sum(2 * bool(section["heading"].strip()) for section in sections)
-        + sum(max(0, len(section["rows"]) - 1) for section in sections)
         + sum(
             (3 if row["action"] != "none" else 1) for section in sections for row in section["rows"]
         )

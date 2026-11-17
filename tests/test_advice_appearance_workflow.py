@@ -327,6 +327,41 @@ class AppearanceWorkflowTests(unittest.IsolatedAsyncioTestCase):
             ]
             self.assertTrue(all(not item.visible for item in separators))
             if len(view.files) > 3:
-                self.assertGreaterEqual(len(separators), 3)
+                self.assertEqual(len(separators), 1)
+                rows = [
+                    item for item in view.walk_children() if isinstance(item, discord.ui.Section)
+                ]
+                self.assertTrue(rows[0].children[0].content.endswith("\n-# \u200b"))
             self.assertLessEqual(view.total_children_count, 40)
             view.stop()
+
+    async def test_logs_and_approvals_are_directly_accessible_and_ordered(self):
+        with patch("ky_bot.advice.menus.display_menu", new=AsyncMock()):
+            await self.menu.show(self.i, "main")
+            self.assertTrue(
+                any(
+                    isinstance(item, discord.ui.TextDisplay) and "LOGS & APPROVALS" in item.content
+                    for item in self.menu.walk_children()
+                )
+            )
+            await self.menu.show(self.i, "destinations")
+            labels = [
+                item.content.split("\n")[0]
+                for item in self.menu.walk_children()
+                if isinstance(item, discord.ui.TextDisplay)
+            ]
+            for channel, toggle in (
+                ("APPROVAL CHANNEL", "QUESTION APPROVAL"),
+                ("APPROVAL CHANNEL", "ADVICE RESPONSE APPROVAL"),
+                ("LOG CHANNEL", "AUTHOR LOGGING"),
+            ):
+                self.assertLess(
+                    labels.index("**" + channel + "**"), labels.index("**" + toggle + "**")
+                )
+            self.assertEqual(
+                sum(
+                    isinstance(item, discord.ui.ChannelSelect) for item in self.menu.walk_children()
+                ),
+                2,
+            )
+            self.assertLessEqual(self.menu.total_children_count, 40)
