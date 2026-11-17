@@ -1,6 +1,5 @@
 """One branded, color-matched card for public posts, review and staff logs."""
 
-import base64
 import io
 from datetime import UTC, datetime
 
@@ -10,7 +9,7 @@ from ky_bot.log_style import style_log
 from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.sections import section_dividers
 
-from .appearance import standard_artwork
+from .appearance import configured_artwork, standard_artwork
 from .headings import DIVIDER, title_image
 
 
@@ -45,21 +44,7 @@ def uploads(config, view=None):
         data = (
             view.header_art
             if key == "header" and view is not None and getattr(view, "header_art", None)
-            else base64.b64decode(config[key])
-            if config[key]
-            else standard_artwork(
-                key,
-                config.get("artwork_finish", "silver_neon"),
-                config.get("header_title", "CONFESSIONS"),
-                config.get("text_finish", "silver_neon"),
-                config.get("text_color"),
-                tuple(
-                    config[key + "_palette"].get(part)
-                    for part in ("base", "highlight", "shadow", "accent")
-                )
-                if config.get(key + "_palette")
-                else None,
-            )
+            else configured_artwork(config, key, renderer=standard_artwork)
         )
         result.append(discord.File(io.BytesIO(data), filename="confession_" + key + ".png"))
     if view is not None and getattr(view, "title_art", None):

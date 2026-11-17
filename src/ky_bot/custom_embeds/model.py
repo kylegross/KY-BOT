@@ -25,7 +25,7 @@ STYLES = {
 FIELD_STYLES = {
     "plain": "Plain text",
     "large": "Large heading",
-    "decorative": "Decorative heading · KY BOT font",
+    "decorative": "KY BOT heading",
     **STYLES,
 }
 MAX_SECTIONS = 5
@@ -51,6 +51,10 @@ def defaults():
         color="BDC3CA",
         header=None,
         header_title="",
+        header_text_color=None,
+        footer_image_text="",
+        footer_text_color=None,
+        footer_finish="dark_silver",
         header_finish="dark_silver",
         header_palette=None,
         footer_palette=None,
@@ -90,7 +94,14 @@ def text_content(data):
 
 def validate(data, *, publish=False):
     data = defaults() | data
-    limits = {"name": 64, "title": 200, "body": 3500, "footer_text": 200, "header_title": 80}
+    limits = {
+        "name": 64,
+        "title": 200,
+        "body": 3500,
+        "footer_text": 200,
+        "header_title": 80,
+        "footer_image_text": 80,
+    }
     for key, maximum in limits.items():
         if not isinstance(data[key], str) or len(data[key]) > maximum:
             raise ValueError(f"{key.replace('_', ' ').title()} must be under {maximum} characters.")
@@ -109,11 +120,17 @@ def validate(data, *, publish=False):
         raise ValueError("Choose a valid header finish.")
     if data["header_title"]:
         heading_text(data["header_title"])
+    if data["footer_image_text"]:
+        heading_text(data["footer_image_text"])
     from ky_bot.design.metallic import parse_palette
 
     data["header_palette"] = parse_palette(data.get("header_palette"))
     data["footer_palette"] = parse_palette(data.get("footer_palette"))
     data["text_color"] = text_colour(data["text_color"])
+    data["header_text_color"] = text_colour(data["header_text_color"])
+    data["footer_text_color"] = text_colour(data["footer_text_color"])
+    if data["footer_finish"] not in FINISHES:
+        raise ValueError("Choose a valid footer color preset.")
     if data["text_finish"] not in FINISHES:
         raise ValueError("Choose a decorative text finish.")
     for key, style_key in (
@@ -222,6 +239,8 @@ def image_upload(raw):
 
 
 def render(data):
+    from ky_bot.design.menu_design import FINISHES
+
     data = validate(data)
     view = discord.ui.LayoutView(timeout=None)
     panel = discord.ui.Container(accent_colour=int(data["color"], 16))
@@ -270,20 +289,25 @@ def render(data):
                 # Rebuild palette artwork with the current metallic renderer, even
                 # when a saved embed still contains PNGs from an earlier finish.
                 raw = base64.b64decode(custom_image(key, data[key + "_palette"]))
-            if key == "header" and data["header_title"]:
-                from ky_bot.design.headers import render_header
-                from ky_bot.design.menu_design import FINISHES
-
-                from .artwork import standard_image
-
-                finish = next(
-                    (key for key in FINISHES if data["header"] == standard_image("header", key)),
-                    data["header_finish"],
-                )
+            text = data["header_title"] if key == "header" else data["footer_image_text"]
+            if text:
+                from ky_bot.design.image_text import add_image_text
                 from ky_bot.design.metallic import using_palette
 
-                with using_palette(data.get("header_palette")):
-                    raw = render_header(raw, finish, height=280, title=data["header_title"])
+                if key == "footer":
+                    from .artwork import footer_text_background, standard_image
+
+                    generated = bool(data.get("footer_palette")) or any(
+                        data["footer"] == standard_image("footer", finish) for finish in FINISHES
+                    )
+                    if generated:
+                        raw = footer_text_background(
+                            data["footer_finish"], data.get("footer_palette")
+                        )
+                with using_palette(data.get(key + "_palette")):
+                    raw = add_image_text(
+                        raw, text, key, data[key + "_finish"], data[key + "_text_color"]
+                    )
             attachments.append(discord.File(io.BytesIO(raw), filename=name, description=""))
             panel.add_item(discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://" + name)))
     if not panel.children:

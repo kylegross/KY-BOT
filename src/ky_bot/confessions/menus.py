@@ -74,7 +74,8 @@ class Edit(discord.ui.Modal):
                 "style": "Confession appearance",
                 "text": "Submission panel text",
                 "header": "Header title",
-                "lettercolor": "Custom decorative text color",
+                "footer_image": "Footer image text and color",
+                "lettercolor": "Panel heading color",
                 "limits": "Submission limits",
                 "sticky": "Sticky submission panel",
             }[kind]
@@ -82,12 +83,19 @@ class Edit(discord.ui.Modal):
         self.menu, self.kind, self.revision, self.channel = menu, kind, menu.revision, menu.channel
         self.return_page = menu.page
         fields = {
-            "header": (("header_title", "Header banner title", 80),),
-            "lettercolor": (("text_color", "Hex color (blank follows selected finish)", 7),),
+            "header": (
+                ("header_title", "Header image text", 80),
+                ("header_text_color", "Metallic text hex (blank uses artwork)", 7),
+            ),
+            "footer_image": (
+                ("footer_image_text", "Footer image text (blank removes)", 80),
+                ("footer_text_color", "Metallic text hex (blank uses artwork)", 7),
+            ),
+            "lettercolor": (("text_color", "Hex color (blank uses preset)", 7),),
             "style": (
                 ("color", "Embed color (hex, e.g. D6E2F3)", 6),
                 ("title", "Confession heading", 80),
-                ("footer_text", "Footer text", 200),
+                ("footer_text", "Small footer line below the message", 200),
             ),
             "text": (
                 ("panel_title", "Submission panel heading", 80),
@@ -106,7 +114,15 @@ class Edit(discord.ui.Modal):
                 label=label,
                 default="" if menu.config[key] is None else str(menu.config[key]),
                 max_length=limit,
-                required=key not in {"footer_text", "panel_text", "text_color"},
+                required=key
+                not in {
+                    "footer_text",
+                    "panel_text",
+                    "text_color",
+                    "header_text_color",
+                    "footer_image_text",
+                    "footer_text_color",
+                },
                 style=discord.TextStyle.paragraph
                 if key == "panel_text"
                 else discord.TextStyle.short,
@@ -126,6 +142,8 @@ class Edit(discord.ui.Modal):
                     values[key] = int(values[key])
             if "color" in values:
                 values["color"] = values["color"].lstrip("#")
+            if self.kind == "header" and self.menu.config["header"]:
+                values["header_title_on_upload"] = True
             await self.menu.save(i, self.revision, **values)
             target = self.return_page
             await self.menu.show(i, target, "Settings saved for this channel only.")
@@ -248,7 +266,28 @@ class Admin(discord.ui.LayoutView):
         await self.allowed(i)
         _, old = await self.cog.store.config(self.guild, self.channel)
         config = old | changes
-        destination(i.guild, self.channel)
+        appearance = {
+            "header",
+            "footer",
+            "header_palette",
+            "footer_palette",
+            "header_title",
+            "header_text_color",
+            "footer_text_color",
+            "header_title_on_upload",
+            "footer_image_text",
+            "artwork_finish",
+            "text_finish",
+            "text_color",
+            "color",
+            "title",
+            "panel_title",
+            "panel_text",
+            "submit_label",
+            "footer_text",
+        }
+        if not set(changes) <= appearance:
+            destination(i.guild, self.channel)
         # Set up destinations independently. Validate a destination when changing
         # it or enabling its feature, rather than blocking on another unset field.
         for key, flags, label in (
@@ -372,8 +411,9 @@ class Admin(discord.ui.LayoutView):
             "behavior": "SUBMISSIONS & DELIVERY",
             "logging": "LOGGING & APPROVAL",
             "appearance": "APPEARANCE",
-            "artwork": "HEADER & FOOTER DESIGN",
-            "lettering": "DECORATIVE TEXT",
+            "artwork": "HEADER & FOOTER IMAGES",
+            "lettering": "PANEL HEADING COLORS",
+            "image_text": "IMAGE TEXT & COLORS",
             "permissions": "ROLE ACCESS",
             "queue": "ADMINISTRATOR APPROVAL",
             "reports": "REPORTS",
@@ -562,7 +602,7 @@ class Admin(discord.ui.LayoutView):
                 "Manage",
                 self.go("bans"),
             )
-        elif page in {"appearance", "artwork", "lettering"}:
+        elif page in {"appearance", "artwork", "lettering", "image_text"}:
             if page in {"artwork", "lettering"}:
                 from ky_bot.design.menu_design import FINISHES
 
@@ -613,21 +653,23 @@ class Admin(discord.ui.LayoutView):
 
                 panel.add_item(
                     discord.ui.TextDisplay(
-                        "**" + ("ARTWORK FINISH" if page == "artwork" else "TEXT FINISH") + "**"
+                        "**"
+                        + ("KY BOT IMAGE COLORS" if page == "artwork" else "PANEL HEADING COLORS")
+                        + "**"
                     )
                 )
                 picker.callback = choose_finish
                 panel.add_item(discord.ui.ActionRow(picker))
             if page == "appearance":
                 row(
-                    "HEADER & FOOTER DESIGN",
+                    "HEADER & FOOTER IMAGES",
                     "Banner title, standard artwork finish and uploads.",
                     "Manage",
                     self.go("artwork"),
                 )
                 row(
-                    "DECORATIVE TEXT",
-                    "Four standard lettering finishes or your own hex color.",
+                    "PANEL HEADING COLORS",
+                    "Choose preset colors or a custom hex color for the panel headings.",
                     "Manage",
                     self.go("lettering"),
                 )
@@ -644,7 +686,12 @@ class Admin(discord.ui.LayoutView):
                     ("text",),
                 )
             elif page == "artwork":
-                row("HEADER TITLE", config["header_title"], "Edit", ("header",))
+                row(
+                    "TEXT ON IMAGES",
+                    "Add header/footer text and choose its metallic colors.",
+                    "Edit text & colors",
+                    self.go("image_text"),
+                )
                 row(
                     "HEADER ARTWORK",
                     "Your upload" if config["header"] else "Selected standard finish",
@@ -663,15 +710,15 @@ class Admin(discord.ui.LayoutView):
                     async def custom(event, part=part):
                         from ky_bot.design.palette_editor import PaletteModal
 
-                        selected, revision = self.channel, self.revision
-                        snapshot = dict(config)
+                        await self.allowed(event)
+                        private = Admin(self.cog, self.owner, self.guild)
+                        private.channel, private.revision = self.channel, self.revision
+                        private.config = dict(config)
+                        private.page = "artwork"
+                        revision, snapshot = private.revision, dict(config)
 
                         async def allowed(event):
-                            await self.allowed(event)
-                            if self.channel != selected:
-                                raise ValueError(
-                                    "The selected channel changed. Reopen its artwork menu."
-                                )
+                            await private.allowed(event)
                             return True
 
                         def render(palette):
@@ -691,11 +738,11 @@ class Admin(discord.ui.LayoutView):
 
                         async def commit(event, palette):
                             await event.response.defer(ephemeral=True)
-                            await self.save(
+                            await private.save(
                                 event, revision, **{part + "_palette": palette, part: None}
                             )
-                            await self.show(
-                                event, "artwork", "Custom metallic colors saved for this channel."
+                            await private.show(
+                                event, "artwork", "Custom colors saved. Preview before publishing."
                             )
 
                         await event.response.send_modal(
@@ -730,6 +777,29 @@ class Admin(discord.ui.LayoutView):
                     "Restore",
                     reset,
                 )
+            elif page == "image_text":
+                row(
+                    "HEADER TITLE",
+                    config["header_title"] + " · Edit text and metallic color.",
+                    "Edit text & color",
+                    ("header",),
+                )
+                row(
+                    "FOOTER IMAGE TEXT",
+                    config["footer_image_text"]
+                    or "Add metallic text over standard artwork or your uploaded footer.",
+                    "Edit text & color",
+                    ("footer_image",),
+                )
+                if config["header"]:
+                    row(
+                        "TITLE ON UPLOADED HEADER",
+                        "Shown"
+                        if config["header_title_on_upload"]
+                        else "Hidden · Turn on to add your title over the uploaded image.",
+                        "Hide title" if config["header_title_on_upload"] else "Show title",
+                        toggle("header_title_on_upload"),
+                    )
             else:
                 row(
                     "CUSTOM TEXT COLOR",
@@ -914,7 +984,9 @@ class Admin(discord.ui.LayoutView):
                 await self.show(event, "channels")
 
         back = (
-            "appearance"
+            "artwork"
+            if page == "image_text"
+            else "appearance"
             if page in {"artwork", "lettering"}
             else "channels"
             if page == "channel"

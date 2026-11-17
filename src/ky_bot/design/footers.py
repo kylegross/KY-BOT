@@ -231,17 +231,18 @@ def overlay(
     if slogan == SLOGAN:
         lettering = asset(f"{style}_slogan.png").convert("RGBA")
         if text_color:
-            tinted = Image.new("RGBA", lettering.size, text_color)
-            tinted.putalpha(lettering.getchannel("A"))
-            lettering = tinted
+            from .image_text import metallic_ink
+
+            lettering = metallic_ink(lettering.getchannel("A"), style, text_color)
         result.alpha_composite(lettering)
         return result
     mask = slogan_mask(slogan, font_path)
     layer = Image.new("L", SIZE)
     layer.paste(mask, ((SIZE[0] - mask.width) // 2, (SIZE[1] - mask.height) // 2))
     if text_color:
-        lettering = Image.new("RGBA", SIZE, text_color)
-        lettering.putalpha(layer)
+        from .image_text import metallic_ink
+
+        lettering = metallic_ink(layer, style, text_color)
         result.alpha_composite(lettering)
     else:
         result.alpha_composite(metal(layer, style))

@@ -197,6 +197,8 @@ class AdviceTests(unittest.IsolatedAsyncioTestCase):
             "destinations",
             "style",
             "artwork",
+            "header_artwork",
+            "footer_artwork",
             "sections",
             "section",
             "row",
@@ -224,6 +226,8 @@ class AdviceTests(unittest.IsolatedAsyncioTestCase):
                 "destinations",
                 "style",
                 "artwork",
+                "header_artwork",
+                "footer_artwork",
                 "sections",
                 "section",
                 "row",
@@ -253,33 +257,29 @@ class AdviceTests(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(first.children[0].content.endswith("\n-# \u200b"))
             menu.stop()
 
-    async def test_artwork_page_exposes_title_color_and_both_custom_palettes(self):
+    async def test_artwork_editors_separate_images_and_explain_title_controls(self):
         menu = Admin(SimpleNamespace(store=self.store), 7, 1)
         menu.channel = 10
         menu.allowed = AsyncMock()
         i = SimpleNamespace(guild_id=1, response=SimpleNamespace(send_modal=AsyncMock()))
         with patch("ky_bot.advice.menus.display_menu", new=AsyncMock()):
             await menu.show(i, "artwork")
-        headings = [
-            item.children[0].content
-            for item in menu.walk_children()
-            if isinstance(item, discord.ui.Section)
-        ]
-        for heading in (
-            "HEADER IMAGE TITLE & COLOR",
-            "CUSTOM HEADER COLORS",
-            "CUSTOM FOOTER COLORS",
-        ):
-            self.assertTrue(any(heading in text for text in headings), heading)
-        section = next(
+            labels = {
+                item.label for item in menu.walk_children() if isinstance(item, discord.ui.Button)
+            }
+            self.assertIn("Edit header", labels)
+            self.assertIn("Edit footer", labels)
+            await menu.show(i, "header_artwork")
+        self.assertNotIn("Follow decorative text", str(menu.to_components()))
+        color = next(
             item
             for item in menu.walk_children()
             if isinstance(item, discord.ui.Section)
-            and "HEADER IMAGE TITLE & COLOR" in item.children[0].content
+            and "**TITLE COLOR**" in item.children[0].content
         )
-        await section.accessory.callback(i)
+        await color.accessory.callback(i)
         modal = i.response.send_modal.await_args.args[0]
-        self.assertEqual(set(modal.fields), {"header_title", "header_text_color"})
+        self.assertEqual(set(modal.fields), {"header_text_color"})
         menu.stop()
 
     async def test_artwork_uses_persisted_custom_palettes_and_independent_title_color(self):

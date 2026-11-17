@@ -28,6 +28,8 @@ def defaults():
         response_title="ADVICE",
         header_text_color=None,
         header_text_finish=None,
+        header_artwork_finish=None,
+        footer_artwork_finish=None,
         sections=[
             dict(
                 heading="ASK FOR ADVICE",
@@ -95,7 +97,10 @@ def validate(config):
 
     result["header_text_color"] = text_colour(result["header_text_color"])
     if result["header_text_finish"] is not None and result["header_text_finish"] not in FINISHES:
-        raise ValueError("Choose a standard header title finish or follow decorative text.")
+        raise ValueError("Choose a supported header text style.")
+    for key in ("header_artwork_finish", "footer_artwork_finish"):
+        if result[key] is not None and result[key] not in FINISHES:
+            raise ValueError("Choose Silver, Dark Silver, Gold or Red artwork.")
     if (
         not isinstance(result["response_title"], str)
         or not 1 <= len(result["response_title"]) <= 80
@@ -178,6 +183,14 @@ class Store(ConfessionStore):
             async with store.transaction():
                 for sql in SCHEMA:
                     await store.execute(sql)
+                await store.execute(
+                    "CREATE TABLE IF NOT EXISTS advice_access_panels (guild BIGINT NOT NULL, "
+                    "ask_channel BIGINT NOT NULL, channel BIGINT NOT NULL, "
+                    "message BIGINT NOT NULL, "
+                    "retired TEXT NOT NULL, PRIMARY KEY(guild,ask_channel))"
+                )
+            for guild, channel, _ in await store.channels():
+                await store.access_panel(guild, channel)
         except BaseException:
             await db.close()
             raise
@@ -218,6 +231,61 @@ class Store(ConfessionStore):
                 (guild, channel, revision, json.dumps(config)),
             )
             return revision, config
+
+    async def access_panel(self, guild, ask_channel, *, channel=None, message=None):
+        """Each ask channel owns its panel, even if several panels share an entrance channel."""
+        async with self.transaction():
+            row = await self.execute(
+                "SELECT channel,message,retired FROM advice_access_panels "
+                "WHERE guild=? AND ask_channel=?",
+                (guild, ask_channel),
+            )
+            if row:
+                old_channel, old_message, retired = row[0], row[1], json.loads(row[2])
+            else:
+                # Safely adopt the previous single-panel format only when its owner is unambiguous.
+                _, config = await self._config(guild, ask_channel)
+                old_channel, old_message, retired = config["access_channel"], 0, []
+                rows = await self.execute(
+                    "SELECT channel,config FROM advice_settings WHERE guild=?", (guild,), many=True
+                )
+                owners = sum(
+                    json.loads(data).get("access_channel", 0) == old_channel for _, data in rows
+                )
+                is_ask_channel = any(source == old_channel for source, _ in rows)
+                if old_channel and owners == 1 and not is_ask_channel:
+                    legacy = await self.execute(
+                        "SELECT message,retired FROM advice_panels WHERE guild=? AND channel=?",
+                        (guild, old_channel),
+                    )
+                    if legacy:
+                        old_message = legacy[0]
+                        retired = [[old_channel, value] for value in json.loads(legacy[1])]
+            destination = old_channel if channel is None else channel
+            current = old_message if message is None else message
+            if old_message and (old_message != current or old_channel != destination):
+                retired.append([old_channel, old_message])
+            retired = [list(pair) for pair in dict.fromkeys(tuple(pair) for pair in retired)]
+            await self.execute(
+                "INSERT INTO advice_access_panels VALUES(?,?,?,?,?) "
+                "ON CONFLICT(guild,ask_channel) DO UPDATE SET channel=excluded.channel, "
+                "message=excluded.message,retired=excluded.retired",
+                (guild, ask_channel, destination, current, json.dumps(retired)),
+            )
+            return dict(channel=destination, message=current, retired=retired)
+
+    async def access_retired_done(self, guild, ask_channel, channel, message):
+        async with self.transaction():
+            row = await self.execute(
+                "SELECT retired FROM advice_access_panels WHERE guild=? AND ask_channel=?",
+                (guild, ask_channel),
+            )
+            if row:
+                retired = [pair for pair in json.loads(row[0]) if pair != [channel, message]]
+                await self.execute(
+                    "UPDATE advice_access_panels SET retired=? WHERE guild=? AND ask_channel=?",
+                    (json.dumps(retired), guild, ask_channel),
+                )
 
     async def submit(
         self, guild, channel, author, roles, body, operation, revision, parent=None, named=False

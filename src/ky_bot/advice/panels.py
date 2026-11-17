@@ -1,12 +1,11 @@
 """Compact branded Components V2 panels with right-hand role controls."""
 
-import base64
 import io
 
 import discord
 from PIL import Image, ImageDraw, ImageOps
 
-from ky_bot.confessions.appearance import standard_artwork
+from ky_bot.confessions.appearance import configured_artwork, standard_artwork
 from ky_bot.confessions.headings import lettering, title_image
 from ky_bot.design.collection import COLOURS
 from ky_bot.design.footers import text_ink
@@ -18,19 +17,7 @@ def safe(value):
 
 
 def artwork_bytes(config, kind):
-    if config[kind]:
-        return base64.b64decode(config[kind])
-    palette = config.get(kind + "_palette")
-    return standard_artwork(
-        kind,
-        config["artwork_finish"],
-        config["header_title"],
-        config.get("header_text_finish") or config["text_finish"],
-        config.get("header_text_color") or config["text_color"],
-        tuple(palette.get(key) for key in ("base", "highlight", "shadow", "accent"))
-        if palette
-        else None,
-    )
+    return configured_artwork(config, kind, renderer=standard_artwork)
 
 
 def heading_image(text, config, decorated=False):

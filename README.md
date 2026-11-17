@@ -977,3 +977,23 @@ Command Center → **TICKETS** and private **`/ticket setup`** configure multipl
 panels, ticket types, staff teams, log and transcript destinations, forms, workflow
 and automation. Use **`/ticket manage`** inside a ticket for staff/member controls.
 See [TICKETS.md](TICKETS.md) for setup, permissions, routing, retention and deployment.
+
+## Editing image and text colors
+
+Appearance editors distinguish **image colors** from **text colors**. Choose a preset
+or custom KY BOT artwork colors; for your own picture, upload it and use the header
+or footer text controls to add lettering. Image text can use its own hex color with
+metallic highlights. Header and footer text colors are independent; uploaded pixels
+outside the added text retain their original colors. Text already baked into a
+picture cannot be recolored by these controls.
+
+- **Ask for Advice:** Appearance → Header & Footer → Edit header / Edit footer.
+- **Confessions:** Appearance → Header & Footer Images → Text on Images.
+- **Tickets:** Edit a panel → Header / Footer → Edit text & color.
+- **Manage Embeds:** Images → Text on Header & Footer → Edit text & colors.
+- **Shared menu/checklist design:** Text Colors sets default, header and footer
+  text colors separately. Appearance sets the header title and footer image text.
+
+Color previews do not save until their save button is selected. Shared menu designs
+remain drafts until **Apply design**. Public panels and custom embeds use their
+saved changes when published; saving a color alone does not silently repost them.

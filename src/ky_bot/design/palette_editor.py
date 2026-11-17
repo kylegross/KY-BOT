@@ -12,18 +12,29 @@ from .metallic import parse_palette, resolved_palette
 
 
 class PaletteModal(discord.ui.Modal):
-    def __init__(self, current, render, commit, allowed):
-        super().__init__(title="Custom KY BOT metallic colors")
+    def __init__(
+        self,
+        current,
+        render,
+        commit,
+        allowed,
+        *,
+        title="Choose KY BOT colors",
+        field_labels=None,
+        save_label="Save colors",
+    ):
+        super().__init__(title=title)
         self.render, self.commit, self.allowed = render, commit, allowed
+        self.save_label = save_label
         self.fields = {}
         for key, label in (
-            ("base", "Base hex color"),
-            ("highlight", "Highlight hex (blank = automatic)"),
-            ("shadow", "Shadow hex (blank = automatic)"),
-            ("accent", "Iridescent hex (blank = automatic)"),
+            ("base", "Main hex color (for example #7B2CBF)"),
+            ("highlight", "Light color (blank = automatic)"),
+            ("shadow", "Dark color (blank = automatic)"),
+            ("accent", "Shimmer color (blank = automatic)"),
         ):
             field = discord.ui.TextInput(
-                label=label,
+                label=(field_labels or {}).get(key, label),
                 default=(current or {}).get(key) or "",
                 required=key == "base",
                 max_length=7,
@@ -37,7 +48,7 @@ class PaletteModal(discord.ui.Modal):
         palette = parse_palette({key: field.value for key, field in self.fields.items()})
         await i.response.defer(ephemeral=True, thinking=True)
         images = await asyncio.to_thread(self.render, palette)
-        view = PaletteReview(palette, images, self.commit, self.allowed)
+        view = PaletteReview(palette, images, self.commit, self.allowed, save_label=self.save_label)
         files = [discord.File(io.BytesIO(data), filename=name) for name, data in images]
         try:
             await i.edit_original_response(
@@ -55,24 +66,28 @@ class PaletteModal(discord.ui.Modal):
 
 
 class PaletteReview(discord.ui.LayoutView):
-    def __init__(self, palette, images, commit, allowed):
+    def __init__(self, palette, images, commit, allowed, *, save_label="Save colors"):
         super().__init__(timeout=600)
         self.palette, self.commit, self.allowed = palette, commit, allowed
         resolved = resolved_palette(palette)
         panel = discord.ui.Container(accent_colour=int(palette["base"][1:], 16))
         panel.add_item(
             discord.ui.TextDisplay(
-                "**CUSTOM METALLIC COLOR PREVIEW**\n"
-                "Nothing has been saved. Use these colors or discard this preview.\n"
+                "**COLOR PREVIEW**\n"
+                "Preview only. Use the button below to keep these colors, or discard them.\n"
                 + " · ".join(
-                    key.title() + ": #" + "".join(f"{c:02X}" for c in rgb)
+                    {"base": "Main", "highlight": "Light", "shadow": "Dark", "accent": "Shimmer"}[
+                        key
+                    ]
+                    + ": #"
+                    + "".join(f"{c:02X}" for c in rgb)
                     for key, rgb in resolved.items()
                 )
             )
         )
         for name, _ in images:
             panel.add_item(discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://" + name)))
-        use = discord.ui.Button(label="Use these colors", style=discord.ButtonStyle.success)
+        use = discord.ui.Button(label=save_label, style=discord.ButtonStyle.success)
         cancel = discord.ui.Button(label="Discard", style=discord.ButtonStyle.secondary)
         use.callback, cancel.callback = self.use, self.discard
         panel.add_item(discord.ui.ActionRow(use, cancel))

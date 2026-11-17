@@ -289,8 +289,12 @@ class Advice(commands.Cog):
                 raise ValueError("Ask for Advice is paused.")
             if i.channel_id != config["access_channel"]:
                 raise ValueError("Use the current access panel in the configured access channel.")
-            panel, _, _ = await self.store.panel(i.guild_id, config["access_channel"])
-            if not i.message or i.message.id != panel:
+            panel = await self.store.access_panel(i.guild_id, channel)
+            if (
+                not i.message
+                or i.message.id != panel["message"]
+                or i.channel_id != panel["channel"]
+            ):
                 raise ValueError("This panel was replaced. Use the latest access panel.")
             access, advice = roles_for(i.guild, config)
             member = await i.guild.fetch_member(i.user.id)
@@ -537,22 +541,36 @@ class Advice(commands.Cog):
             target_id = config["access_channel"] if access else channel
             if access:
                 await self.apply_access(guild, channel, config)
+                await self.store.access_panel(guild.id, channel)
             target = destination(guild, target_id)
             view = access_panel(channel, config) if access else submission_panel(channel, config)
             self.panel_inflight.add((guild.id, target_id))
             try:
                 message = await self.send_panel(target, view)
-                _, _, retired = await self.store.panel(
-                    guild.id, target_id, message=message.id, clear=True
-                )
-                for old in retired:
+                if access:
+                    saved = await self.store.access_panel(
+                        guild.id, channel, channel=target_id, message=message.id
+                    )
+                    retired = saved["retired"]
+                else:
+                    _, _, previous = await self.store.panel(
+                        guild.id, target_id, message=message.id, clear=True
+                    )
+                    retired = [(target_id, old) for old in previous]
+                for old_channel, old in retired:
                     try:
-                        await target.get_partial_message(old).delete()
+                        previous_target = (
+                            target if old_channel == target_id else destination(guild, old_channel)
+                        )
+                        await previous_target.get_partial_message(old).delete()
                     except discord.NotFound:
                         pass
-                    except discord.HTTPException:
+                    except (ValueError, discord.HTTPException):
                         continue
-                    await self.store.retired_done(guild.id, target_id, old)
+                    if access:
+                        await self.store.access_retired_done(guild.id, channel, old_channel, old)
+                    else:
+                        await self.store.retired_done(guild.id, target_id, old)
                 return message
             finally:
                 self.panel_inflight.discard((guild.id, target_id))

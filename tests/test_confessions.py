@@ -454,6 +454,7 @@ class ConfessionTests(unittest.IsolatedAsyncioTestCase):
             "logging",
             "appearance",
             "artwork",
+            "image_text",
             "lettering",
             "permissions",
             "bans",

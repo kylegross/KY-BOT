@@ -57,6 +57,10 @@ def defaults():
         artwork_finish="silver_neon",
         header_palette=None,
         footer_palette=None,
+        header_text_color=None,
+        footer_text_color=None,
+        footer_image_text="",
+        header_title_on_upload=False,
         text_finish="silver_neon",
         text_color=None,
         logging=False,
@@ -92,7 +96,16 @@ def validate(config):
     result = defaults() | config
     if set(result) != set(defaults()):
         raise ValueError("Unknown confession setting.")
-    for key in ("enabled", "logging", "approval", "replies", "reports", "bans", "sticky"):
+    for key in (
+        "enabled",
+        "logging",
+        "approval",
+        "replies",
+        "reports",
+        "bans",
+        "sticky",
+        "header_title_on_upload",
+    ):
         if type(result[key]) is not bool:
             raise ValueError("Choose on or off.")
     for key, low, high in (
@@ -118,6 +131,8 @@ def validate(config):
         if result[key] not in FINISHES:
             raise ValueError("Choose one of the four standard finishes.")
     result["text_color"] = text_colour(result["text_color"])
+    for key in ("header_text_color", "footer_text_color"):
+        result[key] = text_colour(result[key])
     for key, limit in (
         ("title", 80),
         ("header_title", 80),
@@ -125,6 +140,7 @@ def validate(config):
         ("panel_text", 1000),
         ("submit_label", 80),
         ("footer_text", 200),
+        ("footer_image_text", 80),
     ):
         if not isinstance(result[key], str) or len(result[key]) > limit:
             raise ValueError(f"{key.replace('_', ' ')} must be at most {limit} characters.")

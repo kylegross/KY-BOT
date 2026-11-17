@@ -3,7 +3,10 @@
 from ky_bot.views.menu_strips import GROUPS, group_sections, strip_files
 
 LAYOUTS = {
-    "channels": (("DESTINATION", ("ASK CHANNEL",)),),
+    "channels": (
+        ("CHANNEL & DELIVERY", ("SAVED ASK CHANNELS",)),
+        ("DESTINATION", ("ASK CHANNEL",)),
+    ),
     "main": (
         ("CHANNEL & DELIVERY", ("CHANNELS & ROLES", "DELIVERY & PRIVACY")),
         ("DESIGN", ("APPEARANCE", "ACCESS PANEL SECTIONS")),
@@ -21,23 +24,22 @@ LAYOUTS = {
     ),
     "destinations": (("CHANNELS & LOGGING", ("APPROVAL CHANNEL", "AUTHOR LOG CHANNEL")),),
     "style": (
-        ("DESIGN", ("HEADER & FOOTER", "COLORS & FOOTER TEXT", "DECORATIVE TEXT FINISH")),
+        ("DESIGN", ("HEADER & FOOTER", "PANEL TEXT & HIGHLIGHT", "PANEL HEADING COLORS")),
         ("MESSAGE", ("ASK CHANNEL PANEL", "ACCESS PANEL TEXT")),
     ),
     "artwork": (
-        (
-            "DESIGN",
-            (
-                "HEADER IMAGE",
-                "FOOTER IMAGE",
-                "HEADER IMAGE TITLE & COLOR",
-                "HEADER IMAGE TITLE FINISH",
-                "ARTWORK FINISH",
-                "CUSTOM HEADER COLORS",
-                "CUSTOM FOOTER COLORS",
-            ),
-        ),
-        ("REVIEW & PUBLISH", ("STANDARD ARTWORK", "PREVIEW ARTWORK")),
+        ("DESIGN", ("HEADER IMAGE", "FOOTER IMAGE")),
+        ("REVIEW & PUBLISH", ("PREVIEW PANELS", "PUBLISH CHANGES")),
+    ),
+    "header_artwork": (
+        ("HEADER IMAGE", ("IMAGE SOURCE", "UPLOAD IMAGE", "IMAGE COLORS", "RESET IMAGE")),
+        ("TITLE", ("TITLE TEXT", "TITLE COLOR", "TITLE ON YOUR UPLOADED IMAGE")),
+        ("REVIEW & PUBLISH", ("PREVIEW PANELS", "PUBLISH CHANGES")),
+    ),
+    "footer_artwork": (
+        ("FOOTER IMAGE", ("IMAGE SOURCE", "UPLOAD IMAGE", "IMAGE COLORS", "RESET IMAGE")),
+        ("TITLE", ("FOOTER IMAGE TEXT",)),
+        ("REVIEW & PUBLISH", ("PREVIEW PANELS", "PUBLISH CHANGES")),
     ),
     "sections": (("MESSAGE", ("PANEL SECTIONS", "ADD SECTION")),),
     "section": (

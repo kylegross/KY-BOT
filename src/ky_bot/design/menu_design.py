@@ -8,15 +8,15 @@ from PIL import Image, ImageOps
 
 from ky_bot.checklists.artwork import png
 from ky_bot.design.collection import floral_background
-from ky_bot.design.footers import centered_overlay, read_upload, rectangular_frame, text_ink
+from ky_bot.design.footers import centered_overlay, read_upload, rectangular_frame
 from ky_bot.design.headers import render_header
 from ky_bot.design.typography import text_mask
 
 FINISHES = {
-    "gold": "Iridescent gold",
-    "dark_silver": "Iridescent dark silver",
-    "silver_neon": "Multicolor iridescent silver",
-    "red_iridescent": "Multicolor iridescent red",
+    "gold": "Gold",
+    "dark_silver": "Dark silver",
+    "silver_neon": "Silver",
+    "red_iridescent": "Red",
 }
 AUTOMATION_KEYS = ("autodelete", "autothread", "autoreact")
 
@@ -39,6 +39,8 @@ def default_profile(key):
         text_color=None,
         header_palette=None,
         footer_palette=None,
+        header_text_color=None,
+        footer_text_color=None,
     )
 
 
@@ -94,7 +96,7 @@ def render_menu(profile, title):
             height=height,
             title=profile["title"] or title,
             rotated_divider=profile.get("_rotated_divider", False),
-            text_color=profile.get("text_color"),
+            text_color=profile.get("header_text_color") or profile.get("text_color"),
         )
     with using_palette(profile.get("footer_palette")):
         style = "dark_silver" if profile.get("footer_palette") else profile["style"]
@@ -109,7 +111,11 @@ def render_menu(profile, title):
             mask = text_mask(
                 profile["footer_text"], role="display", size=52, min_size=24, max_width=1000
             )
-            ink = text_ink(mask, style, profile.get("text_color"))
+            from .image_text import metallic_ink
+
+            ink = metallic_ink(
+                mask, style, profile.get("footer_text_color") or profile.get("text_color")
+            )
             footer.alpha_composite(ink, ((1600 - mask.width) // 2, (150 - mask.height) // 2))
         elif profile["footer_icon"]:
             icon = ImageOps.contain(

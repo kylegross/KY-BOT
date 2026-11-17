@@ -20,16 +20,30 @@ LAYOUTS = {
         ("ADMINISTRATION", ("PENDING APPROVALS", "REPORTS", "CONFESSION BANS")),
     ),
     "appearance": (
-        ("DESIGN", ("HEADER & FOOTER DESIGN", "DECORATIVE TEXT", "EMBED COLOR & TITLES")),
+        ("DESIGN", ("HEADER & FOOTER IMAGES", "PANEL HEADING COLORS", "EMBED COLOR & TITLES")),
         ("MESSAGE", ("SUBMISSION PANEL TEXT",)),
         ("REVIEW & PUBLISH", ("PREVIEW",)),
     ),
     "artwork": (
-        ("DESIGN", ("ARTWORK FINISH", "HEADER TITLE", "HEADER ARTWORK", "FOOTER ARTWORK")),
+        (
+            "DESIGN",
+            (
+                "KY BOT IMAGE COLORS",
+                "HEADER ARTWORK",
+                "FOOTER ARTWORK",
+                "CUSTOM HEADER COLORS",
+                "CUSTOM FOOTER COLORS",
+            ),
+        ),
+        ("MESSAGE", ("TEXT ON IMAGES",)),
         ("REVIEW & PUBLISH", ("USE STANDARD ARTWORK", "PREVIEW")),
     ),
+    "image_text": (
+        ("MESSAGE", ("HEADER TITLE", "TITLE ON UPLOADED HEADER", "FOOTER IMAGE TEXT")),
+        ("REVIEW & PUBLISH", ("PREVIEW",)),
+    ),
     "lettering": (
-        ("DESIGN", ("TEXT FINISH", "CUSTOM TEXT COLOR")),
+        ("DESIGN", ("PANEL HEADING COLORS", "CUSTOM TEXT COLOR")),
         ("MESSAGE", ("CONFESSION & FOOTER TEXT", "PANEL HEADING & MESSAGE")),
         ("REVIEW & PUBLISH", ("PREVIEW",)),
     ),

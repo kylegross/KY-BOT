@@ -3,6 +3,12 @@
 Open **Command Center → Community → Ask for Advice**. Choose an ask channel,
 then configure its separate access/response channel and two existing roles.
 
+You can configure several ask channels independently. The saved-channel list lets
+administrators switch setups or add another channel. Each setup has its own roles,
+panels, artwork, approvals, notifications and logs. Use distinct roles when you want
+Join/Leave to affect only that setup. Access panels may share an entrance channel;
+publishing one setup's panel does not replace another setup's panel.
+
 - **Join** grants the selected View Advice role.
 - **Leave** removes the advice role first, then the View Advice role.
 - **Give Advice** grants the selected advice role only after joining.
@@ -31,11 +37,25 @@ New-question notifications are optional and happen after publication, including
 after approval. They mention only the configured advice role. Make that role
 mentionable or allow KY BOT to mention it in the ask channel.
 
-Appearance includes the same standard artwork/lettering finishes as Confessions,
-custom header/footer uploads, a header image title, decorative text color, accent
-color, optional footer text, question/advice headings, and the ask-channel prompt.
-Header title color/finish can be set independently, and standard headers and footers
-support custom base/highlight/shadow/iridescent palettes with private previews.
+Open **Appearance → Header & Footer**, then choose **Edit header** or **Edit footer**.
+Each image has its own upload, preset colors, custom colors, text and reset controls.
+The header's **Title Text** and **Title Color** controls are separate from the panel
+heading colors. **Footer Image Text** adds text inside the bottom image; the optional
+small footer line below the message is a separate setting.
+
+Choose **Custom colors…**, preview the result, and select **Save header colors** or
+**Save footer colors** to keep the choice. The editor shows the saved images and
+current color. Saving or changing one image does not reset the other image. Use
+**Publish changes** when ready to update the panels already posted in Discord.
+
+Text added by KY BOT keeps its metallic highlights on both standard artwork and
+uploaded pictures. Editing a header title/color enables that title on an uploaded
+header; the **Title on your uploaded image** switch can hide it again. Existing
+text baked into the uploaded picture is not removed or recolored.
+
+Panel headings, the side highlight, question/advice headings, and the ask-channel
+prompt are edited separately from image colors. Standard artwork supports a main
+color plus optional light, dark and shimmer colors, with private previews.
 The default branding footer text is omitted. Settings pages use the Command Center's
 category headings, fine rules, and spacing. The
 access-panel editor supports section/row edits, adding/removing/reordering,

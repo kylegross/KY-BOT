@@ -389,17 +389,34 @@ class AppearanceModal(discord.ui.Modal):
                         48,
                     ),
                     ("height", "Header height (240–800 pixels)", str(profile["height"]), 3),
-                    ("footer_text", "Footer text (blank uses icon)", profile["footer_text"], 80),
+                    (
+                        "footer_text",
+                        "Footer image text (blank uses icon)",
+                        profile["footer_text"],
+                        80,
+                    ),
                 ]
             )
             if formatting:
                 specs = [
                     (
                         "text_color",
-                        "Text color · #RRGGBB (blank follows finish)",
+                        "Default text hex (blank uses preset)",
                         profile.get("text_color") or "",
                         7,
-                    )
+                    ),
+                    (
+                        "header_text_color",
+                        "Header text hex (blank uses default)",
+                        profile.get("header_text_color") or "",
+                        7,
+                    ),
+                    (
+                        "footer_text_color",
+                        "Footer text hex (blank uses default)",
+                        profile.get("footer_text_color") or "",
+                        7,
+                    ),
                 ]
             for key, label, value, limit in specs:
                 field = discord.ui.TextInput(
@@ -438,10 +455,15 @@ class AppearanceModal(discord.ui.Modal):
                             raise ValueError(f"Enter a number from {low} to {high}.")
                 if any(any(ord(c) < 32 for c in v) for v in values.values() if isinstance(v, str)):
                     raise ValueError("Use single-line text.")
-                if "text_color" in values:
+                if any(
+                    key in values
+                    for key in ("text_color", "header_text_color", "footer_text_color")
+                ):
                     from ky_bot.design.text_colour import text_colour
 
-                    values["text_color"] = text_colour(values["text_color"])
+                    for key in ("text_color", "header_text_color", "footer_text_color"):
+                        if key in values:
+                            values[key] = text_colour(values[key])
                 if "title" in values:
                     values["title"] = values["title"] or None
                 s.change(**values)
@@ -495,7 +517,7 @@ class Editor(discord.ui.LayoutView):
                 sample.remove_item(item)
                 self.add_item(item)
         panel = discord.ui.Container(accent_colour=0xD6E2F3)
-        self.category_title = {"targets": "SELECT MENUS", "finish": "LETTERING FINISH"}.get(
+        self.category_title = {"targets": "SELECT MENUS", "finish": "DESIGN"}.get(
             page, "MENU APPEARANCE"
         )
         if sample:
@@ -505,6 +527,13 @@ class Editor(discord.ui.LayoutView):
             add_strip(panel, self.category_title)
         if notice:
             panel.add_item(discord.ui.TextDisplay(notice))
+        if page == "edit":
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    "Choose the menus to update, set images/text/colors, "
+                    "then Preview and Apply design to save."
+                )
+            )
 
         def row(title, description, label, action, *, disabled=False, private=False):
             button = discord.ui.Button(label=label, disabled=disabled)
@@ -625,7 +654,10 @@ class Editor(discord.ui.LayoutView):
                         await s.show(i)
 
                     row(
-                        label.upper(), "Artwork, text and accent follow this finish.", label, choose
+                        label.upper(),
+                        "Use this preset for both images; replaces their custom artwork colors.",
+                        label,
+                        choose,
                     )
             if page == "finish" and s.selected != ["welcome_image"]:
                 for part in ("header", "footer"):
@@ -657,7 +689,14 @@ class Editor(discord.ui.LayoutView):
                             )
 
                         await i.response.send_modal(
-                            PaletteModal(profile.get(part + "_palette"), render, commit, allowed)
+                            PaletteModal(
+                                profile.get(part + "_palette"),
+                                render,
+                                commit,
+                                allowed,
+                                title="Choose " + part + " colors",
+                                save_label="Use in draft",
+                            )
                         )
 
                     async def launch(i, part=part, custom=custom):
@@ -691,7 +730,7 @@ class Editor(discord.ui.LayoutView):
                 await s.show(i, "finish")
 
             row(
-                "FINISH",
+                "ARTWORK COLORS",
                 "Custom metallic colors"
                 if any(
                     s.drafts[key].get("header_palette") or s.drafts[key].get("footer_palette")
@@ -705,7 +744,7 @@ class Editor(discord.ui.LayoutView):
                 disabled=not active,
             )
             row(
-                "APPEARANCE",
+                "TEXT & IMAGE SIZE",
                 (
                     f"{safe(current['title'] or 'Default title')} · Darkening {current['dim']}%"
                     if welcome
@@ -726,9 +765,10 @@ class Editor(discord.ui.LayoutView):
             )
             if not welcome:
                 row(
-                    "FORMATTING",
-                    "Decorative text color: " + (current.get("text_color") or "Follow finish"),
-                    "Text color",
+                    "TEXT COLORS",
+                    "Set a default text color, then optional separate header/footer colors. "
+                    "Image text keeps its metallic shine on your uploaded backgrounds.",
+                    "Edit colors",
                     (None, "formatting"),
                     disabled=not active,
                 )

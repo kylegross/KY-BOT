@@ -1352,7 +1352,7 @@ class Admin(Panel):
                     else item["title"]
                 )
                 or "No header lettering",
-                "Edit header text",
+                "Edit text & color",
                 self.edit_header_text,
             )
         else:
@@ -1390,7 +1390,7 @@ class Admin(Panel):
                 self.row(
                     "FOOTER IMAGE TEXT",
                     safe(item.get("footer_banner_text", "")) or "No text yet",
-                    "Edit footer text",
+                    "Edit text & color",
                     self.edit_footer_text,
                 )
             elif content == "icon":
@@ -1434,7 +1434,7 @@ class Admin(Panel):
             self.picker(select, source)
         finish = item.get(kind + "_finish", "dark_silver")
         self.row(
-            "KY BOT FINISH",
+            "KY BOT IMAGE COLORS",
             "Custom metallic colors" if item.get(kind + "_palette") else FINISHES[finish],
             "Choose",
             self.go(self.page, self.selected, pick="finish"),
@@ -1488,8 +1488,8 @@ class Admin(Panel):
             )
 
         self.row(
-            "CUSTOM METALLIC COLORS",
-            "Preview a base hex with optional shine, shadow and accent colors.",
+            "CUSTOM IMAGE COLORS",
+            "Choose a main color and optional light, dark and shimmer colors.",
             "Custom colors",
             custom_colors,
         )
@@ -1706,7 +1706,12 @@ class Admin(Panel):
         value = item.get("header_title")
 
         async def commit(i, values):
-            await self.set_panel_art(i, {"header_title": values["text"]})
+            from ky_bot.design.text_colour import text_colour
+
+            await self.set_panel_art(
+                i,
+                {"header_title": values["text"], "header_text_color": text_colour(values["color"])},
+            )
 
         await i.response.send_modal(
             Edit(
@@ -1718,7 +1723,13 @@ class Admin(Panel):
                         "Text inside the header (blank removes)",
                         item["title"] if value is None else value,
                         80,
-                    )
+                    ),
+                    (
+                        "color",
+                        "Metallic text hex (blank uses artwork)",
+                        item.get("header_text_color") or "",
+                        7,
+                    ),
                 ],
                 commit,
             )
@@ -1755,10 +1766,13 @@ class Admin(Panel):
         item = self.config["panels"][self.selected]
 
         async def commit(i, values):
+            from ky_bot.design.text_colour import text_colour
+
             await self.set_panel_art(
                 i,
                 {
                     "footer_banner_text": values["text"],
+                    "footer_text_color": text_colour(values["color"]),
                     "footer_content": "text" if values["text"] else "emblem",
                 },
             )
@@ -1773,7 +1787,13 @@ class Admin(Panel):
                         "Text inside the footer (blank resets)",
                         item.get("footer_banner_text", ""),
                         80,
-                    )
+                    ),
+                    (
+                        "color",
+                        "Metallic text hex (blank uses artwork)",
+                        item.get("footer_text_color") or "",
+                        7,
+                    ),
                 ],
                 commit,
             )

@@ -49,3 +49,15 @@ def custom_image(kind, palette):
     stream = io.BytesIO()
     image.save(stream, format="PNG")
     return base64.b64encode(stream.getvalue()).decode("ascii")
+
+
+def footer_text_background(finish, palette=None):
+    from ky_bot.design.metallic import using_palette
+
+    with using_palette(palette):
+        style = "dark_silver" if palette else finish
+        image = floral_background(style, (1600, 150))
+        image.alpha_composite(rectangular_frame(style, image.size))
+    stream = io.BytesIO()
+    image.save(stream, "PNG")
+    return stream.getvalue()

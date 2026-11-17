@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw, ImageOps
 
 from ky_bot.checklists.artwork import png
 from ky_bot.design.collection import COLOURS, floral_background
-from ky_bot.design.footers import centered_overlay, rectangular_frame, text_ink
+from ky_bot.design.footers import centered_overlay, rectangular_frame
 from ky_bot.design.headers import asset, render_header
 
 from .headings import DIVIDER, lettering
@@ -37,7 +37,9 @@ def banner_title(title, text_finish, text_color):
     mask = banner_mask(title)
     layer = Image.new("RGBA", (1600, 260))
     left, top = (1600 - mask.width) // 2, (260 - mask.height) // 2
-    layer.alpha_composite(text_ink(mask, text_finish, text_color), (left, top))
+    from ky_bot.design.image_text import metallic_ink
+
+    layer.alpha_composite(metallic_ink(mask, text_finish, text_color), (left, top))
     from ky_bot.design.metallic import base_color
 
     pen = ImageDraw.Draw(layer)
@@ -82,3 +84,36 @@ def _standard_artwork(kind, finish, title, text_finish, text_color):
     image = Image.open(io.BytesIO(raw)).convert("RGBA")
     image.alpha_composite(banner_title(title, text_finish, text_color))
     return png(image)
+
+
+def configured_artwork(config, kind, renderer=None):
+    import base64
+
+    from ky_bot.design.image_text import add_image_text
+    from ky_bot.design.metallic import using_palette
+
+    finish = config.get(kind + "_artwork_finish") or config["artwork_finish"]
+    palette = config.get(kind + "_palette")
+    color = config.get(kind + "_text_color")
+    text = config["header_title"] if kind == "header" else config.get("footer_image_text", "")
+    if config[kind]:
+        raw = base64.b64decode(config[kind])
+        if kind == "header" and not config.get("header_title_on_upload", False):
+            return raw
+        return add_image_text(raw, text, kind, finish, color)
+    if kind == "footer" and text:
+        with using_palette(palette):
+            style = "dark_silver" if palette else finish
+            image = floral_background(style, (1600, 150))
+            image.alpha_composite(rectangular_frame(style, image.size))
+            return add_image_text(png(image), text, kind, style, color)
+    return (renderer or standard_artwork)(
+        kind,
+        finish,
+        config["header_title"],
+        config.get("header_text_finish") or finish,
+        color,
+        tuple(palette.get(key) for key in ("base", "highlight", "shadow", "accent"))
+        if palette
+        else None,
+    )

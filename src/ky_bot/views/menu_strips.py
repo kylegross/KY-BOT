@@ -82,12 +82,15 @@ GROUPS = {
             (
                 "HEADER IMAGE",
                 "HEADER FILE",
-                "HEADER FINISH",
-                "HEADER IMAGE TITLE",
+                "HEADER IMAGE COLORS",
                 "REMOVE HEADER IMAGE",
             ),
         ),
-        ("FOOTER IMAGE", ("FOOTER IMAGE", "FOOTER FILE", "FOOTER FINISH", "REMOVE FOOTER IMAGE")),
+        (
+            "FOOTER IMAGE",
+            ("FOOTER IMAGE", "FOOTER FILE", "FOOTER IMAGE COLORS", "REMOVE FOOTER IMAGE"),
+        ),
+        ("TITLE", ("TEXT ON HEADER & FOOTER",)),
     ),
     "custom_embeds:style": (("DESIGN", ("HIGHLIGHT COLOR",)),),
     "custom_embeds:delivery": (

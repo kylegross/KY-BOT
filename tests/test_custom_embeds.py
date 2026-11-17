@@ -86,9 +86,9 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertEqual(
             [name for _, name in headings],
-            ["ky_strip_header_image.png", "ky_strip_footer_image.png"],
+            ["ky_strip_header_image.png", "ky_strip_footer_image.png", "ky_strip_title.png"],
         )
-        for label in ("HEADER FILE", "HEADER FINISH", "FOOTER FILE", "FOOTER FINISH"):
+        for label in ("HEADER FILE", "HEADER IMAGE COLORS", "FOOTER FILE", "FOOTER IMAGE COLORS"):
             self.assertIn("**" + label + "**", str(view.to_components()))
         footer_index = headings[1][0]
         back_index = next(
@@ -380,7 +380,7 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
                     item
                     for item in view.walk_children()
                     if isinstance(item, discord.ui.Select)
-                    and item.placeholder == f"Choose a standard {key}"
+                    and item.placeholder == f"Choose KY BOT {key} colors"
                 )
                 self.assertEqual([option.value for option in picker.options], list(FINISHES))
                 picker._values = [finish]

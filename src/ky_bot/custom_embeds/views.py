@@ -400,11 +400,12 @@ class EditModal(discord.ui.Modal):
                 "content": "Embed content",
                 "title": "Edit title",
                 "header_title": "Header image title",
+                "image_text": "Header and footer image text",
                 "body": "Edit message",
                 "footer_text": "Edit footer text",
                 "name": "Saved draft name",
                 "color": "Custom highlight color",
-                "text_color": "Decorative text color",
+                "text_color": "Panel heading color",
                 "section_add": "Add section",
                 "section_edit": "Edit section",
                 "count": "Sticky message count",
@@ -445,6 +446,36 @@ class EditModal(discord.ui.Modal):
                 ("title", "Title (optional)", draft["title"], 200, False),
                 ("body", "Message · Discord formatting supported", draft["body"], 3500, False),
                 ("footer_text", "Footer text (optional)", draft["footer_text"], 200, False),
+            ],
+            "image_text": [
+                (
+                    "header_title",
+                    "Header image text (blank removes)",
+                    draft.get("header_title", ""),
+                    80,
+                    False,
+                ),
+                (
+                    "header_text_color",
+                    "Header metallic hex (blank uses artwork)",
+                    draft.get("header_text_color") or "",
+                    7,
+                    False,
+                ),
+                (
+                    "footer_image_text",
+                    "Footer image text (blank removes)",
+                    draft.get("footer_image_text", ""),
+                    80,
+                    False,
+                ),
+                (
+                    "footer_text_color",
+                    "Footer metallic hex (blank uses artwork)",
+                    draft.get("footer_text_color") or "",
+                    7,
+                    False,
+                ),
             ],
             "text_color": [
                 (
@@ -750,9 +781,9 @@ class Editor(Base):
 
                 from .artwork import standard_image
 
-                self.text(f"**{key.upper()} FINISH**\nOr choose a standard KY BOT design.")
+                self.text(f"**{key.upper()} IMAGE COLORS**\nChoose colors for a KY BOT design.")
                 picker = discord.ui.Select(
-                    placeholder=f"Choose a standard {key}",
+                    placeholder=f"Choose KY BOT {key} colors",
                     options=[
                         discord.SelectOption(
                             label=label,
@@ -769,7 +800,11 @@ class Editor(Base):
                         i,
                         revision,
                         **(
-                            {key: standard_image(key, picker.values[0]), key + "_palette": None}
+                            {
+                                key: standard_image(key, picker.values[0]),
+                                key + "_palette": None,
+                                key + "_finish": picker.values[0],
+                            }
                             | ({"header_finish": picker.values[0]} if key == "header" else {})
                         ),
                     )
@@ -795,7 +830,11 @@ class Editor(Base):
                     async def commit(i, palette):
                         await i.response.defer()
                         image = await asyncio.to_thread(custom_image, key, palette)
-                        changes = {key: image, key + "_palette": palette}
+                        changes = {
+                            key: image,
+                            key + "_palette": palette,
+                            key + "_finish": "dark_silver",
+                        }
                         if key == "header":
                             changes["header_finish"] = "dark_silver"
                         await s.save(i, revision, **changes)
@@ -810,15 +849,6 @@ class Editor(Base):
                     + " COLORS**\nPreview a metallic palette before saving it.",
                     button("Custom colors", custom_colors),
                 )
-                if key == "header":
-                    self.row(
-                        "**HEADER IMAGE TITLE**\n"
-                        + (
-                            safe(data.get("header_title", ""))
-                            or "No image title yet. Appears inside the header image."
-                        ),
-                        button("Edit header title", modal("header_title")),
-                    )
                 if data[key]:
 
                     async def remove(i, key=key):
@@ -829,6 +859,11 @@ class Editor(Base):
                         f"**REMOVE {title}**\nClear it from this draft.",
                         button("Remove", remove),
                     )
+            self.row(
+                "**TEXT ON HEADER & FOOTER**\nAdd text and choose its metallic colors. "
+                "Works with KY BOT artwork and your uploaded images.",
+                button("Edit text & colors", modal("image_text")),
+            )
             self.text(
                 "-# Images are saved with the embed so sticky reposts keep working "
                 "after restarts. Animated images are converted to a static PNG."

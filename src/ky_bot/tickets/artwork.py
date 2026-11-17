@@ -30,7 +30,16 @@ def normalize(data, kind):
 
 
 @lru_cache(maxsize=32)
-def standard(title, finish, footer_text="", footer_icon=None, footer_background=None, palette=None):
+def standard(
+    title,
+    finish,
+    footer_text="",
+    footer_icon=None,
+    footer_background=None,
+    palette=None,
+    header_color=None,
+    footer_color=None,
+):
     profile = default_profile("tickets")
     profile.update(
         style=finish,
@@ -38,6 +47,8 @@ def standard(title, finish, footer_text="", footer_icon=None, footer_background=
         footer_text=footer_text,
         footer_icon=footer_icon,
         footer_background=footer_background,
+        header_text_color=header_color,
+        footer_text_color=footer_color,
     )
     if palette:
         colors = dict(zip(("base", "highlight", "shadow", "accent"), palette))
@@ -71,15 +82,20 @@ def public_files(panel, config=None, token=None, page=0):
                         panel.get("header_finish", "dark_silver"),
                         height=280,
                         title=panel["header_title"],
+                        text_color=panel.get("header_text_color"),
                     )
             else:
                 title = panel.get("header_title")
                 if title is None:
                     title = panel["title"]
                 title = (title or None) if kind == "header" else "KY BOT"
-                data = standard(title, panel.get(kind + "_finish", "dark_silver"), palette=palette)[
-                    index
-                ]
+                data = standard(
+                    title,
+                    panel.get(kind + "_finish", "dark_silver"),
+                    palette=palette,
+                    header_color=panel.get("header_text_color"),
+                    footer_color=panel.get("footer_text_color"),
+                )[index]
             if kind == "footer" and panel.get("footer_content", "emblem") in {
                 "text",
                 "icon",
@@ -95,6 +111,7 @@ def public_files(panel, config=None, token=None, page=0):
                     icon,
                     background,
                     palette,
+                    footer_color=panel.get("footer_text_color"),
                 )[1]
             result.append(discord.File(io.BytesIO(data), filename=f"ticket_panel_{kind}.png"))
         if config is not None:

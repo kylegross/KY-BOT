@@ -103,6 +103,8 @@ def new_panel(name, channel=0):
         footer_finish="dark_silver",
         footer_custom=None,
         header_title=None,
+        header_text_color=None,
+        footer_text_color=None,
         footer_content="emblem",
         footer_banner_text="",
         footer_icon=None,
@@ -170,6 +172,10 @@ def validate(config):
 
         parse_palette(panel.get("header_palette"))
         parse_palette(panel.get("footer_palette"))
+        from ky_bot.design.text_colour import text_colour
+
+        for key in ("header_text_color", "footer_text_color"):
+            panel[key] = text_colour(panel.get(key))
         for position, limit in (("before", 1500), ("after", 1000)):
             text = panel_text(panel, position)
             style = panel.get(position + "_style", "plain")

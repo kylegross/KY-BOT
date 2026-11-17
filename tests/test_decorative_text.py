@@ -250,7 +250,9 @@ class DecorativeTextTests(unittest.IsolatedAsyncioTestCase):
         self.assertLessEqual(view.total_children_count, 40)
         view.stop()
         modal = AppearanceModal(design, formatting=True)
-        self.assertEqual(set(modal.fields), {"text_color"})
+        self.assertEqual(
+            set(modal.fields), {"text_color", "header_text_color", "footer_text_color"}
+        )
         modal.stop()
 
 

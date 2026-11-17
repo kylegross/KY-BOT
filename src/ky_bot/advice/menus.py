@@ -6,7 +6,6 @@ import discord
 
 from ky_bot.confessions.command import destination
 from ky_bot.confessions.menus import Artwork
-from ky_bot.design.menu_design import FINISHES
 from ky_bot.errors import report_error, send_private
 from ky_bot.views.menu_context import display_menu, menu_parent
 from ky_bot.views.sections import section_dividers
@@ -15,6 +14,13 @@ from .command import administrator
 from .layout import arrange, attachments
 from .panels import Panel, access_panel, artwork_bytes, submission_panel
 from .store import defaults, validate
+
+COLOR_NAMES = {
+    "silver_neon": "Silver",
+    "dark_silver": "Dark silver",
+    "gold": "Gold",
+    "red_iridescent": "Red",
+}
 
 
 class Edit(discord.ui.Modal):
@@ -65,6 +71,7 @@ class Admin(discord.ui.LayoutView):
         self.cog, self.owner, self.guild, self.parent = cog, owner, guild, parent
         self.channel, self.revision, self.config = 0, None, defaults()
         self.page, self.section, self.row = "channels", 0, 0
+        self.channel_page = 0
 
     async def allowed(self, i):
         if i.user.id != self.owner or i.guild_id != self.guild:
@@ -92,9 +99,19 @@ class Admin(discord.ui.LayoutView):
         await self.allowed(i)
         config = validate(self.config | changes)
         for key in ("access_channel", "log_channel", "queue_channel"):
-            if config[key]:
+            required = (key == "log_channel" and changes.get("logging") is True) or (
+                key == "queue_channel"
+                and any(changes.get(flag) is True for flag in ("approval", "response_approval"))
+            )
+            if config[key] and (key in changes or required):
                 destination(i.guild, config[key], private=key != "access_channel")
-        if config["enabled"]:
+        if config["enabled"] and (
+            changes.get("enabled") is True
+            or any(
+                key in changes
+                for key in ("access_channel", "access_role", "advice_role", "notifications")
+            )
+        ):
             await self.cog.validate_setup(i.guild, self.channel, config)
         self.revision, self.config = await self.cog.store.configure(
             self.guild, self.channel, revision, **changes
@@ -118,14 +135,70 @@ class Admin(discord.ui.LayoutView):
 
         return self.button(label, go)
 
-    def picker(self, panel, item, callback):
+    def picker(self, panel, item, callback, *, modal=False):
         async def choose(i):
             await self.allowed(i)
-            await i.response.defer()
+            if not modal:
+                await i.response.defer()
             await callback(i, item.values)
 
         item.callback = choose
         panel.add_item(discord.ui.ActionRow(item))
+
+    def image_status(self, kind):
+        if self.config[kind]:
+            return "Your uploaded image"
+        palette = self.config.get(kind + "_palette")
+        if palette:
+            return "Custom colors · " + str(palette["base"])
+        finish = self.config.get(kind + "_artwork_finish") or self.config["artwork_finish"]
+        return "KY BOT artwork · " + COLOR_NAMES[finish]
+
+    async def open_palette(self, i, kind):
+        from ky_bot.design.palette_editor import PaletteModal
+
+        await self.allowed(i)
+        # The preview is private. Its callbacks must not be authorized as shared-panel clicks.
+        private = Admin(self.cog, self.owner, self.guild)
+        private.channel, private.revision = self.channel, self.revision
+        private.config = copy.deepcopy(self.config)
+        private.page = kind + "_artwork"
+        revision, snapshot = private.revision, copy.deepcopy(private.config)
+
+        async def allowed(event):
+            await private.allowed(event)
+            return True
+
+        def render(palette):
+            config = snapshot | {kind: None, kind + "_palette": palette}
+            return [("advice_custom_" + kind + ".png", artwork_bytes(config, kind))]
+
+        async def commit(event, palette):
+            await event.response.defer(ephemeral=True)
+            await private.save(event, revision, **{kind: None, kind + "_palette": palette})
+            await private.show(
+                event,
+                private.page,
+                f"{kind.title()} colors saved for <#{private.channel}>. "
+                "Choose Publish changes to update the posted panels.",
+            )
+
+        await i.response.send_modal(
+            PaletteModal(
+                self.config.get(kind + "_palette"),
+                render,
+                commit,
+                allowed,
+                title="Choose " + kind + " colors",
+                save_label="Save " + kind + " colors",
+                field_labels={
+                    "base": "Main hex color (for example #7B2CBF)",
+                    "highlight": "Light color (blank = automatic)",
+                    "shadow": "Dark color (blank = automatic)",
+                    "accent": "Shimmer color (blank = automatic)",
+                },
+            )
+        )
 
     def setting(self, panel, title, text, button):
         panel.add_item(discord.ui.Section(f"**{title}**\n-# {text}", accessory=button))
@@ -190,6 +263,12 @@ class Admin(discord.ui.LayoutView):
             for key in ("color", "text_color", "header_text_color"):
                 if key in values:
                     values[key] = values[key].lstrip("#") or None
+            if "header_text_color" in values:
+                values["header_text_finish"] = None
+            if self.config["header"] and (
+                "header_title" in values or "header_text_color" in values
+            ):
+                values["header_title_on_upload"] = True
             await self.save(click, self.revision, **values)
             await self.show(click, page or self.page, "Saved.")
 
@@ -220,26 +299,88 @@ class Admin(discord.ui.LayoutView):
         if self.channel:
             self.revision, self.config = await self.cog.store.config(self.guild, self.channel)
         self.clear_items()
-        view = Panel(defaults())
+        appearance_page = page in {"style", "artwork", "header_artwork", "footer_artwork"}
+        menu_config = self.config | {"footer_text": ""} if appearance_page else defaults()
+        view = Panel(menu_config)
         panel = view.panel
         if notice:
             panel.add_item(discord.ui.TextDisplay(notice))
         if page == "channels":
+            saved = sorted(await self.cog.store.channels(self.guild), key=lambda item: item[1])
+            if saved:
+                self.channel_page = min(self.channel_page, (len(saved) - 1) // 25)
+                options = []
+                for _, channel_id, config in saved[
+                    self.channel_page * 25 : self.channel_page * 25 + 25
+                ]:
+                    target = getattr(getattr(i, "guild", None), "get_channel", lambda _: None)(
+                        channel_id
+                    )
+                    label = "#" + getattr(target, "name", str(channel_id))
+                    options.append(
+                        discord.SelectOption(
+                            label=label[:100],
+                            value=str(channel_id),
+                            description="Enabled"
+                            if config["enabled"]
+                            else "Paused / setup in progress",
+                        )
+                    )
+                panel.add_item(
+                    discord.ui.TextDisplay(
+                        "**SAVED ASK CHANNELS**\n"
+                        "Choose a setup to manage its own roles, panels and settings."
+                    )
+                )
+
+                async def select_saved(click, values):
+                    self.channel = int(values[0])
+                    self.section, self.row = 0, 0
+                    await self.show(click, "main")
+
+                self.picker(
+                    panel,
+                    discord.ui.Select(placeholder="Manage a saved ask channel", options=options),
+                    select_saved,
+                )
+                if len(saved) > 25:
+                    controls = discord.ui.ActionRow()
+                    for delta, label in ((-1, "Previous channels"), (1, "Next channels")):
+
+                        async def turn(click, delta=delta):
+                            self.channel_page += delta
+                            await self.show(click, "channels")
+
+                        controls.add_item(
+                            self.button(
+                                label,
+                                turn,
+                                disabled=not (
+                                    0 <= self.channel_page + delta <= (len(saved) - 1) // 25
+                                ),
+                            )
+                        )
+                    panel.add_item(controls)
             panel.add_item(
                 discord.ui.TextDisplay(
-                    "**ASK CHANNEL**\nChoose the ask channel to create or edit its settings. "
-                    "Members join through a separate access channel."
+                    "**ASK CHANNEL**\nChoose another ask channel to add a separate setup, "
+                    "or select an existing channel to edit it. "
+                    "Each has its own roles, access panel, approvals and appearance."
                 )
             )
 
             async def select_channel(click, values):
                 self.channel = values[0].id
+                self.section, self.row = 0, 0
+                revision, _ = await self.cog.store.config(self.guild, self.channel)
+                if revision is None:
+                    await self.cog.store.configure(self.guild, self.channel, None)
                 await self.show(click, "main")
 
             self.picker(
                 panel,
                 discord.ui.ChannelSelect(
-                    placeholder="Choose an ask channel",
+                    placeholder="Add or choose an ask channel",
                     channel_types=[discord.ChannelType.text],
                 ),
                 select_channel,
@@ -249,25 +390,29 @@ class Admin(discord.ui.LayoutView):
             for title, text, target in (
                 (
                     "CHANNELS & ROLES",
-                    "Access panel, channel visibility, and both member roles.",
+                    "1. Choose where members join and which roles the buttons give.",
                     "roles",
                 ),
                 (
                     "DELIVERY & PRIVACY",
-                    "Approval, logging, notifications, and repost settings.",
+                    "2. Choose log/approval channels, then turn the options you want on.",
                     "delivery",
                 ),
                 (
                     "APPEARANCE",
-                    "Header/footer images, decorative text, colors and wording.",
+                    "3. Change the images, text and colors on your panels.",
                     "style",
                 ),
                 (
                     "ACCESS PANEL SECTIONS",
-                    "Add, remove, reorder and edit sections, rows and buttons.",
+                    "Edit the text beside the four role buttons, or add/remove text blocks.",
                     "sections",
                 ),
-                ("PREVIEW & PUBLISH", "Preview panels, configure access and publish.", "publish"),
+                (
+                    "PREVIEW & PUBLISH",
+                    "4. Check your panels, then post your saved changes to Discord.",
+                    "publish",
+                ),
                 ("PENDING APPROVALS", "Review questions and responses privately.", "queue"),
             ):
                 self.setting(panel, title, text, self.navigate(target))
@@ -324,7 +469,8 @@ class Admin(discord.ui.LayoutView):
                 discord.ui.TextDisplay(
                     "Join grants View Advice. Give Advice requires View Advice. "
                     "Leave removes both; Remove Advice Role removes only Give Advice. "
-                    "Use dedicated roles without staff powers."
+                    "Use dedicated roles without staff powers, and different roles for each "
+                    "ask channel when membership should stay separate."
                 )
             )
         elif page == "delivery":
@@ -367,7 +513,7 @@ class Admin(discord.ui.LayoutView):
             self.setting(
                 panel,
                 "HEADER & FOOTER",
-                "Standard finishes, custom uploads, and banner title.",
+                "Choose the top banner and bottom image separately.",
                 self.navigate("artwork"),
             )
 
@@ -376,9 +522,9 @@ class Admin(discord.ui.LayoutView):
                     click,
                     "Panel appearance",
                     (
-                        ("color", "Accent/highlight hex color", 6, True, False),
-                        ("text_color", "Decorative text hex (blank = finish)", 7, False, False),
-                        ("footer_text", "Footer text", 200, False, False),
+                        ("color", "Side highlight hex color", 6, True, False),
+                        ("text_color", "Panel heading hex color (blank = preset)", 7, False, False),
+                        ("footer_text", "Small footer line below the message", 200, False, False),
                         ("title", "Published question heading", 80, True, False),
                         ("response_title", "Published advice heading", 80, True, False),
                     ),
@@ -386,29 +532,51 @@ class Admin(discord.ui.LayoutView):
 
             self.setting(
                 panel,
-                "COLORS & FOOTER TEXT",
+                "PANEL TEXT & HIGHLIGHT",
                 f"Accent: #{self.config['color']}",
                 self.button("Edit", style, modal=True),
             )
-            panel.add_item(discord.ui.TextDisplay("**DECORATIVE TEXT FINISH**"))
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    "**PANEL HEADING COLORS**\nColor of headings inside the panels. "
+                    "The header image title has its own color setting."
+                )
+            )
 
             async def finish(click, values):
-                await self.save(click, self.revision, text_finish=values[0])
-                await self.show(click, "style")
+                if values[0] == "custom":
+                    return await self.edit_values(
+                        click,
+                        "Panel heading color",
+                        (("text_color", "Hex color (for example #39DCCB)", 7, True, False),),
+                    )
+                await click.response.defer()
+                await self.save(click, self.revision, text_finish=values[0], text_color=None)
+                await self.show(click, "style", "Panel heading color saved.")
 
             self.picker(
                 panel,
                 discord.ui.Select(
+                    placeholder="Choose panel heading colors",
                     options=[
+                        *[
+                            discord.SelectOption(
+                                label=label,
+                                value=key,
+                                default=key == self.config["text_finish"]
+                                and not self.config["text_color"],
+                            )
+                            for key, label in COLOR_NAMES.items()
+                        ],
                         discord.SelectOption(
-                            label=key.replace("_", " ").title(),
-                            value=key,
-                            default=key == self.config["text_finish"],
-                        )
-                        for key in FINISHES
-                    ]
+                            label="Custom color…",
+                            value="custom",
+                            default=bool(self.config["text_color"]),
+                        ),
+                    ],
                 ),
                 finish,
+                modal=True,
             )
 
             async def text(click):
@@ -435,169 +603,205 @@ class Admin(discord.ui.LayoutView):
                 self.navigate("sections", "Edit sections"),
             )
         elif page == "artwork":
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    "Choose the image you want to change. Changes save to this ask channel. "
+                    "Preview them here, then publish when you're ready."
+                )
+            )
             for kind in ("header", "footer"):
-
-                async def upload(click, kind=kind):
-                    await click.response.send_modal(AdviceArtwork(self, kind))
-
                 self.setting(
                     panel,
                     kind.upper() + " IMAGE",
-                    "Using your uploaded image."
-                    if self.config[kind]
-                    else "Generated artwork · "
-                    + (
-                        "custom colors"
-                        if self.config.get(kind + "_palette")
-                        else FINISHES[self.config["artwork_finish"]]
-                    ),
-                    self.button("Upload", upload, modal=True),
+                    self.image_status(kind),
+                    self.navigate(kind + "_artwork", "Edit " + kind),
                 )
+            self.setting(
+                panel,
+                "PREVIEW PANELS",
+                "See both saved images on the member-facing panel.",
+                self.button("Preview", lambda click: self.preview(click, True)),
+            )
+            self.setting(
+                panel,
+                "PUBLISH CHANGES",
+                "Update the panels already posted in Discord.",
+                self.navigate("publish", "Publish changes"),
+            )
+        elif page in {"header_artwork", "footer_artwork"}:
+            kind = "header" if page == "header_artwork" else "footer"
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    f"Editing the **{kind} image** for <#{self.channel}>. "
+                    "Saved changes appear above/below. Publish them when you're ready."
+                )
+            )
+            panel.add_item(discord.ui.TextDisplay("**IMAGE SOURCE**\n" + self.image_status(kind)))
 
-            async def title(click):
-                await self.edit_values(
-                    click,
-                    "Header banner title",
-                    (
-                        ("header_title", "Header image title", 80, True, False),
-                        (
-                            "header_text_color",
-                            "Title hex color (blank follows text style)",
-                            7,
-                            False,
-                            False,
-                        ),
-                    ),
-                )
+            async def upload(click):
+                await click.response.send_modal(AdviceArtwork(self, kind))
 
             self.setting(
                 panel,
-                "HEADER IMAGE TITLE & COLOR",
-                self.config["header_title"],
-                self.button("Edit", title, modal=True),
+                "UPLOAD IMAGE",
+                "Use your own PNG, JPEG or WebP image.",
+                self.button("Upload image", upload, modal=True),
             )
-
-            async def finish(click, values):
-                await self.save(
-                    click,
-                    self.revision,
-                    artwork_finish=values[0],
-                    header=None,
-                    footer=None,
-                    header_palette=None,
-                    footer_palette=None,
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    "**IMAGE COLORS**\nChoose KY BOT artwork colors, or choose Custom colors. "
+                    "This replaces only this image; the other image stays unchanged."
                 )
-                await self.show(click, "artwork")
-
-            async def title_finish(click, values):
-                await self.save(
-                    click,
-                    self.revision,
-                    header_text_finish=(None if values[0] == "follow" else values[0]),
-                )
-                await self.show(click, "artwork")
-
-            panel.add_item(discord.ui.TextDisplay("**HEADER IMAGE TITLE FINISH**"))
-            self.picker(
-                panel,
-                discord.ui.Select(
-                    placeholder="Header title finish",
-                    options=[
-                        discord.SelectOption(
-                            label="Follow decorative text",
-                            value="follow",
-                            default=self.config["header_text_finish"] is None,
-                        ),
-                        *[
-                            discord.SelectOption(
-                                label=label,
-                                value=key,
-                                default=self.config["header_text_finish"] == key,
-                            )
-                            for key, label in FINISHES.items()
-                        ],
-                    ],
-                ),
-                title_finish,
             )
-
-            panel.add_item(discord.ui.TextDisplay("**ARTWORK FINISH**"))
-            self.picker(
-                panel,
-                discord.ui.Select(
-                    placeholder="Artwork finish",
-                    options=[
+            current = self.config.get(kind + "_artwork_finish") or self.config["artwork_finish"]
+            custom = bool(self.config.get(kind + "_palette")) and not self.config[kind]
+            picker = discord.ui.Select(
+                placeholder="Choose colors for this image",
+                options=[
+                    *[
                         discord.SelectOption(
-                            label=key.replace("_", " ").title(),
+                            label=label,
                             value=key,
-                            default=key == self.config["artwork_finish"],
+                            default=key == current and not custom and not self.config[kind],
                         )
-                        for key in FINISHES
+                        for key, label in COLOR_NAMES.items()
                     ],
-                ),
-                finish,
+                    discord.SelectOption(label="Custom colors…", value="custom", default=custom),
+                ],
             )
 
-            for kind in ("header", "footer"):
+            async def image_colors(click, values):
+                if values[0] == "custom":
+                    return await self.open_palette(click, kind)
+                await click.response.defer()
+                await self.save(
+                    click,
+                    self.revision,
+                    **{
+                        kind: None,
+                        kind + "_palette": None,
+                        kind + "_artwork_finish": values[0],
+                    },
+                )
+                await self.show(
+                    click,
+                    page,
+                    f"{kind.title()} colors saved. "
+                    "Choose Publish changes to update the posted panels.",
+                )
 
-                async def colors(click, kind=kind):
-                    from ky_bot.design.palette_editor import PaletteModal
+            self.picker(panel, picker, image_colors, modal=True)
+            if kind == "header":
 
-                    selected, revision = self.channel, self.revision
-                    snapshot = copy.deepcopy(self.config)
-
-                    async def allowed(event):
-                        await self.allowed(event)
-                        if self.channel != selected:
-                            raise ValueError("The channel changed. Reopen the artwork editor.")
-                        return True
-
-                    def render(palette):
-                        config = snapshot | {kind: None, kind + "_palette": palette}
-                        return [("advice_custom_" + kind + ".png", artwork_bytes(config, kind))]
-
-                    async def commit(event, palette):
-                        await event.response.defer(ephemeral=True)
-                        await self.save(event, revision, **{kind: None, kind + "_palette": palette})
-                        await self.show(event, "artwork", "Custom artwork colors saved.")
-
-                    await click.response.send_modal(
-                        PaletteModal(self.config.get(kind + "_palette"), render, commit, allowed)
+                async def title(click):
+                    await self.edit_values(
+                        click,
+                        "Header title text",
+                        (("header_title", "Text inside the header image", 80, True, False),),
                     )
 
                 self.setting(
                     panel,
-                    "CUSTOM " + kind.upper() + " COLORS",
-                    "Choose base, highlight, shadow and iridescent colors; preview before saving.",
-                    self.button("Custom colors", colors, modal=True),
+                    "TITLE TEXT",
+                    self.config["header_title"]
+                    + " · Text added by KY BOT; keeps a metallic shine.",
+                    self.button("Edit title", title, modal=True),
+                )
+
+                async def title_color(click):
+                    await self.edit_values(
+                        click,
+                        "Header title color",
+                        (
+                            (
+                                "header_text_color",
+                                "Hex color (blank uses artwork colors)",
+                                7,
+                                False,
+                                False,
+                            ),
+                        ),
+                    )
+
+                color = self.config["header_text_color"]
+                legacy = self.config["header_text_finish"]
+                status = color or (COLOR_NAMES[legacy] if legacy else "Uses the artwork colors")
+                self.setting(
+                    panel,
+                    "TITLE COLOR",
+                    status + " · Blank uses the image's colors.",
+                    self.button("Change color", title_color, modal=True),
+                )
+                if self.config["header"]:
+                    self.toggle(panel, "header_title_on_upload", "TITLE ON YOUR UPLOADED IMAGE")
+            else:
+
+                async def footer_text(click):
+                    await self.edit_values(
+                        click,
+                        "Footer image text and color",
+                        (
+                            (
+                                "footer_image_text",
+                                "Text on footer image (blank removes)",
+                                80,
+                                False,
+                                False,
+                            ),
+                            (
+                                "footer_text_color",
+                                "Metallic text hex (blank uses image colors)",
+                                7,
+                                False,
+                                False,
+                            ),
+                        ),
+                    )
+
+                self.setting(
+                    panel,
+                    "FOOTER IMAGE TEXT",
+                    (self.config["footer_image_text"] or "No text added")
+                    + " · Works on KY BOT artwork and your uploaded image.",
+                    self.button("Edit text & color", footer_text, modal=True),
                 )
 
             async def reset(click):
-                await self.save(
-                    click,
-                    self.revision,
-                    header=None,
-                    footer=None,
-                    header_palette=None,
-                    footer_palette=None,
+                changes = {
+                    kind: None,
+                    kind + "_palette": None,
+                    kind + "_artwork_finish": "silver_neon",
+                }
+                if kind == "header":
+                    changes.update(
+                        header_text_color=None,
+                        header_text_finish=None,
+                        header_title_on_upload=False,
+                    )
+                else:
+                    changes.update(footer_image_text="", footer_text_color=None)
+                await self.save(click, self.revision, **changes)
+                await self.show(
+                    click, page, f"Default {kind} restored. The other image is unchanged."
                 )
-                await self.show(click, "artwork", "Standard artwork restored.")
 
             self.setting(
                 panel,
-                "STANDARD ARTWORK",
-                "Restore both generated images.",
-                self.button("Restore", reset),
+                "RESET IMAGE",
+                "Return this image to the default silver KY BOT design.",
+                self.button("Reset " + kind, reset),
             )
-
-            async def preview_artwork(click):
-                await self.preview(click, True)
-
             self.setting(
                 panel,
-                "PREVIEW ARTWORK",
-                "View the current header, footer and title colors.",
-                self.button("Preview", preview_artwork),
+                "PREVIEW PANELS",
+                "Preview the saved images and panel text together.",
+                self.button("Preview", lambda click: self.preview(click, True)),
+            )
+            self.setting(
+                panel,
+                "PUBLISH CHANGES",
+                "Saving does not update posted panels until you publish.",
+                self.navigate("publish", "Publish changes"),
             )
         elif page in {"sections", "section", "row"}:
             await self.section_page(i, panel, page)
@@ -689,6 +893,8 @@ class Admin(discord.ui.LayoutView):
                 "main": "channels",
                 "destinations": "delivery",
                 "artwork": "style",
+                "header_artwork": "artwork",
+                "footer_artwork": "artwork",
                 "section": "sections",
                 "row": "section",
             }.get(page, "main")
@@ -709,7 +915,7 @@ class Admin(discord.ui.LayoutView):
 
             controls.add_item(self.button("Home", home))
         panel.add_item(controls)
-        view.footer(defaults())
+        view.footer(menu_config)
         arrange(panel, page)
         section_dividers(panel, navigation_on_right=True)
         # Transfer the rendered container to this owner-checked settings view.
