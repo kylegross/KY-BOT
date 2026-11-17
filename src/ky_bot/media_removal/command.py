@@ -2,10 +2,12 @@
 
 import asyncio
 import logging
+import re
 import uuid
 from pathlib import PurePosixPath
 
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 
 from ky_bot.advice.command import administrator
@@ -78,11 +80,14 @@ class RemovalAction(
 
 
 class Status(discord.ui.LayoutView):
-    def __init__(self, cog, job):
+    def __init__(self, cog, job, *, administrator_id=None):
         from ky_bot.views.sections import section_dividers
 
         super().__init__(timeout=600)
         self.cog, self.owner, self.guild, self.job_id = cog, job["owner"], job["guild"], job["id"]
+        self.target, self.administrator_id = job["owner"], administrator_id
+        if administrator_id is not None:
+            self.owner = administrator_id
         panel = discord.ui.Container(accent_colour=0xD6E2F3)
         active = job["state"] in ("discovering", "running")
         heading = (
@@ -105,6 +110,10 @@ class Status(discord.ui.LayoutView):
                 f"**{heading}**\nPosts removed: **{job['deleted']:,}**\n{detail}"
             )
         )
+        if administrator_id is not None:
+            panel.add_item(
+                discord.ui.TextDisplay(f"Member ID: `{self.target}` · Media-only cleanup.")
+            )
         if active:
             panel.add_item(
                 discord.ui.TextDisplay(
@@ -116,11 +125,15 @@ class Status(discord.ui.LayoutView):
         refresh = discord.ui.Button(label="Refresh")
 
         async def reload(i):
+            if not await self.interaction_check(i):
+                return
             await i.response.defer()
-            current = await cog.store.job(self.job_id, guild=i.guild_id, owner=i.user.id)
+            current = await cog.store.job(self.job_id, guild=i.guild_id, owner=self.target)
             if not current:
                 return await send_private(i, "This cleanup status is no longer available.")
-            await i.edit_original_response(view=Status(cog, current), content=None)
+            await i.edit_original_response(
+                view=Status(cog, current, administrator_id=self.administrator_id), content=None
+            )
 
         refresh.callback = reload
         close = discord.ui.Button(label="Close")
@@ -142,6 +155,12 @@ class Status(discord.ui.LayoutView):
 
     async def interaction_check(self, i):
         if i.user.id == self.owner and i.guild_id == self.guild:
+            if self.administrator_id is not None:
+                try:
+                    await administrator(i)
+                except ValueError as error:
+                    await send_private(i, str(error))
+                    return False
             return True
         await send_private(i, "Open your own cleanup status.")
         return False
@@ -154,11 +173,13 @@ class Status(discord.ui.LayoutView):
 
 
 class Confirmation(discord.ui.LayoutView):
-    def __init__(self, cog, i, revision, last=None):
+    def __init__(self, cog, i, revision, last=None, *, target=None):
         from ky_bot.views.sections import section_dividers
 
         super().__init__(timeout=300)
         self.owner, self.guild, self.revision = i.user.id, i.guild_id, revision
+        self.target = target.id if target is not None else i.user.id
+        self.administrator_id = i.user.id if target is not None else None
         self.used, self.lock = False, asyncio.Lock()
         panel = discord.ui.Container(accent_colour=0xD6E2F3)
         panel.add_item(
@@ -171,7 +192,23 @@ class Confirmation(discord.ui.LayoutView):
                 "Nothing is deleted until you confirm below.**"
             )
         )
-        confirm = discord.ui.Button(label="Delete my media", style=discord.ButtonStyle.danger)
+        if target is not None:
+            name = discord.utils.escape_markdown(
+                discord.utils.escape_mentions(
+                    getattr(target, "display_name", None) or getattr(target, "name", str(target.id))
+                )
+            )
+            panel.children[0].content = (
+                f"**Remove this member’s media across this server?**\n{name} · ID: `{target.id}`\n"
+                "Only posts with their uploaded images/videos and attached captions are removed. "
+                "Text-only messages, GIF-only posts, audio, stickers, links and other "
+                "file-only posts stay.\n"
+                "**Deletion is permanent. Nothing is deleted until you confirm below.**"
+            )
+        confirm = discord.ui.Button(
+            label="Delete member’s media" if target is not None else "Delete my media",
+            style=discord.ButtonStyle.danger,
+        )
 
         async def start(event):
             if not await self.interaction_check(event):
@@ -180,27 +217,41 @@ class Confirmation(discord.ui.LayoutView):
             async with self.lock:
                 if self.used:
                     return await send_private(event, "This confirmation has already been used.")
-                member = await event.guild.fetch_member(event.user.id)
-                if member.bot:
-                    raise ValueError("This cleanup is for members, not bot accounts.")
+                if self.administrator_id is not None:
+                    await administrator(event)
+                else:
+                    member = await event.guild.fetch_member(event.user.id)
+                    if member.bot:
+                        raise ValueError("This cleanup is for members, not bot accounts.")
                 job = await cog.store.request(
-                    event.guild_id, event.user.id, event.id, self.revision
+                    event.guild_id,
+                    self.target,
+                    event.id,
+                    self.revision,
+                    actor=self.administrator_id,
                 )
                 self.used = True
-                await event.edit_original_response(view=Status(cog, job), content=None)
+                await event.edit_original_response(
+                    view=Status(cog, job, administrator_id=self.administrator_id), content=None
+                )
                 self.stop()
 
         confirm.callback = start
         panel.add_item(
             discord.ui.Section(
-                "**DELETE MY UPLOADED IMAGES & VIDEOS**\nThis cannot be undone.", accessory=confirm
+                "**DELETE THIS MEMBER’S UPLOADED IMAGES & VIDEOS**\nThis cannot be undone."
+                if target is not None
+                else "**DELETE MY UPLOADED IMAGES & VIDEOS**\nThis cannot be undone.",
+                accessory=confirm,
             )
         )
         if last:
             result = discord.ui.Button(label="View last result")
 
             async def previous(event):
-                await event.response.edit_message(view=Status(cog, last))
+                await event.response.edit_message(
+                    view=Status(cog, last, administrator_id=self.administrator_id)
+                )
 
             result.callback = previous
             panel.add_item(discord.ui.ActionRow(result))
@@ -225,6 +276,12 @@ class Confirmation(discord.ui.LayoutView):
 
     async def interaction_check(self, i):
         if i.user.id == self.owner and i.guild_id == self.guild:
+            if self.administrator_id is not None:
+                try:
+                    await administrator(i)
+                except ValueError as error:
+                    await send_private(i, str(error))
+                    return False
             return True
         await send_private(i, "Open your own media removal confirmation.")
         return False
@@ -362,6 +419,50 @@ class MediaRemoval(commands.Cog):
                         "Old media removal panel could not be removed in guild %s", i.guild_id
                     )
             return "Panel published. Members will confirm privately before cleanup starts."
+
+    async def admin_request(self, i, user):
+        await i.response.defer(ephemeral=True)
+        await administrator(i)
+        match = re.fullmatch(r"(?:<@!?(\d{15,20})>|(\d{15,20}))", user.strip())
+        if not match:
+            raise ValueError("Enter a member mention or their numeric user ID.")
+        target_id = int(next(value for value in match.groups() if value))
+        if not 0 < target_id < 2**63:
+            raise ValueError("Choose a valid user ID.")
+        revision, config = await self.store.config(i.guild_id)
+        if not config["enabled"] or not config["channel"]:
+            raise ValueError("Select a channel and enable Media Removal in Command Center first.")
+        try:
+            target = await i.guild.fetch_member(target_id)
+        except discord.NotFound:
+            try:
+                target = await self.bot.fetch_user(target_id)
+            except discord.NotFound:
+                from types import SimpleNamespace
+
+                target = SimpleNamespace(id=target_id, name=str(target_id), bot=False)
+        if target.bot:
+            raise ValueError("Choose a person, not a bot account.")
+        last = await self.store.latest(i.guild_id, target_id)
+        view = (
+            Status(self, last, administrator_id=i.user.id)
+            if last and last["state"] in ("discovering", "running")
+            else Confirmation(self, i, revision, last, target=target)
+        )
+        await i.followup.send(view=view, ephemeral=True)
+
+    @app_commands.command(
+        name="remove-media",
+        description="Admin: permanently remove one member’s uploaded image/video posts.",
+    )
+    @app_commands.guild_only()
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.describe(user="Member mention or numeric user ID, including a former member")
+    async def remove_media(self, i: discord.Interaction, user: str):
+        try:
+            await self.admin_request(i, user)
+        except ValueError as error:
+            await send_private(i, str(error))
 
     async def open_menu(self, i, *, command_center=None):
         from ky_bot.views.menu_context import defer_menu, menu_parent

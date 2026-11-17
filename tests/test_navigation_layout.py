@@ -114,7 +114,7 @@ class NavigationLayoutTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(children[-1], discord.ui.Section)
         self.assertIs(children[-1].accessory, home)
         self.assertEqual(
-            children[-1].children[0].content, "**COMMAND CENTER**\nReturn to the main menu."
+            children[-1].children[0].content, "**COMMAND CENTER**\n-# Return to the main menu."
         )
         self.assertIsInstance(children[-2], discord.ui.Separator)
         self.assertTrue(children[-2].visible)
@@ -233,3 +233,29 @@ class NavigationLayoutTests(unittest.IsolatedAsyncioTestCase):
         assert_footer_dividers(self, view)
         self.assertLessEqual(view.total_children_count, 40)
         view.stop()
+
+    async def test_descriptions_use_consistent_small_text_and_compact_row_spacing(self):
+        for branded in (False, True):
+            panel = discord.ui.Container()
+            if branded:
+                panel.add_item(
+                    discord.ui.MediaGallery(
+                        discord.MediaGalleryItem("attachment://ky_strip_design.png")
+                    )
+                )
+            first = discord.ui.Section(
+                "**FIRST**\nNormal description.", accessory=discord.ui.Button(label="Edit")
+            )
+            second = discord.ui.Section(
+                "**SECOND**\n-# Existing small description.",
+                accessory=discord.ui.Button(label="Manage"),
+            )
+            panel.add_item(first)
+            panel.add_item(second)
+            section_dividers(panel, navigation_on_right=True)
+            section_dividers(panel, navigation_on_right=True)
+            self.assertIn("\n-# Normal description.", first.children[0].content)
+            self.assertIn("\n-# Existing small description.", second.children[0].content)
+            self.assertEqual(first.children[0].content.count("\n-# \u200b"), 1)
+            self.assertNotIn("-# -#", str(panel.to_component_dict()))
+            self.assertFalse(any(isinstance(item, discord.ui.Separator) for item in panel.children))

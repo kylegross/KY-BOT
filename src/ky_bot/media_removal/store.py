@@ -39,6 +39,10 @@ SCHEMA = (
         "NOT NULL, scope TEXT NOT NULL, PRIMARY KEY(job,scope))"
     ),
 )
+SCHEMA += (
+    "CREATE TABLE IF NOT EXISTS media_removal_requests (job TEXT NOT NULL, actor BIGINT NOT NULL, "
+    "requested DOUBLE PRECISION NOT NULL, PRIMARY KEY(job,actor))",
+)
 FIELDS = (
     "id",
     "guild",
@@ -240,7 +244,7 @@ class Store(Connection):
             )
             return await self._job(row[0]) if row else None
 
-    async def request(self, guild, owner, cutoff, expected):
+    async def request(self, guild, owner, cutoff, expected, *, actor=None):
         async with self.transaction(guild):
             revision, config = await self._config(guild)
             if revision != expected or not config["enabled"] or not config["channel"]:
@@ -255,16 +259,20 @@ class Store(Connection):
                 (guild, owner),
             )
             if row:
-                return await self._job(row[0])
-            key = uuid.uuid4().hex
-            await self.execute(
-                (
-                    "INSERT INTO "
-                    "media_removal_jobs(id,guild,owner,cutoff,state,created) "
-                    "VALUES (?,?,?,?,?,?)"
-                ),
-                (key, guild, owner, cutoff, "discovering", time.time()),
-            )
+                key = row[0]
+            else:
+                key = uuid.uuid4().hex
+                await self.execute(
+                    "INSERT INTO media_removal_jobs(id,guild,owner,cutoff,state,created) "
+                    "VALUES (?,?,?,?,?,?)",
+                    (key, guild, owner, cutoff, "discovering", time.time()),
+                )
+            if actor is not None:
+                await self.execute(
+                    "INSERT INTO media_removal_requests(job,actor,requested) VALUES (?,?,?) "
+                    "ON CONFLICT(job,actor) DO UPDATE SET requested=excluded.requested",
+                    (key, actor, time.time()),
+                )
             return await self._job(key)
 
     async def active(self):

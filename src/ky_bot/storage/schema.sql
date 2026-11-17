@@ -108,3 +108,5 @@ CREATE TABLE IF NOT EXISTS media_removal_jobs (id TEXT PRIMARY KEY, guild BIGINT
 CREATE UNIQUE INDEX IF NOT EXISTS media_removal_active ON media_removal_jobs(guild,owner) WHERE state IN ('discovering','running');
 CREATE TABLE IF NOT EXISTS media_removal_channels (job TEXT NOT NULL, channel BIGINT NOT NULL, cursor BIGINT NOT NULL, state TEXT NOT NULL DEFAULT 'pending', PRIMARY KEY(job,channel));
 CREATE TABLE IF NOT EXISTS media_removal_issues (job TEXT NOT NULL, scope TEXT NOT NULL, PRIMARY KEY(job,scope));
+
+CREATE TABLE IF NOT EXISTS media_removal_requests (job TEXT NOT NULL, actor BIGINT NOT NULL, requested DOUBLE PRECISION NOT NULL, PRIMARY KEY(job,actor));

@@ -258,7 +258,11 @@ def render(data):
                 from ky_bot.checklists.artwork import title_image
 
                 image = title_image(
-                    text, data["text_finish"], data["text_color"], line_color=data["line_color"]
+                    text,
+                    data["text_finish"],
+                    data["text_color"],
+                    line_color=data["line_color"],
+                    shimmer=True,
                 )
                 attachments.append(discord.File(io.BytesIO(image), filename=name, description=""))
                 panel.add_item(

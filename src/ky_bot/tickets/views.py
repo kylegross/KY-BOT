@@ -79,7 +79,9 @@ class Panel(discord.ui.LayoutView):
             self.panel.add_item(
                 discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://tickets_footer.png"))
             )
-        section_dividers(self.panel)
+        section_dividers(
+            self.panel, normalize_descriptions=not getattr(self, "member_panel", False)
+        )
 
     async def on_error(self, i, error, item):
         if isinstance(error, ValueError):
@@ -2191,6 +2193,8 @@ class PanelPage(
 
 
 class PublicPanel(Panel):
+    member_panel = True
+
     def __init__(self, config, token, *, preview=False, page=0):
         super().__init__(timeout=None)
         item = config["panels"][token]

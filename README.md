@@ -1027,8 +1027,8 @@ text/line colors and server-wide saved colors as Custom Embeds. Initial copy is 
 Members can request removal only of **their own uploaded image/video posts across the server**.
 They receive a private permanent-deletion confirmation first. Captions and any other content
 attached to those matching posts are removed with the message. Text-only messages, GIF-only
-posts, audio-only posts, stickers, links and other file-only posts are kept. Staff-wide deletion
-of someone else’s content and VICE’s broader text/all-content modes are not exposed here.
+posts, audio-only posts, stickers, links and other file-only posts are kept. Member controls cannot remove anyone else’s content. Administrators have a separate
+media-only command; VICE’s broader text/all-content modes are not exposed here.
 
 Cleanup scans accessible channel history and active/archived public and accessible private
 threads, with a cutoff fixed at confirmation. It deletes individually, including old messages,
@@ -1046,3 +1046,11 @@ publishing also requires Send Messages and Attach Files. SQLite and PostgreSQL u
 durable job schema. No VICE channel IDs, role IDs, panel wording, or staff-only commands are
 activated by importing this feature. Activity-log deletion receipts suppress internal cleanup
 noise using the existing logging integration.
+
+
+Administrators can use `/remove-media user:` with a mention or numeric user ID (including a
+former member). The command requires Administrator permission, an enabled Media Removal setup,
+and a private confirmation naming the target. Permission is checked again when confirming and
+viewing progress. It removes only that target’s qualifying image/video posts; text-only posts
+are kept. The requesting administrator’s ID is recorded with the cleanup job. Member self-service
+buttons retain their original owner-only permissions. Restart and sync slash commands after deployment.

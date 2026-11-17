@@ -620,7 +620,9 @@ class CustomEmbedTests(unittest.IsolatedAsyncioTestCase):
             and isinstance(x.accessory, discord.ui.Button)
             and x.accessory.label == "Home"
         )
-        self.assertEqual(home.children[0].content, "**COMMAND CENTER**\nReturn to the main menu.")
+        self.assertEqual(
+            home.children[0].content, "**COMMAND CENTER**\n-# Return to the main menu."
+        )
         view.stop()
 
     async def test_every_embed_submenu_has_matching_silver_artwork_and_fits(self):

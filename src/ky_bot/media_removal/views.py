@@ -18,7 +18,10 @@ from ky_bot.views.sections import section_dividers
 
 GROUPS["media_removal"] = (
     ("CHANNEL & DELIVERY", ("PANEL CHANNEL", "MEDIA REMOVAL STATUS")),
-    ("DESIGN", ("PANEL TEXT & ARTWORK", "REMOVAL BUTTON", "BUTTON POSITION")),
+    (
+        "DESIGN",
+        ("PANEL TEXT & ARTWORK", "TITLE & LINE COLORS", "BUTTON HEADING & TEXT", "BUTTON POSITION"),
+    ),
     ("REVIEW & PUBLISH", ("PREVIEW PANEL", "PUBLISH PANEL", "CLEANUP SCOPE")),
 )
 
@@ -44,11 +47,26 @@ def render_panel(guild, config, *, preview=False):
     )
     action = RemovalAction(guild, config["button_label"])
     action.item.disabled = preview
-    heading = discord.utils.escape_markdown(discord.utils.escape_mentions(config["button_heading"]))
-    text = (f"**{heading}**\n" if heading else "") + discord.utils.escape_mentions(
-        config["button_text"]
-    )
-    controls = (
+    controls = [discord.ui.Separator(visible=False, spacing=discord.SeparatorSpacing.small)]
+    heading = config["button_heading"].strip()
+    if heading:
+        from ky_bot.checklists.artwork import title_image
+
+        image = title_image(
+            heading,
+            config["panel"]["text_finish"],
+            config["panel"]["text_color"],
+            config["panel"]["line_color"],
+            shimmer=True,
+        )
+        attachments.append(
+            discord.File(io.BytesIO(image), filename="media_button_heading.png", description="")
+        )
+        controls.append(
+            discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://media_button_heading.png"))
+        )
+    text = discord.utils.escape_mentions(config["button_text"])
+    controls += (
         [discord.ui.Section(text, accessory=action)]
         if config["inline"]
         else [discord.ui.TextDisplay(text), discord.ui.ActionRow(action)]
@@ -57,7 +75,7 @@ def render_panel(guild, config, *, preview=False):
         panel.remove_item(child)
     for child in children[:position] + controls + children[position:]:
         panel.add_item(child)
-    if view.total_children_count > 40:
+    if view.total_children_count > 40 or len(attachments) > 10:
         for attachment in attachments:
             attachment.close()
         view.stop()
@@ -113,20 +131,31 @@ class PanelCog:
 
 
 class Form(discord.ui.Modal):
-    def __init__(self, menu):
-        super().__init__(title="Edit removal button")
-        self.menu, self.revision = menu, menu.revision
+    def __init__(self, menu, *, colors=False):
+        super().__init__(title="Title & line colors" if colors else "Edit removal button")
+        self.menu, self.revision, self.colors = menu, menu.revision, colors
         self.fields = {}
-        for key, label, limit in (
-            ("button_heading", "Bold label (optional)", 80),
-            ("button_text", "Description beside the button", 1000),
-            ("button_label", "Button label", 80),
-        ):
+        specs = (
+            (
+                ("text_color", "KY BOT headings hex (blank = preset)", 7),
+                ("line_color", "Title line hex (blank follows title)", 7),
+                ("header_text_color", "Header image title hex (blank = preset)", 7),
+                ("footer_text_color", "Footer image text hex (blank = preset)", 7),
+            )
+            if colors
+            else (
+                ("button_heading", "KY BOT button heading (blank hides it)", 80),
+                ("button_text", "Description beside the button", 1000),
+                ("button_label", "Button label", 80),
+            )
+        )
+        values = menu.config["panel"] if colors else menu.config
+        for key, label, limit in specs:
             field = discord.ui.TextInput(
                 label=label,
-                default=menu.config[key],
+                default=values[key] or "",
                 max_length=limit,
-                required=key != "button_heading",
+                required=not colors and key != "button_heading",
                 style=discord.TextStyle.paragraph if limit > 80 else discord.TextStyle.short,
             )
             self.add_item(field)
@@ -137,11 +166,15 @@ class Form(discord.ui.Modal):
             return
         await i.response.defer()
         try:
-            await self.menu.cog.store.configure(
-                self.menu.guild,
-                self.revision,
-                **{key: str(field) for key, field in self.fields.items()},
-            )
+            values = {key: str(field) for key, field in self.fields.items()}
+            if self.colors:
+                from ky_bot.design.text_colour import text_colour
+
+                values = {
+                    "panel": self.menu.config["panel"]
+                    | {key: text_colour(value) for key, value in values.items()}
+                }
+            await self.menu.cog.store.configure(self.menu.guild, self.revision, **values)
             await self.menu.show(i, "Saved.")
         except ValueError as error:
             await send_private(i, str(error))
@@ -271,9 +304,18 @@ class Admin(discord.ui.LayoutView):
             button("Edit panel", appearance),
         )
         row(
-            "REMOVAL BUTTON",
-            "Change its bold label, description and button text.",
-            button("Edit", lambda event: event.response.send_modal(Form(self)), modal=True),
+            "TITLE & LINE COLORS",
+            "KY BOT headings, their lines, and header/footer image text.",
+            button(
+                "Edit title colors",
+                lambda event: event.response.send_modal(Form(self, colors=True)),
+                modal=True,
+            ),
+        )
+        row(
+            "BUTTON HEADING & TEXT",
+            "Edit the READY TO CLEAR YOUR MEDIA? heading, description and button label.",
+            button("Edit text", lambda event: event.response.send_modal(Form(self)), modal=True),
         )
 
         async def position(event):

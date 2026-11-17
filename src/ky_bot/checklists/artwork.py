@@ -21,7 +21,7 @@ def png(image):
     return stream.getvalue()
 
 
-def title_image(title, style, text_color=None, line_color=None):
+def title_image(title, style, text_color=None, line_color=None, *, shimmer=False):
     from ky_bot.design.typography import TypographyError, UnsupportedCharacterError
 
     text = title.upper()
@@ -36,7 +36,12 @@ def title_image(title, style, text_color=None, line_color=None):
                 raise
             text = text.rstrip("…")[:-1] + "…"
     mask = ImageOps.contain(mask, (960, mask.height), Image.Resampling.LANCZOS)
-    ink = text_ink(mask, style, text_color)
+    if shimmer:
+        from ky_bot.design.image_text import metallic_ink
+
+        ink = metallic_ink(mask, style, text_color)
+    else:
+        ink = text_ink(mask, style, text_color)
     label = Image.new("RGBA", (1120, mask.height + 32))
     label.alpha_composite(ink, (SECTION_HEADING_LEFT, 16))
     section_rule(label, SECTION_HEADING_LEFT + mask.width, style, line_color or text_color)

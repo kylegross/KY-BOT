@@ -60,7 +60,23 @@ def navigation_divider(panel, item):
     )
 
 
-def section_dividers(panel: discord.ui.Container, *, navigation_on_right: bool = False) -> None:
+def menu_description(content):
+    """Use the Command Center's small description text, keeping bold labels intact."""
+    lines = content.split("\n")
+    if not lines[0].startswith("**"):
+        return content
+    return "\n".join(
+        [lines[0]]
+        + [line if not line or line.startswith("-# ") else "-# " + line for line in lines[1:]]
+    )
+
+
+def section_dividers(
+    panel: discord.ui.Container,
+    *,
+    navigation_on_right: bool = False,
+    normalize_descriptions: bool = True,
+) -> None:
     """Space introductions, adjacent sections and navigation without doubling rules."""
     # Nested pages return one level; never stack a root shortcut beside Back.
     has_back = any(
@@ -158,6 +174,9 @@ def section_dividers(panel: discord.ui.Container, *, navigation_on_right: bool =
     )
     previous = None
     for child in children:
+        if normalize_descriptions and isinstance(child, discord.ui.Section):
+            for text in child.children:
+                text.content = menu_description(text.content)
         if (
             branded_groups
             and isinstance(previous, discord.ui.ActionRow)
@@ -167,11 +186,6 @@ def section_dividers(panel: discord.ui.Container, *, navigation_on_right: bool =
         ):
             # Keep labels attached to their own picker, with a gap after the previous control.
             child.content = "-# \u200b\n" + child.content
-        adjacent_sections = (
-            not branded_groups
-            and isinstance(previous, discord.ui.Section)
-            and isinstance(child, discord.ui.Section)
-        )
         footer_boundary = (
             previous is not None
             and not isinstance(previous, discord.ui.Separator)
@@ -184,8 +198,7 @@ def section_dividers(panel: discord.ui.Container, *, navigation_on_right: bool =
             and not navigation_item(previous)
         )
         if (
-            branded_groups
-            and isinstance(previous, discord.ui.Section)
+            isinstance(previous, discord.ui.Section)
             and (
                 isinstance(child, discord.ui.Section)
                 or isinstance(child, discord.ui.TextDisplay)
@@ -212,7 +225,7 @@ def section_dividers(panel: discord.ui.Container, *, navigation_on_right: bool =
         ):
             panel.children[-2].visible = True
             panel.children[-2].spacing = discord.SeparatorSpacing.small
-        if adjacent_sections or footer_boundary:
+        if footer_boundary:
             panel.add_item(
                 discord.ui.Separator(
                     spacing=discord.SeparatorSpacing.small
