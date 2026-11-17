@@ -13,7 +13,7 @@ from ky_bot.confessions.store import Store as ConfessionStore
 from ky_bot.custom_embeds.store import Store as EmbedStore
 from ky_bot.custom_embeds.views import Session
 from ky_bot.design.editor import DesignSession
-from ky_bot.design.saved_colors import ColorLibrary, validate_colors
+from ky_bot.design.saved_colors import ColorLibrary, ColorModal, validate_colors
 from ky_bot.tickets.store import Store as TicketStore
 from ky_bot.tickets.store import defaults, new_panel
 from ky_bot.tickets.views import Admin as TicketAdmin
@@ -52,6 +52,25 @@ class SavedColorTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, "already exists"):
             await view.save_color(i, None, "Emerald", "#000000")
         view.stop()
+
+    async def test_custom_color_is_previewed_before_it_is_saved(self):
+        commit = AsyncMock()
+        library = ColorLibrary(7, 1, {}, {"text_color": "Heading text"}, commit)
+        modal = ColorModal(library)
+        modal.name_field._value = "Emerald"
+        modal.hex_field._value = "#18aa77"
+        event = interaction()
+        event.followup = SimpleNamespace(send=AsyncMock())
+        await modal.on_submit(event)
+        commit.assert_not_awaited()
+        self.assertEqual(library.colors, {})
+        review = event.followup.send.await_args.kwargs["view"]
+        self.assertEqual(review.palette["base"], "#18AA77")
+        await review.use(event)
+        self.assertEqual(library.colors, {"Emerald": "#18AA77"})
+        commit.assert_awaited_once()
+        self.assertIn("Preview", [getattr(child, "label", None) for child in library.children])
+        library.stop()
 
     async def test_named_colors_persist_in_confessions_and_custom_embeds(self):
         with tempfile.TemporaryDirectory() as directory:

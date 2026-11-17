@@ -900,14 +900,22 @@ class Editor(Base):
                         f"**REMOVE {title}**\nClear it from this draft.",
                         button("Remove", remove),
                     )
-            self.row(
-                "**TEXT ON HEADER & FOOTER**\nAdd text and choose its metallic colors. "
-                "Works with KY BOT artwork and your uploaded images.",
-                button("Edit text & colors", modal("image_text")),
-            )
             self.text(
-                "-# Images are saved with the embed so sticky reposts keep working "
-                "after restarts. Animated images are converted to a static PNG."
+                "**TEXT ON HEADER & FOOTER**\nAdd text and choose its metallic colors. "
+                "Works with KY BOT artwork and your uploaded images."
+            )
+
+            async def preview_images(i):
+                await i.response.defer()
+                draft = validate(data, publish=False)
+                validate(draft | dict(channel=draft["channel"] or 1), publish=True)
+                await s.cog.post(i.followup, draft, private=True)
+
+            self.panel.add_item(
+                discord.ui.ActionRow(
+                    button("Edit text & colors", modal("image_text")),
+                    button("Preview", preview_images),
+                )
             )
         elif page == "style":
             self.row(
@@ -1004,6 +1012,19 @@ class Editor(Base):
                     "**DELETE EMBED**\nRemove the saved embed and its posted message.",
                     button("Delete", delete),
                 )
+        if page in {"content", "formatting", "sections", "style"} and not row["deleted"]:
+
+            async def preview_formatting(i):
+                await i.response.defer()
+                draft = validate(data, publish=False)
+                validate(draft | dict(channel=draft["channel"] or 1), publish=True)
+                await s.cog.post(i.followup, draft, private=True)
+
+            self.row(
+                "**PRIVATE PREVIEW**\nSee your current text, colors and images.",
+                button("Preview", preview_formatting),
+            )
+
         if page != "main" and not row["deleted"]:
             self.row(
                 "**EMBED EDITOR**\n-# Return to editing options.",

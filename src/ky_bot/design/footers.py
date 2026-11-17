@@ -171,14 +171,14 @@ def metal(mask: Image.Image, style: str, *, sheen: float = 1.0) -> Image.Image:
 
 
 def text_ink(mask: Image.Image, style: str, text_color: str | None = None) -> Image.Image:
-    """Use the standard finish unless an explicit custom hex color overrides it."""
+    """Keep metallic reflections in both preset and custom-colored lettering."""
     from ky_bot.design.text_colour import text_colour
 
     custom_color = text_colour(text_color)
     if custom_color:
-        ink = Image.new("RGBA", mask.size, custom_color)
-        ink.putalpha(mask)
-        return ink
+        from ky_bot.design.image_text import metallic_ink
+
+        return metallic_ink(mask, style, custom_color)
     return metal(mask, style)
 
 

@@ -36,12 +36,14 @@ class IridescentFinishTests(unittest.TestCase):
         self.assertGreater(brightness("dark_silver"), 130)
         self.assertLess(brightness("dark_silver"), brightness("silver_neon"))
 
-    def test_explicit_custom_colors_override_every_finish_exactly(self):
+    def test_explicit_custom_colors_remain_metallic_across_every_finish(self):
         mask = self.mask()
         for style in STYLES:
             with self.subTest(style=style):
                 ink = text_ink(mask, style, "#39DCCB")
-                self.assertEqual(ink.getpixel((90, 18)), (57, 220, 203, 255))
+                self.assertGreater(len({p[:3] for p in ink.get_flattened_data() if p[3] > 240}), 30)
+                self.assertNotEqual(ink.getpixel((90, 5)), ink.getpixel((90, 20)))
+                self.assertEqual(ink.tobytes(), text_ink(mask, "silver_neon", "#39DCCB").tobytes())
                 self.assertIsNone(ImageChops.difference(ink.getchannel("A"), mask).getbbox())
 
     def test_dynamic_headings_share_finishes_without_changing_inset_or_glyphs(self):

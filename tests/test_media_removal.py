@@ -532,9 +532,9 @@ class MediaRemovalTests(unittest.IsolatedAsyncioTestCase):
         session.page = "images"
         view = Editor(session)
         rows = [
-            item.children[0].content
+            item.children[0].content if isinstance(item, discord.ui.Section) else item.content
             for item in view.panel.children
-            if isinstance(item, discord.ui.Section)
+            if isinstance(item, (discord.ui.Section, discord.ui.TextDisplay))
         ]
         header = next(n for n, text in enumerate(rows) if "**CUSTOM HEADER COLORS**" in text)
         footer_file = next(n for n, text in enumerate(rows) if "**FOOTER FILE**" in text)

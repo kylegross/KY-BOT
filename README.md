@@ -1054,3 +1054,10 @@ and a private confirmation naming the target. Permission is checked again when c
 viewing progress. It removes only that target’s qualifying image/video posts; text-only posts
 are kept. The requesting administrator’s ID is recorded with the cleanup job. Member self-service
 buttons retain their original owner-only permissions. Restart and sync slash commands after deployment.
+
+
+KY BOT decorative lettering keeps its metallic highlights, shadows and reflection when custom
+hex or saved colors are selected. The same paint path covers Command Center category strips,
+DM/FR headings, Confessions, Advice, Custom Embeds, Media Removal, ticket topics/text sections,
+and checklist headings/footer lettering. Native Discord body text and independent line-color
+settings keep their existing behavior. Republish member-facing panels to regenerate their images.

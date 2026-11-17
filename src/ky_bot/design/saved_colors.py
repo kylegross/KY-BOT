@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import io
 import json
 
 import discord
@@ -45,9 +46,23 @@ class ColorModal(discord.ui.Modal):
             return
         await i.response.defer()
         try:
-            await self.library.save_color(
-                i, self.existing, str(self.name_field).strip(), str(self.hex_field)
-            )
+            name = str(self.name_field).strip()
+            color = validate_colors({name: str(self.hex_field)})[name]
+
+            async def save(event, palette):
+                await event.response.defer()
+                await self.library.save_color(event, self.existing, name, color, refresh=False)
+                confirmation = discord.ui.LayoutView(timeout=1)
+                confirmation.add_item(
+                    discord.ui.TextDisplay("Saved. Choose where to apply your color below.")
+                )
+                await event.edit_original_response(view=confirmation, attachments=[])
+                self.library.rebuild()
+                await event.followup.send(
+                    content=self.library.content("Color saved."), view=self.library, ephemeral=True
+                )
+
+            await self.library.preview_color(i, color, save=save)
         except ValueError as error:
             await send_private(i, str(error))
 
@@ -143,6 +158,7 @@ class ColorLibrary(discord.ui.View):
         for label, action, disabled in (
             ("Add color", self.add, len(self.colors) >= self.limit),
             ("Edit saved color", self.edit, self.selected is None),
+            ("Preview", self.preview, self.selected is None),
             ("Apply color", self.apply, self.selected is None),
         ):
             button = discord.ui.Button(label=label, disabled=disabled)
@@ -173,7 +189,49 @@ class ColorLibrary(discord.ui.View):
     async def edit(self, i):
         await i.response.send_modal(ColorModal(self, self.selected))
 
-    async def save_color(self, i, existing, name, color):
+    async def preview(self, i):
+        await i.response.defer(ephemeral=True, thinking=True)
+        await self.preview_color(i, self.colors[self.selected])
+
+    async def preview_color(self, i, color, *, save=None):
+        from ky_bot.checklists.artwork import title_image
+        from ky_bot.views.media import NoAltMediaGalleryItem
+
+        from .palette_editor import PaletteReview
+
+        data = await asyncio.to_thread(
+            title_image, "KY BOT COLOR PREVIEW", "silver_neon", color, color, shimmer=True
+        )
+        filename = "custom-color-preview.png"
+        if save:
+            view = PaletteReview(
+                {"base": color},
+                [(filename, data)],
+                save,
+                self.interaction_check,
+                save_label="Save color",
+            )
+        else:
+            view = discord.ui.LayoutView(timeout=600)
+            panel = discord.ui.Container(accent_colour=int(color[1:], 16))
+            panel.add_item(
+                discord.ui.TextDisplay(
+                    "**COLOR PREVIEW**\n"
+                    + color
+                    + " · Heading and line sample. Preview the panel for the full layout."
+                )
+            )
+            panel.add_item(
+                discord.ui.MediaGallery(NoAltMediaGalleryItem("attachment://" + filename))
+            )
+            view.add_item(panel)
+        file = discord.File(io.BytesIO(data), filename=filename)
+        try:
+            await i.followup.send(view=view, files=[file], ephemeral=True)
+        finally:
+            file.close()
+
+    async def save_color(self, i, existing, name, color, *, refresh=True):
         async with self.lock:
             if existing is not None and existing not in self.colors:
                 raise ValueError("This saved color changed. Reopen its editor.")
@@ -187,7 +245,8 @@ class ColorLibrary(discord.ui.View):
             await self.commit(i, colors, None, None)
             self.colors, self.selected = colors, name
             self.page = list(colors).index(name) // 25
-            await self.refresh(i, "Color saved. Choose a target and Apply color to use it.")
+            if refresh:
+                await self.refresh(i, "Color saved. Choose a target and Apply color to use it.")
 
     async def apply(self, i):
         await i.response.defer()

@@ -15,7 +15,9 @@ def section_rule(image, ink_right, style, text_color=None):
     left = ink_right + 24
     right = image.width - 8
     if left < right:
-        color = ImageColor.getrgb(text_color or COLOURS[style]) + (120,)
+        from ky_bot.design.text_colour import text_colour
+
+        color = ImageColor.getrgb(text_colour(text_color) or COLOURS[style]) + (120,)
         ImageDraw.Draw(image).line(
             (left, image.height // 2, right, image.height // 2), fill=color, width=1
         )

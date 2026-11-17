@@ -71,12 +71,13 @@ class DecorativeTextTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             validate(dict(title="x" * 81, title_style="decorative"))
 
-    async def test_heading_pixels_use_requested_color(self):
+    async def test_heading_pixels_keep_requested_hue_with_metallic_shading(self):
         raw = title_image("Welcome", "gold", "#39DCCB")
         image = Image.open(io.BytesIO(raw)).convert("RGBA")
         visible = [p for p in image.get_flattened_data() if p[3] > 0]
         self.assertTrue(visible)
-        self.assertTrue(all(p[:3] == (57, 220, 203) for p in visible))
+        self.assertGreater(len({p[:3] for p in visible if p[3] > 240}), 15)
+        self.assertGreater(sum(p[1] for p in visible), sum(p[0] for p in visible))
 
     async def test_render_maximum_sections_and_decorative_fields(self):
         encoded = image_upload(self.png())
