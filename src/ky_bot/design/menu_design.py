@@ -39,6 +39,8 @@ def default_profile(key):
         text_color=None,
         line_color=None,
         saved_colors={},
+        header_finish=None,
+        footer_finish=None,
         header_palette=None,
         footer_palette=None,
         header_text_color=None,
@@ -90,7 +92,11 @@ def render_menu(profile, title):
 
     height = profile["height"]
     with using_palette(profile.get("header_palette")):
-        style = "dark_silver" if profile.get("header_palette") else profile["style"]
+        style = (
+            "dark_silver"
+            if profile.get("header_palette")
+            else profile.get("header_finish") or profile["style"]
+        )
         header = render_header(
             decode(profile["header_background"]) or png(floral_background(style, (1600, height))),
             style,
@@ -101,7 +107,11 @@ def render_menu(profile, title):
             text_color=profile.get("header_text_color") or profile.get("text_color"),
         )
     with using_palette(profile.get("footer_palette")):
-        style = "dark_silver" if profile.get("footer_palette") else profile["style"]
+        style = (
+            "dark_silver"
+            if profile.get("footer_palette")
+            else profile.get("footer_finish") or profile["style"]
+        )
         size = (1600, 150)
         background = decode(profile["footer_background"])
         footer = (

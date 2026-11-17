@@ -100,9 +100,14 @@ class SettingsService:
 
             background = decode(design["header_background"])
             if background is None:
-                background = await asyncio.to_thread(
-                    lambda: png(floral_background(design["style"], (1200, 800)))
-                )
+                from ky_bot.design.metallic import using_palette
+
+                def render_background():
+                    with using_palette(design.get("header_palette")):
+                        style = "dark_silver" if design.get("header_palette") else design["style"]
+                        return png(floral_background(style, (1200, 800)))
+
+                background = await asyncio.to_thread(render_background)
             artwork = WelcomeArtwork(
                 background,
                 design["title"] or "WELCOME",
@@ -124,6 +129,14 @@ class SettingsService:
             server_name=member.guild.name,
             message=message,
             avatar=avatar,
+            title_style=design.get("style") if design else None,
+            title_color=(
+                design.get("header_text_color")
+                or design.get("text_color")
+                or (design.get("header_palette") or {}).get("base")
+            )
+            if design
+            else None,
         )
 
     async def set_welcome_message(self, guild_id: int, message: str) -> None:

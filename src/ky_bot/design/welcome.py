@@ -42,6 +42,8 @@ def render_welcome(
     server_name: str,
     message: str,
     avatar: bytes | None = None,
+    title_style: str | None = None,
+    title_color: str | None = None,
 ) -> bytes:
     background = (
         artwork.background
@@ -83,7 +85,18 @@ def render_welcome(
         tile = fit_text(text, size, str(font(role, size).path), colour, 1040)
         image.alpha_composite(tile, (600 - tile.width // 2, y))
 
-    centered(artwork.title.upper(), 320, "display", 70, accent)
+    if title_style:
+        from ky_bot.design.image_text import metallic_ink
+
+        tile = fit_text(
+            readable(artwork.title.upper()), 70, str(font("display", 70).path), "#FFFFFF", 1040
+        )
+        image.alpha_composite(
+            metallic_ink(tile.getchannel("A"), title_style, title_color),
+            (600 - tile.width // 2, 320),
+        )
+    else:
+        centered(artwork.title.upper(), 320, "display", 70, accent)
     centered(member_name, 415, "display", 68, "#F5F1E8")
     centered(server_name, 506, "body", 28, accent)
     # Preserve whole graphemes when wrapping names or emoji in the welcome message.

@@ -55,6 +55,8 @@ def defaults():
         color="D6E2F3",
         header_title="CONFESSIONS",
         artwork_finish="silver_neon",
+        header_artwork_finish=None,
+        footer_artwork_finish=None,
         header_palette=None,
         footer_palette=None,
         header_text_color=None,
@@ -132,6 +134,9 @@ def validate(config):
 
     for key in ("artwork_finish", "text_finish"):
         if result[key] not in FINISHES:
+            raise ValueError("Choose one of the four standard finishes.")
+    for key in ("header_artwork_finish", "footer_artwork_finish"):
+        if result[key] is not None and result[key] not in FINISHES:
             raise ValueError("Choose one of the four standard finishes.")
     result["text_color"] = text_colour(result["text_color"])
     result["line_color"] = text_colour(result["line_color"])

@@ -20,7 +20,7 @@ from ky_bot.design.menu_design import (
 from ky_bot.errors import report_error, send_private
 from ky_bot.views.media import NoAltMediaGalleryItem
 from ky_bot.views.menu_context import display_menu, menu_parent
-from ky_bot.views.menu_strips import add_strip, category_files
+from ky_bot.views.menu_strips import GROUPS, add_strip, category_files, group_sections, strip_files
 from ky_bot.views.save_notice import mark_saved, take_notice
 from ky_bot.views.sections import navigation_divider, section_dividers
 
@@ -37,6 +37,41 @@ TARGETS = {
     "checklist": "All checklists / default",
     "welcome_image": "Welcome image",
 }
+
+
+FORMAT_GROUPS = {
+    "edit": (
+        (
+            "DESIGN",
+            (
+                "SELECT MENUS",
+                "HEADER IMAGE",
+                "FOOTER IMAGE",
+                "TEXT & COLORS",
+                "IMAGE TEXT & COLORS",
+                "IMAGE COLORS",
+                "SAVED CUSTOM COLORS",
+                "FRAME",
+                "RESTORE DEFAULTS",
+            ),
+        ),
+        ("REVIEW & PUBLISH", ("PREVIEW",)),
+    ),
+    "text_colors": (
+        ("DESIGN", ("TEXT & LINE COLORS", "HEADING FINISH", "SAVED CUSTOM COLORS")),
+        ("REVIEW & PUBLISH", ("PRIVATE PREVIEW",)),
+    ),
+}
+for part in ("header", "footer"):
+    FORMAT_GROUPS[part + "_image"] = (
+        (
+            part.upper() + " IMAGE",
+            ("IMAGE SOURCE", "IMAGE COLORS", "CUSTOM IMAGE COLORS", "RESET IMAGE"),
+        ),
+        ("TITLE", ("IMAGE TEXT & COLORS", "FOOTER ICON", "SAVED CUSTOM COLORS")),
+        ("REVIEW & PUBLISH", ("PRIVATE PREVIEW",)),
+    )
+GROUPS.update({"design:" + page: groups for page, groups in FORMAT_GROUPS.items()})
 
 
 def checklist_target(key):
@@ -139,7 +174,7 @@ class DesignSession:
         for key in self.selected:
             self.drafts[key].update(values)
 
-    async def open_saved_colors(self, i):
+    async def open_saved_colors(self, i, *, part=None):
         from ky_bot.design.saved_colors import open_library
 
         if len(self.selected) != 1:
@@ -169,7 +204,9 @@ class DesignSession:
                 "line_color": "Heading lines",
                 "header_text_color": "Header image text",
                 "footer_text_color": "Footer image text",
-            },
+            }
+            if key != "welcome_image" and not part
+            else {(part or "header") + "_text_color": (part or "Welcome title").title() + " text"},
             commit,
             allowed=allowed,
             draft=True,
@@ -201,7 +238,11 @@ class DesignSession:
             )
             return
         view = Editor(self, page, notice)
-        attachments = category_files([view.category_title], "silver_neon")
+        attachments = (
+            strip_files(view.strip_menu, "silver_neon")
+            if view.strip_menu
+            else category_files([view.category_title], "silver_neon")
+        )
         try:
             self.command_center = menu_parent(self.command_center, interaction)
             await display_menu(interaction, view, attachments, self.command_center)
@@ -402,10 +443,11 @@ class DesignSession:
 
 
 class AppearanceModal(discord.ui.Modal):
-    def __init__(self, session, upload=None, *, formatting=False):
+    def __init__(self, session, upload=None, *, formatting=False, part=None, page="edit"):
         super().__init__(title="Upload design image" if upload else "Edit appearance")
         self.session, self.generation, self.upload_key = session, session.generation, upload
         profile = session.drafts[session.selected[0]]
+        self.return_page = page
         self.fields = {}
         if upload:
             self.upload = discord.ui.FileUpload(max_values=1, required=True)
@@ -463,6 +505,26 @@ class AppearanceModal(discord.ui.Modal):
                         "line_color",
                         "Heading line hex (blank follows text)",
                         profile.get("line_color") or "",
+                        7,
+                    )
+                )
+            if welcome and not formatting:
+                specs.append(
+                    (
+                        "header_text_color",
+                        "Metallic title hex (blank uses preset)",
+                        profile.get("header_text_color") or "",
+                        7,
+                    )
+                )
+            if part:
+                keys = {"title", "height", "dim"} if part == "header" else {"footer_text"}
+                specs = [spec for spec in specs if spec[0] in keys]
+                specs.append(
+                    (
+                        part + "_text_color",
+                        "Metallic text hex (blank uses preset)",
+                        profile.get(part + "_text_color") or "",
                         7,
                     )
                 )
@@ -525,7 +587,7 @@ class AppearanceModal(discord.ui.Modal):
                 if "title" in values:
                     values["title"] = values["title"] or None
                 s.change(**values)
-            await s.show(interaction)
+            await s.show(interaction, self.return_page)
 
     async def on_error(self, interaction, error):
         await editor_error(interaction, error)
@@ -545,6 +607,7 @@ class Editor(discord.ui.LayoutView):
     def __init__(self, session, page="edit", notice=None, sample=None):
         super().__init__(timeout=600)
         self.session, self.generation = session, session.generation
+        self.strip_menu = "design:" + page if page in FORMAT_GROUPS and not sample else None
         s = session
         if sample:
             # Preview approval controls replace the sample's bottom navigation.
@@ -581,7 +644,7 @@ class Editor(discord.ui.LayoutView):
         if sample:
             # These are bottom approval controls, not a category of sample settings.
             panel.add_item(discord.ui.TextDisplay("**DESIGN PREVIEW**"))
-        else:
+        elif not self.strip_menu:
             add_strip(panel, self.category_title)
         if notice:
             panel.add_item(discord.ui.TextDisplay(notice))
@@ -602,7 +665,15 @@ class Editor(discord.ui.LayoutView):
                         return
                     if isinstance(action, tuple):
                         await i.response.send_modal(
-                            AppearanceModal(s, action[0], formatting=len(action) > 1)
+                            AppearanceModal(
+                                s,
+                                action[0],
+                                formatting=len(action) > 1,
+                                part=page.removesuffix("_image")
+                                if page in {"header_image", "footer_image"} and action[0] is None
+                                else None,
+                                page=page,
+                            )
                         )
                     else:
                         if (
@@ -620,6 +691,9 @@ class Editor(discord.ui.LayoutView):
 
         async def edit(i):
             await s.show(i)
+
+        async def preview_current(i):
+            await s.preview(i, s.selected[0])
 
         if page == "preview":
             group = s.selected.index(s.preview_key) // 24
@@ -708,7 +782,13 @@ class Editor(discord.ui.LayoutView):
                 for key, label in FINISHES.items():
 
                     async def choose(i, key=key):
-                        s.change(style=key, header_palette=None, footer_palette=None)
+                        s.change(
+                            style=key,
+                            header_palette=None,
+                            footer_palette=None,
+                            header_finish=None,
+                            footer_finish=None,
+                        )
                         await s.show(i)
 
                     row(
@@ -717,8 +797,10 @@ class Editor(discord.ui.LayoutView):
                         label,
                         choose,
                     )
-            if page == "finish" and s.selected != ["welcome_image"]:
-                for part in ("header", "footer"):
+            if page == "finish":
+                for part in (
+                    ("header",) if s.selected == ["welcome_image"] else ("header", "footer")
+                ):
 
                     async def custom(i, part=part):
                         from .menu_design import render_menu
@@ -771,7 +853,193 @@ class Editor(discord.ui.LayoutView):
                             accessory=control,
                         )
                     )
+            if page == "finish":
+                row(
+                    "PRIVATE PREVIEW",
+                    "Review the complete layout before applying the draft.",
+                    "Preview",
+                    preview_current,
+                    disabled=not s.selected,
+                    private=True,
+                )
             row("RETURN TO EDITING", "Keep selected options.", "Back", edit)
+        elif page in {"header_image", "footer_image", "text_colors"}:
+            part = page.removesuffix("_image")
+            current = s.drafts[s.selected[0]]
+            if page != "text_colors":
+                row(
+                    "IMAGE SOURCE",
+                    "Your uploaded image" if current[part + "_background"] else "KY BOT artwork",
+                    "Upload image",
+                    (part + "_background",),
+                )
+                panel.add_item(
+                    discord.ui.TextDisplay("**IMAGE COLORS**\nChoose a KY BOT artwork preset.")
+                )
+                picker = discord.ui.Select(
+                    placeholder="Choose image colors",
+                    options=[
+                        discord.SelectOption(
+                            label=label,
+                            value=key,
+                            default=key == (current.get(part + "_finish") or current["style"])
+                            and not current.get(part + "_palette"),
+                        )
+                        for key, label in FINISHES.items()
+                    ],
+                )
+
+                async def choose_image(i):
+                    async with s.lock:
+                        if not await s.allowed(i, self.generation):
+                            return
+                        await i.response.defer()
+                        s.change(
+                            **{
+                                part + "_finish": picker.values[0],
+                                part + "_palette": None,
+                                part + "_background": None,
+                            }
+                        )
+                        await s.show(i, page)
+
+                picker.callback = choose_image
+                panel.add_item(discord.ui.ActionRow(picker))
+
+                async def custom(i):
+                    from .menu_design import render_menu
+                    from .palette_editor import PaletteModal, palette_defaults
+
+                    generation = self.generation
+                    if not await s.allowed(i, generation):
+                        return
+                    snapshot = copy.deepcopy(current)
+
+                    def render(palette):
+                        pair = render_menu(
+                            dict(
+                                snapshot, **{part + "_palette": palette, part + "_background": None}
+                            ),
+                            "COLOR PREVIEW",
+                        )
+                        return [("palette_" + part + ".png", pair[0 if part == "header" else 1])]
+
+                    async def allowed(event):
+                        return await s.allowed(event, generation)
+
+                    async def commit(event, palette):
+                        await event.response.defer()
+                        s.change(**{part + "_palette": palette, part + "_background": None})
+                        await s.show(event, page)
+
+                    await i.response.send_modal(
+                        PaletteModal(
+                            palette_defaults(current, part),
+                            render,
+                            commit,
+                            allowed,
+                            save_label="Use in draft",
+                        )
+                    )
+
+                control = discord.ui.Button(label="Custom colors")
+                control.callback = custom
+                panel.add_item(
+                    discord.ui.Section(
+                        "**CUSTOM IMAGE COLORS**\nPreview the metallic colors before saving.",
+                        accessory=control,
+                    )
+                )
+                row(
+                    "IMAGE TEXT & COLORS",
+                    "Edit metallic lettering on this image, including uploads.",
+                    "Edit text & colors",
+                    (None,),
+                )
+                if part == "footer":
+                    row(
+                        "FOOTER ICON",
+                        "Upload an icon to use when footer text is blank.",
+                        "Upload",
+                        ("footer_icon",),
+                    )
+
+                async def reset_image(i):
+                    s.change(
+                        **{
+                            part + "_background": None,
+                            part + "_palette": None,
+                            part + "_finish": None,
+                        }
+                    )
+                    await s.show(i, page)
+
+                row("RESET IMAGE", "Restore this image's default artwork.", "Restore", reset_image)
+            else:
+                row(
+                    "TEXT & LINE COLORS",
+                    "Set metallic heading colors and the lines beside them.",
+                    "Edit colors",
+                    (None, "formatting"),
+                )
+
+                panel.add_item(
+                    discord.ui.TextDisplay(
+                        "**HEADING FINISH**\nChoose a metallic finish for section text."
+                    )
+                )
+                finish_picker = discord.ui.Select(
+                    placeholder="Choose a heading finish",
+                    options=[
+                        discord.SelectOption(
+                            label=label,
+                            value=key,
+                            default=current["style"] == key and not current.get("text_color"),
+                        )
+                        for key, label in FINISHES.items()
+                    ],
+                )
+
+                async def heading_finish(i):
+                    async with s.lock:
+                        if not await s.allowed(i, self.generation):
+                            return
+                        await i.response.defer()
+                        for target in s.selected:
+                            draft = s.drafts[target]
+                            # Choosing a text finish must preserve both image designs.
+                            for image in ("header", "footer"):
+                                draft[image + "_finish"] = (
+                                    draft.get(image + "_finish") or draft["style"]
+                                )
+                                draft[image + "_text_color"] = draft.get(
+                                    image + "_text_color"
+                                ) or draft.get("text_color")
+                        s.change(style=finish_picker.values[0], text_color=None)
+                        await s.show(i, page)
+
+                finish_picker.callback = heading_finish
+                panel.add_item(discord.ui.ActionRow(finish_picker))
+            row(
+                "SAVED CUSTOM COLORS",
+                "Use named colors shared across this server.",
+                "Saved colors",
+                lambda i: s.open_saved_colors(i, part=part if page != "text_colors" else None),
+                disabled=len(s.selected) != 1,
+            )
+            row(
+                "PRIVATE PREVIEW",
+                "Review the complete layout before applying the draft.",
+                "Preview",
+                preview_current,
+                private=True,
+            )
+            row(
+                "RETURN TO EDITING",
+                "Keep this draft and return to the design options.",
+                "Back",
+                edit,
+            )
         else:
             names = (", ".join(s.targets[key] for key in s.selected) or "None selected")[:1000]
 
@@ -782,85 +1050,62 @@ class Editor(discord.ui.LayoutView):
             active = bool(s.selected)
             welcome = s.selected == ["welcome_image"]
             current = s.drafts[s.selected[0]] if active else default_profile("settings:overview")
-            finishes = {s.drafts[key]["style"] for key in s.selected}
 
             async def finish(i):
                 await s.show(i, "finish")
 
-            row(
-                "ARTWORK COLORS",
-                "Custom metallic colors"
-                if any(
-                    s.drafts[key].get("header_palette") or s.drafts[key].get("footer_palette")
-                    for key in s.selected
-                )
-                else FINISHES[next(iter(finishes))]
-                if len(finishes) == 1
-                else "Mixed finishes · choose to update all selected menus",
-                "Choose",
-                finish,
-                disabled=not active,
-            )
-            row(
-                "TEXT & IMAGE SIZE",
-                (
-                    f"{safe(current['title'] or 'Default title')} · Darkening {current['dim']}%"
-                    if welcome
-                    else f"{safe(current['title'] or 'Each menu keeps its title')} · "
-                    f"{current['height']}px · Footer: {safe(current['footer_text'] or 'Icon')}"
-                ),
-                "Edit",
-                (None,),
-                disabled=not active,
-            )
-            row(
-                "BACKGROUND" if welcome else "HEADER BACKGROUND",
-                ("Custom image" if current["header_background"] else "Floral artwork")
-                + " · KY BOT corner branding stays in place.",
-                "Upload",
-                ("header_background",),
-                disabled=not active,
-            )
-            if not welcome:
+            if welcome:
                 row(
-                    "TEXT COLORS",
-                    "Set text colors and a separate heading-line color. "
-                    "Image text keeps its metallic shine on your uploaded backgrounds.",
-                    "Edit colors",
-                    (None, "formatting"),
-                    disabled=not active,
+                    "HEADER IMAGE",
+                    "Choose the background image for the welcome card.",
+                    "Upload image",
+                    ("header_background",),
                 )
+                row(
+                    "IMAGE TEXT & COLORS",
+                    "Edit the card title, darkening and metallic text color.",
+                    "Edit text & colors",
+                    (None,),
+                )
+                row("IMAGE COLORS", FINISHES[current["style"]], "Choose", finish)
                 row(
                     "SAVED CUSTOM COLORS",
-                    "Name, edit and reuse colors for one selected menu.",
+                    "Use named colors shared across this server.",
                     "Saved colors",
                     s.open_saved_colors,
-                    disabled=not active,
                 )
+            else:
+                for part in ("header", "footer"):
+
+                    async def open_image(i, part=part):
+                        await s.show(i, part + "_image")
+
+                    row(
+                        part.upper() + " IMAGE",
+                        "Source, artwork colors and metallic lettering.",
+                        "Edit " + part,
+                        open_image,
+                        disabled=not active,
+                    )
+
+                async def text_colors(i):
+                    await s.show(i, "text_colors")
+
                 row(
-                    "FOOTER BACKGROUND",
-                    "Replace the background image.",
-                    "Upload",
-                    ("footer_background",),
-                    disabled=not active,
-                )
-                row(
-                    "FOOTER ICON",
-                    "Use a custom icon or emoji image.",
-                    "Upload",
-                    ("footer_icon",),
+                    "TEXT & COLORS",
+                    "Section headings, line colors and shared saved colors.",
+                    "Edit text & colors",
+                    text_colors,
                     disabled=not active,
                 )
 
                 async def frame(i):
-                    value = not s.drafts[s.selected[0]]["framed"]
-                    s.change(framed=value)
+                    s.change(framed=not s.drafts[s.selected[0]]["framed"])
                     await s.show(i)
 
                 row(
                     "FRAME",
-                    ("On" if current["framed"] else "Off")
-                    + " · Matching header and footer outlines.",
+                    "On" if current["framed"] else "Off",
                     "Turn on / off",
                     frame,
                     disabled=not active,
@@ -930,6 +1175,8 @@ class Editor(discord.ui.LayoutView):
                 navigation.append(item.accessory)
         if navigation:
             panel.add_item(discord.ui.ActionRow(*navigation))
+        if self.strip_menu:
+            group_sections(panel, self.strip_menu)
         section_dividers(panel, navigation_on_right=True)
         # Notices (including the post-apply confirmation) need a component too.
         # Sacrifice only decorative rules, never draft data or working controls.

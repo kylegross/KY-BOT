@@ -407,7 +407,9 @@ class Session:
                 "header_text_color": "Header image text",
                 "footer_text_color": "Footer image text",
                 "color": "Message highlight",
-            },
+            }
+            if getattr(self, "page", "") not in {"header_image", "footer_image"}
+            else {self.page.removesuffix("_image") + "_text_color": "Image text"},
             commit,
         )
 
@@ -432,6 +434,8 @@ class EditModal(discord.ui.Modal):
                 "title": "Edit title",
                 "header_title": "Header image title",
                 "image_text": "Header and footer image text",
+                "header_image_text": "Header image text & color",
+                "footer_image_text": "Footer image text & color",
                 "body": "Edit message",
                 "footer_text": "Edit footer text",
                 "name": "Saved draft name",
@@ -543,7 +547,9 @@ class EditModal(discord.ui.Modal):
                 )
             ],
             "format": [("text", "New text · appended to the message below", "", 3000, True)],
-        }[mode]
+        }["image_text" if mode in {"header_image_text", "footer_image_text"} else mode]
+        if mode in {"header_image_text", "footer_image_text"}:
+            specs = specs[:2] if mode == "header_image_text" else specs[2:]
         for key, label, value, limit, required in specs:
             field = discord.ui.TextInput(
                 label=label,
@@ -641,14 +647,23 @@ class Editor(Base):
                 self.panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
             self.row("**DRAFT NAME**\n" + safe(data["name"]), button("Rename", modal("name")))
             for heading, description, destination in (
-                ("IMAGES", "Optional header and footer images.", "images"),
                 (
-                    "CONTENT & TEXT STYLES",
+                    "HEADER IMAGE",
+                    "Image source, artwork colors and metallic title text.",
+                    "header_image",
+                ),
+                (
+                    "FOOTER IMAGE",
+                    "Image source, artwork colors and metallic footer text.",
+                    "footer_image",
+                ),
+                (
+                    "PANEL TEXT",
                     "Edit title, message, footer and their text styles.",
                     "content",
                 ),
                 (
-                    "FORMATTING",
+                    "TEXT & COLORS",
                     "Text color, decorative headings and highlight color.",
                     "formatting",
                 ),
@@ -661,7 +676,24 @@ class Editor(Base):
             ):
                 if getattr(s, "return_to", None) is not None and destination == "delivery":
                     continue
-                self.row(f"**{heading}**\n-# {description}", button("Manage", go(destination)))
+                if destination == "publish":
+                    self.text("**PREVIEW & PUBLISH**\nReview privately, then publish when ready.")
+                    self.panel.add_item(
+                        discord.ui.ActionRow(
+                            button("Preview", self.preview),
+                            button("Publish changes", go("publish")),
+                        )
+                    )
+                else:
+                    self.row(
+                        f"**{heading}**\n-# {description}",
+                        button(
+                            "Edit " + destination.removesuffix("_image")
+                            if destination.endswith("_image")
+                            else "Manage",
+                            go(destination),
+                        ),
+                    )
             self.text(
                 "-# "
                 + (
@@ -807,8 +839,10 @@ class Editor(Base):
                     "**REMOVE SECTION**\nRemove this heading and its message from the draft.",
                     button("Remove section", remove_section),
                 )
-        elif page == "images":
-            for key, title in (("header", "HEADER IMAGE"), ("footer", "FOOTER IMAGE")):
+        elif page in {"images", "header_image", "footer_image"}:
+            parts = ("header", "footer") if page == "images" else (page.removesuffix("_image"),)
+            for key in parts:
+                title = key.upper() + " IMAGE"
                 self.row(
                     f"**{key.upper()} FILE**\n"
                     + (
@@ -900,23 +934,23 @@ class Editor(Base):
                         f"**REMOVE {title}**\nClear it from this draft.",
                         button("Remove", remove),
                     )
-            self.text(
-                "**TEXT ON HEADER & FOOTER**\nAdd text and choose its metallic colors. "
-                "Works with KY BOT artwork and your uploaded images."
-            )
-
-            async def preview_images(i):
-                await i.response.defer()
-                draft = validate(data, publish=False)
-                validate(draft | dict(channel=draft["channel"] or 1), publish=True)
-                await s.cog.post(i.followup, draft, private=True)
-
-            self.panel.add_item(
-                discord.ui.ActionRow(
-                    button("Edit text & colors", modal("image_text")),
-                    button("Preview", preview_images),
+            if page == "images":
+                self.text("**TEXT ON HEADER & FOOTER**\nEdit the text and its metallic colors.")
+                self.panel.add_item(
+                    discord.ui.ActionRow(
+                        button("Edit text & colors", modal("image_text")),
+                        button("Preview", self.preview),
+                    )
                 )
-            )
+            else:
+                self.row(
+                    "**IMAGE TEXT & COLORS**\nEdit metallic text on this image, including uploads.",
+                    button("Edit text & colors", modal(page + "_text")),
+                )
+                self.row(
+                    "**SAVED CUSTOM COLORS**\nUse named colors shared across this server.",
+                    button("Saved colors", s.open_saved_colors),
+                )
         elif page == "style":
             self.row(
                 f"**HIGHLIGHT COLOR**\n#{data['color']}", button("Custom color", modal("color"))
@@ -1012,17 +1046,13 @@ class Editor(Base):
                     "**DELETE EMBED**\nRemove the saved embed and its posted message.",
                     button("Delete", delete),
                 )
-        if page in {"content", "formatting", "sections", "style"} and not row["deleted"]:
-
-            async def preview_formatting(i):
-                await i.response.defer()
-                draft = validate(data, publish=False)
-                validate(draft | dict(channel=draft["channel"] or 1), publish=True)
-                await s.cog.post(i.followup, draft, private=True)
-
+        if (
+            page in {"content", "formatting", "sections", "style", "header_image", "footer_image"}
+            and not row["deleted"]
+        ):
             self.row(
                 "**PRIVATE PREVIEW**\nSee your current text, colors and images.",
-                button("Preview", preview_formatting),
+                button("Preview", self.preview),
             )
 
         if page != "main" and not row["deleted"]:
@@ -1060,6 +1090,12 @@ class Editor(Base):
                 ),
             )
         self.finish()
+
+    async def preview(self, i):
+        await i.response.defer()
+        draft = validate(self.session.row["draft"], publish=False)
+        validate(draft | dict(channel=draft["channel"] or 1), publish=True)
+        await self.session.cog.post(i.followup, draft, private=True)
 
     def channel_picker(self, s, data, revision):
         select = discord.ui.ChannelSelect(

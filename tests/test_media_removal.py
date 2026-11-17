@@ -269,7 +269,16 @@ class MediaRemovalTests(unittest.IsolatedAsyncioTestCase):
         await self.enable()
         session = Session(PanelCog(self.cog, 1), 7, 1, "1", return_to=AsyncMock())
         session.row = await session.cog.store.get(1, "1")
-        for page in ("main", "content", "formatting", "images", "sections", "publish"):
+        for page in (
+            "main",
+            "content",
+            "formatting",
+            "images",
+            "header_image",
+            "footer_image",
+            "sections",
+            "publish",
+        ):
             session.page = page
             view = Editor(session)
             assert_footer_dividers(self, view)

@@ -913,8 +913,8 @@ Menu Appearance uses its existing controls. The other three finishes are unchang
 
 ### Independent confession channel appearance
 
-Confessions → choose a channel → Appearance now separates Header & Footer Design,
-Decorative Text, Embed Color & Titles, and Submission Panel Text. Each channel saves its
+Confessions → choose a channel → Appearance separates Header Image, Footer Image,
+Panel Heading Colors, Embed Color & Titles, and Submission Panel Text. Each channel saves its
 own banner title, standard artwork finish or uploads, confession/panel wording, button
 label, accent color and decorative text finish. The text dropdown offers iridescent silver,
 gold, dark silver, iridescent red, and Custom color. Selecting a standard text finish clears
@@ -987,12 +987,23 @@ metallic highlights. Header and footer text colors are independent; uploaded pix
 outside the added text retain their original colors. Text already baked into a
 picture cannot be recolored by these controls.
 
-- **Ask for Advice:** Appearance → Header & Footer → Edit header / Edit footer.
-- **Confessions:** Appearance → Header & Footer Images → Text on Images.
-- **Tickets:** Edit a panel → Header / Footer → Edit text & color.
-- **Manage Embeds:** Images → Text on Header & Footer → Edit text & colors.
-- **Shared menu/checklist design:** Text Colors sets default, header and footer
-  text colors separately. Appearance sets the header title and footer image text.
+Appearance follows **Header image → Footer image → Text & colors → Preview** across
+Confessions, Ask for Advice, Tickets, Manage Embeds, Media Removal and shared menu/checklist
+design. Each image editor keeps its upload, artwork preset/custom palette, metallic image text,
+shared saved colors and private preview together. Confessions and shared menu images can use
+independent presets. Ticket topic/section formatting also offers a direct preview, including
+unassigned topics. Welcome cards expose the same color and preview options for their single
+image; they have no footer image.
+
+- **Ask for Advice / Confessions:** choose a channel → Appearance → Edit header / Edit footer.
+- **Tickets:** edit a public or opened-ticket panel → Appearance → Edit header / Edit footer.
+- **Manage Embeds / Media Removal:** open the panel editor → Header image / Footer image.
+- **Ask to DM/FR, checklists and shared menus:** General Settings → Menu Appearance → select
+  the menu → Edit header / Edit footer. Text & colors edits the section lettering separately.
+
+Image-page **Saved colors** opens with that image's text target. Section text finishes preserve
+header/footer designs. Formatting pages keep their bottom navigation divider and the shared
+compact description spacing.
 
 Color previews do not save until their save button is selected. Shared menu designs
 remain drafts until **Apply design**. Public panels and custom embeds use their

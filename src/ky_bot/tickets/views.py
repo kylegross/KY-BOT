@@ -403,14 +403,14 @@ class Admin(Panel):
                     "none": "Hidden",
                 }[mode]
                 self.row(
-                    kind.upper() + " ARTWORK",
+                    kind.upper() + " IMAGE",
                     label,
-                    "Configure",
+                    "Edit " + kind,
                     self.go("art_" + kind, selected),
                 )
             self.row(
-                "COLOR & CONTENT",
-                "Accent color, optional body image and footer caption.",
+                "TEXT & COLORS",
+                "Highlight color, optional body image and footer caption.",
                 "Edit",
                 self.edit_appearance,
             )
@@ -914,6 +914,13 @@ class Admin(Panel):
                 "Reset defaults",
                 self.reset_defaults,
             )
+        if page in {"type_appearance", "type_lettering", "text_format_before", "text_format_after"}:
+            self.row(
+                "PRIVATE PREVIEW",
+                "Review the current text and colors privately.",
+                "Preview",
+                self.preview,
+            )
         if page != "home":
             category = {
                 "access": "ACCESS & PRIVACY",
@@ -931,6 +938,46 @@ class Admin(Panel):
                 if (label := heading(item)) and not label.startswith("COMMAND CENTER")
             )
             GROUPS[self.groups] = ((category, labels),)
+            if page == "appearance":
+                GROUPS[self.groups] = (
+                    ("DESIGN", ("HEADER IMAGE", "FOOTER IMAGE", "TEXT & COLORS")),
+                    ("REVIEW & PUBLISH", ("PRIVATE PREVIEW",)),
+                )
+            elif page in {"art_header", "art_footer"}:
+                part = page.removeprefix("art_").upper()
+                GROUPS[self.groups] = (
+                    (
+                        part + " IMAGE",
+                        (
+                            part + " SOURCE",
+                            "YOUR OWN IMAGE",
+                            "KY BOT IMAGE COLORS",
+                            "CUSTOM IMAGE COLORS",
+                        ),
+                    ),
+                    (
+                        "TITLE",
+                        (
+                            "HEADER IMAGE TEXT",
+                            "FOOTER CONTENT",
+                            "FOOTER IMAGE TEXT",
+                            "FOOTER ICON",
+                            "SAVED CUSTOM COLORS",
+                        ),
+                    ),
+                    ("REVIEW & PUBLISH", ("PRIVATE PREVIEW",)),
+                )
+            elif page in {
+                "type_appearance",
+                "type_lettering",
+                "text_format_before",
+                "text_format_after",
+            }:
+                GROUPS[self.groups] = (
+                    ("DESIGN", tuple(label for label in labels if label != "PRIVATE PREVIEW")),
+                    ("REVIEW & PUBLISH", ("PRIVATE PREVIEW",)),
+                )
+
         destination = (
             "panel_text"
             if page in {"panel_text_before", "panel_text_after"}
@@ -1104,6 +1151,9 @@ class Admin(Panel):
             }
             if position:
                 targets.update(section_color="This section text", section_line="This section lines")
+
+        if getattr(self, "page", "") in {"art_header", "art_footer"}:
+            targets = {self.page.removeprefix("art_") + "_text_color": "Image text"}
 
         async def commit(event, colors, target, color):
             nonlocal revision, snapshot
@@ -1463,14 +1513,13 @@ class Admin(Panel):
                     await self.set_panel_art(i, {"footer_content": value})
 
                 self.picker(control, choose_content)
-            if content == "text":
-                self.row(
-                    "FOOTER IMAGE TEXT",
-                    safe(item.get("footer_banner_text", "")) or "No text yet",
-                    "Edit text & color",
-                    self.edit_footer_text,
-                )
-            elif content == "icon":
+            self.row(
+                "FOOTER IMAGE TEXT",
+                safe(item.get("footer_banner_text", "")) or "No text yet",
+                "Edit text & color",
+                self.edit_footer_text,
+            )
+            if content == "icon":
 
                 async def icon_upload(i):
                     await i.response.send_modal(ArtworkUpload(self, "footer_icon"))
@@ -2109,6 +2158,19 @@ class Admin(Panel):
             from .opening import preview_opening
 
             await preview_opening(i, self.config["panels"][self.selected])
+        elif self.selected in self.config["types"]:
+            # Preview a topic even when it has not been assigned to a real panel yet.
+            data = copy.deepcopy(self.config)
+            token = self.panel_context or next(
+                (key for key, panel in data["panels"].items() if self.selected in panel["types"]),
+                None,
+            )
+            if token is None:
+                token = uuid.uuid4().hex
+                data["panels"][token] = new_panel("Topic preview")
+            data["panels"][token]["types"] = [self.selected]
+            data["types"][self.selected]["enabled"] = True
+            await self.cog.preview_panel(i, data, token)
         else:
             await self.cog.preview_panel(i, self.config, self.selected)
 

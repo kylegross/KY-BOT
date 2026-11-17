@@ -218,7 +218,7 @@ class AppearanceWorkflowTests(unittest.IsolatedAsyncioTestCase):
             menu = ConfessionAdmin(SimpleNamespace(store=store), 7, 1, parent=self.parent)
             menu.channel = 10
             with patch("ky_bot.confessions.menus.display_menu", new=AsyncMock()):
-                for page in ("artwork", "image_text"):
+                for page in ("artwork", "image_text", "header_artwork", "footer_artwork"):
                     await menu.show(self.i, page, "Saved.")
                     self.assertLessEqual(menu.total_children_count, 40, page)
             menu.stop()

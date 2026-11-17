@@ -28,8 +28,16 @@ LAYOUTS = {
         ("CHANNELS & LOGGING", ("LOG CHANNEL", "AUTHOR LOGGING")),
     ),
     "style": (
-        ("DESIGN", ("HEADER & FOOTER", "PANEL TEXT & HIGHLIGHT", "ALL SECTION HEADINGS")),
+        (
+            "DESIGN",
+            ("HEADER IMAGE", "FOOTER IMAGE", "TEXT & COLORS"),
+        ),
         ("MESSAGE", ("ASK CHANNEL PANEL", "ACCESS PANEL TEXT")),
+        ("REVIEW & PUBLISH", ("PREVIEW PANELS",)),
+    ),
+    "lettering": (
+        ("DESIGN", ("PANEL TEXT & HIGHLIGHT", "ALL SECTION HEADINGS")),
+        ("REVIEW & PUBLISH", ("PREVIEW PANELS",)),
     ),
     "artwork": (
         ("DESIGN", ("HEADER IMAGE", "FOOTER IMAGE")),
@@ -37,12 +45,15 @@ LAYOUTS = {
     ),
     "header_artwork": (
         ("HEADER IMAGE", ("IMAGE SOURCE", "UPLOAD IMAGE", "IMAGE COLORS", "RESET IMAGE")),
-        ("TITLE", ("TITLE TEXT", "TITLE COLOR", "TITLE ON YOUR UPLOADED IMAGE")),
+        (
+            "TITLE",
+            ("TITLE TEXT", "TITLE COLOR", "TITLE ON YOUR UPLOADED IMAGE", "SAVED CUSTOM COLORS"),
+        ),
         ("REVIEW & PUBLISH", ("PREVIEW PANELS", "PUBLISH CHANGES")),
     ),
     "footer_artwork": (
         ("FOOTER IMAGE", ("IMAGE SOURCE", "UPLOAD IMAGE", "IMAGE COLORS", "RESET IMAGE")),
-        ("TITLE", ("FOOTER IMAGE TEXT",)),
+        ("TITLE", ("FOOTER IMAGE TEXT", "SAVED CUSTOM COLORS")),
         ("REVIEW & PUBLISH", ("PREVIEW PANELS", "PUBLISH CHANGES")),
     ),
     "sections": (("MESSAGE", ("PANEL SECTIONS", "ADD SECTION")),),

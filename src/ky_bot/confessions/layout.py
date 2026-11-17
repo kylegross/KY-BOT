@@ -20,7 +20,10 @@ LAYOUTS = {
         ("ADMINISTRATION", ("PENDING APPROVALS", "REPORTS", "CONFESSION BANS")),
     ),
     "appearance": (
-        ("DESIGN", ("HEADER & FOOTER IMAGES", "PANEL HEADING COLORS", "EMBED COLOR & TITLES")),
+        (
+            "DESIGN",
+            ("HEADER IMAGE", "FOOTER IMAGE", "PANEL HEADING COLORS", "EMBED COLOR & TITLES"),
+        ),
         ("MESSAGE", ("SUBMISSION PANEL TEXT",)),
         ("REVIEW & PUBLISH", ("PREVIEW",)),
     ),
@@ -57,6 +60,15 @@ LAYOUTS = {
     "reports": (("ADMINISTRATION", ("QUEUE CONTENT",)),),
     "bans": (("ACCESS & PRIVACY", ("CONFESSION BAN ENFORCEMENT", "BAN A MEMBER", "LIFT A BAN")),),
 }
+for part in ("header", "footer"):
+    LAYOUTS[part + "_artwork"] = (
+        (
+            part.upper() + " IMAGE",
+            ("IMAGE SOURCE", "IMAGE COLORS", "CUSTOM IMAGE COLORS", "RESET IMAGE"),
+        ),
+        ("TITLE", ("IMAGE TEXT & COLORS", "TITLE ON UPLOADED HEADER", "SAVED CUSTOM COLORS")),
+        ("REVIEW & PUBLISH", ("PREVIEW",)),
+    )
 GROUPS.update({"confessions:" + page: groups for page, groups in LAYOUTS.items()})
 
 

@@ -57,7 +57,17 @@ GROUPS = {
         ("SETUP", ("DESTINATION CHANNEL", "DRAFT NAME")),
         (
             "DESIGN",
-            ("IMAGES", "CONTENT & TEXT STYLES", "HIGHLIGHT COLOR", "FORMATTING", "SECTIONS"),
+            (
+                "IMAGES",
+                "HEADER IMAGE",
+                "FOOTER IMAGE",
+                "CONTENT & TEXT STYLES",
+                "PANEL TEXT",
+                "TEXT & COLORS",
+                "HIGHLIGHT COLOR",
+                "FORMATTING",
+                "SECTIONS",
+            ),
         ),
         ("DELIVERY", ("STICKY DELIVERY",)),
         ("REVIEW & PUBLISH", ("PREVIEW & PUBLISH",)),
@@ -101,6 +111,22 @@ GROUPS = {
             ),
         ),
         ("TITLE", ("TEXT ON HEADER & FOOTER",)),
+    ),
+    "custom_embeds:header_image": (
+        (
+            "HEADER IMAGE",
+            ("HEADER FILE", "HEADER IMAGE COLORS", "CUSTOM HEADER COLORS", "REMOVE HEADER IMAGE"),
+        ),
+        ("TITLE", ("IMAGE TEXT & COLORS", "SAVED CUSTOM COLORS")),
+        ("REVIEW & PUBLISH", ("PRIVATE PREVIEW",)),
+    ),
+    "custom_embeds:footer_image": (
+        (
+            "FOOTER IMAGE",
+            ("FOOTER FILE", "FOOTER IMAGE COLORS", "CUSTOM FOOTER COLORS", "REMOVE FOOTER IMAGE"),
+        ),
+        ("TITLE", ("IMAGE TEXT & COLORS", "SAVED CUSTOM COLORS")),
+        ("REVIEW & PUBLISH", ("PRIVATE PREVIEW",)),
     ),
     "custom_embeds:style": (("DESIGN", ("HIGHLIGHT COLOR",)),),
     "custom_embeds:delivery": (

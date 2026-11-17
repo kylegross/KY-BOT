@@ -522,13 +522,15 @@ class Admin(discord.ui.LayoutView):
             self.toggle(panel, "response_approval", "ADVICE RESPONSE APPROVAL")
             self.destination_picker(panel, "log_channel", "LOG CHANNEL", "destinations")
             self.toggle(panel, "logging", "AUTHOR LOGGING")
-        elif page == "style":
-            self.setting(
-                panel,
-                "HEADER & FOOTER",
-                "Choose the top banner and bottom image separately.",
-                self.navigate("artwork"),
-            )
+        elif page in {"style", "lettering"}:
+            if page == "style":
+                for part in ("header", "footer"):
+                    self.setting(
+                        panel,
+                        part.upper() + " IMAGE",
+                        "Image source, artwork colors and metallic lettering.",
+                        self.navigate(part + "_artwork", "Edit " + part),
+                    )
 
             async def style(click):
                 await self.edit_values(
@@ -536,20 +538,28 @@ class Admin(discord.ui.LayoutView):
                     "Panel appearance",
                     (
                         ("color", "Side highlight hex color", 7, True, False),
-                        ("text_color", "Panel heading hex color (blank = preset)", 7, False, False),
                         ("footer_text", "Small footer line below the message", 200, False, False),
                         ("title", "Published question heading", 80, True, False),
                         ("response_title", "Published advice heading", 80, True, False),
                     ),
                 )
 
-            self.setting(
-                panel,
-                "PANEL TEXT & HIGHLIGHT",
-                f"Accent: #{self.config['color']}",
-                self.button("Edit", style, modal=True),
-            )
-            await self.heading_style_controls(panel)
+            if page == "lettering":
+                self.setting(
+                    panel,
+                    "PANEL TEXT & HIGHLIGHT",
+                    f"Accent: #{self.config['color']}",
+                    self.button("Edit", style, modal=True),
+                )
+                await self.heading_style_controls(panel)
+
+            else:
+                self.setting(
+                    panel,
+                    "TEXT & COLORS",
+                    "Heading finishes, line colors, highlight and saved colors.",
+                    self.navigate("lettering", "Edit text & colors"),
+                )
 
             async def text(click):
                 await self.edit_values(
@@ -563,18 +573,19 @@ class Admin(discord.ui.LayoutView):
                     ),
                 )
 
-            self.setting(
-                panel,
-                "ASK CHANNEL PANEL",
-                "Edit the anonymous question prompt.",
-                self.button("Edit", text, modal=True),
-            )
-            self.setting(
-                panel,
-                "ACCESS PANEL TEXT",
-                "Headings, descriptions, button labels and emojis.",
-                self.navigate("text", "Edit panel text"),
-            )
+            if page == "style":
+                self.setting(
+                    panel,
+                    "ASK CHANNEL PANEL",
+                    "Edit the anonymous question prompt.",
+                    self.button("Edit", text, modal=True),
+                )
+                self.setting(
+                    panel,
+                    "ACCESS PANEL TEXT",
+                    "Headings, descriptions, button labels and emojis.",
+                    self.navigate("text", "Edit panel text"),
+                )
             self.setting(
                 panel,
                 "PREVIEW PANELS",
@@ -766,6 +777,12 @@ class Admin(discord.ui.LayoutView):
 
             self.setting(
                 panel,
+                "SAVED CUSTOM COLORS",
+                "Use named colors shared across this server.",
+                self.button("Saved colors", self.open_saved_colors, modal=True),
+            )
+            self.setting(
+                panel,
                 "RESET IMAGE",
                 "Return this image to the default silver KY BOT design.",
                 self.button("Reset " + kind, reset),
@@ -867,6 +884,12 @@ class Admin(discord.ui.LayoutView):
                 )
             else:
                 panel.add_item(discord.ui.TextDisplay("No pending questions or advice responses."))
+        if page in {"section", "row"}:
+            panel.add_item(
+                discord.ui.ActionRow(
+                    self.button("Preview", lambda click: self.preview(click, True))
+                )
+            )
         panel.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
         controls = discord.ui.ActionRow()
         if page != "channels":
@@ -874,8 +897,9 @@ class Admin(discord.ui.LayoutView):
                 "main": "channels",
                 "destinations": "main",
                 "artwork": "style",
-                "header_artwork": "artwork",
-                "footer_artwork": "artwork",
+                "lettering": "style",
+                "header_artwork": "style",
+                "footer_artwork": "style",
                 "section": "sections",
                 "row": "section",
             }.get(page, "main")
@@ -970,6 +994,9 @@ class Admin(discord.ui.LayoutView):
                 footer_text_color="Footer image text",
                 color="Message highlight",
             )
+        if self.page in {"header_artwork", "footer_artwork"}:
+            part = self.page.removesuffix("_artwork")
+            targets = {part + "_text_color": "Image text"}
         await open_library(i, seeds, targets, commit)
 
     async def heading_style_controls(self, panel):
