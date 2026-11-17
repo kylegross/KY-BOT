@@ -21,11 +21,12 @@ from .layout import arrange, attachments
 
 
 class ChannelChooser(discord.ui.View):
-    def __init__(self, cog, interaction, channels):
+    def __init__(self, cog, interaction, channels, *, feature="confession"):
         super().__init__(timeout=300)
         self.owner, self.guild = interaction.user.id, interaction.guild_id
         self.page = 0
         self.channels = channels
+        self.feature = feature
         self.cog = cog
         self.build(interaction.guild)
 
@@ -35,7 +36,9 @@ class ChannelChooser(discord.ui.View):
             discord.SelectOption(label=guild.get_channel(c).name, value=str(c))
             for _, c, _ in self.channels[self.page * 25 : (self.page + 1) * 25]
         ]
-        picker = discord.ui.Select(placeholder="Choose your confession channel", options=options)
+        picker = discord.ui.Select(
+            placeholder=f"Choose your {self.feature} channel", options=options
+        )
 
         async def choose(i):
             try:
@@ -64,7 +67,7 @@ class ChannelChooser(discord.ui.View):
     async def interaction_check(self, i):
         if i.user.id == self.owner and i.guild_id == self.guild:
             return True
-        await send_private(i, "Open your own confession channel picker.")
+        await send_private(i, f"Open your own {self.feature} channel picker.")
         return False
 
 

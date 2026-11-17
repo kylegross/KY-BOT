@@ -558,6 +558,7 @@ class Admin(discord.ui.LayoutView):
                     (
                         ("panel_title", "Heading", 80, True, False),
                         ("panel_text", "Description", 1000, False, True),
+                        ("panel_command_text", "Command instruction (optional)", 500, False, True),
                         ("submit_label", "Submit button label", 80, True, False),
                     ),
                 )
@@ -1070,6 +1071,7 @@ class Admin(discord.ui.LayoutView):
                 (
                     ("panel_title", "Question panel heading", 80, True, False),
                     ("panel_text", "Description", 1000, False, True),
+                    ("panel_command_text", "Command instruction (optional)", 500, False, True),
                     ("submit_label", "Submit button label", 80, True, False),
                 ),
                 page="text",

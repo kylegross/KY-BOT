@@ -72,7 +72,10 @@ Reposts and failed submission delivery are checked every ten seconds.
 Settings, submissions, pending approvals, panel IDs, and counters persist in isolated
 `advice_*` tables in the existing SQLite or PostgreSQL database. Restart restores
 button actions and pending delivery without requiring old menus to be clicked again.
-`/ask-advice channel:` is an optional shortcut to the private question form; sync
+`/advice` opens the private question form in the current ask channel, or offers a private
+channel picker when needed. `/advice channel:` selects a particular ask channel.
+The existing `/ask-advice channel:` shortcut is also supported. The submission panel
+shows an editable command instruction above its submit button; sync
 commands using the existing deployment workflow to expose this new slash command.
 
 Author identity is disclosed in private approval queues when approval is required

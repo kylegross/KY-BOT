@@ -634,6 +634,46 @@ class Advice(commands.Cog):
         await defer_menu(i, parent)
         await Admin(self, i.user.id, i.guild_id, parent=parent).show(i, "channels")
 
+    async def open_advice(self, i, channel=None):
+        if not i.guild:
+            raise ValueError("Use this inside your server.")
+        if channel is not None:
+            return await self.begin(i, channel.id)
+        configured = await self.store.channels(i.guild_id)
+        current = getattr(i.channel, "parent_id", None) or i.channel_id
+        for _, channel_id, config in configured:
+            if channel_id == current and config["enabled"]:
+                return await self.begin(i, channel_id)
+        roles = {role.id for role in getattr(i.user, "roles", ())}
+        available = []
+        for guild_id, channel_id, config in configured:
+            target = i.guild.get_channel(channel_id)
+            if (
+                config["enabled"]
+                and config["access_role"] in roles
+                and target
+                and target.permissions_for(i.user).view_channel
+            ):
+                available.append((guild_id, channel_id, config))
+        if not available:
+            raise ValueError("Join an Ask for Advice channel first using its access panel.")
+        if len(available) == 1:
+            return await self.begin(i, available[0][1])
+        from ky_bot.confessions.menus import ChannelChooser
+
+        await i.response.send_message(
+            view=ChannelChooser(self, i, available, feature="advice"), ephemeral=True
+        )
+
+    @app_commands.command(name="advice", description="Privately ask a question or seek advice.")
+    @app_commands.guild_only()
+    @app_commands.describe(channel="Ask channel (uses this channel or lets you choose privately)")
+    async def advice(self, i: discord.Interaction, channel: discord.TextChannel | None = None):
+        try:
+            await self.open_advice(i, channel)
+        except ValueError as error:
+            await send_private(i, str(error))
+
     @app_commands.command(name="ask-advice", description="Privately ask a question or seek advice.")
     @app_commands.guild_only()
     async def ask_advice(self, i: discord.Interaction, channel: discord.TextChannel):

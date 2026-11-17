@@ -18,6 +18,7 @@ def defaults():
         panel_title="ASK FOR ADVICE",
         panel_text="Have a question or need another perspective? Ask anonymously here.",
         submit_label="Ask anonymously",
+        panel_command_text="Use the button below or `/advice` command.",
         footer_text="",
         sticky=True,
         access_channel=0,
@@ -146,6 +147,8 @@ def validate(config):
         style["text_color"] = text_colour(style["text_color"])
         if "line_color" in style:
             style["line_color"] = text_colour(style["line_color"])
+    if not isinstance(result["panel_command_text"], str) or len(result["panel_command_text"]) > 500:
+        raise ValueError("The command instruction can contain up to 500 characters.")
     sections = result["sections"]
     if not isinstance(sections, list) or not 1 <= len(sections) <= 4:
         raise ValueError("Use 1–4 panel sections.")
